@@ -14,6 +14,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from .models.pochi_models import create_model
+from .utils.directory_manager import PochiWorkspaceManager
 
 
 class PochiTrainer:
@@ -43,9 +44,16 @@ class PochiTrainer:
         else:
             self.device = torch.device(device)
 
+        # ワークスペースマネージャーの初期化
+        self.workspace_manager = PochiWorkspaceManager(work_dir)
+        self.current_workspace = self.workspace_manager.create_workspace()
+        self.work_dir = self.workspace_manager.get_models_dir()
+
         # ロガーの設定
         self.logger = self._setup_logger()
         self.logger.info(f"使用デバイス: {self.device}")
+        self.logger.info(f"ワークスペース: {self.current_workspace}")
+        self.logger.info(f"モデル保存先: {self.work_dir}")
 
         # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
@@ -57,10 +65,6 @@ class PochiTrainer:
         self.logger.info(f"クラス数: {model_info['num_classes']}")
         self.logger.info(f"総パラメータ数: {model_info['total_params']:,}")
         self.logger.info(f"訓練可能パラメータ数: {model_info['trainable_params']:,}")
-
-        # 作業ディレクトリの作成
-        self.work_dir = Path(work_dir)
-        self.work_dir.mkdir(parents=True, exist_ok=True)
 
         # 訓練状態の管理
         self.epoch = 0
@@ -348,3 +352,36 @@ class PochiTrainer:
                 confidences.extend(confidence.cpu().numpy())
 
         return torch.tensor(predictions), torch.tensor(confidences)
+
+    def get_workspace_info(self) -> dict:
+        """
+        現在のワークスペース情報を取得.
+
+        Returns:
+            dict: ワークスペース情報
+        """
+        return self.workspace_manager.get_workspace_info()
+
+    def save_training_config(self, config_path: Path) -> Path:
+        """
+        訓練に使用した設定ファイルを保存.
+
+        Args:
+            config_path (Path): 設定ファイルのパス
+
+        Returns:
+            Path: 保存されたファイルのパス
+        """
+        return self.workspace_manager.save_config(config_path)
+
+    def save_image_list(self, image_paths: list) -> Path:
+        """
+        使用した画像リストを保存.
+
+        Args:
+            image_paths (list): 画像パスのリスト
+
+        Returns:
+            Path: 保存されたファイルのパス
+        """
+        return self.workspace_manager.save_image_list(image_paths)
