@@ -22,6 +22,9 @@ from .pochi_dataset import (
 # Pochiインターフェース
 from .pochi_trainer import PochiTrainer
 
+# ユーティリティ
+from .utils.directory_manager import PochiWorkspaceManager
+
 __version__ = "0.1.0"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
@@ -35,4 +38,6 @@ __all__ = [
     "get_basic_transforms",
     "create_model",
     "print_dataset_info",
+    # ユーティリティ
+    "PochiWorkspaceManager",
 ]

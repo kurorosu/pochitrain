@@ -7,3 +7,4 @@ tmp*.*
 outputs/
 PROGRESS.md
 data/*
+work_dirs/*

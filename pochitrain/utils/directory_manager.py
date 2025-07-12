@@ -1,0 +1,219 @@
+"""
+pochitrain.utils.directory_manager: ワークスペース管理クラス.
+
+タイムスタンプ付きワークスペースの作成と管理機能
+"""
+
+import shutil
+from pathlib import Path
+from typing import Optional
+
+from .timestamp_utils import (
+    find_next_index,
+    format_workspace_name,
+    get_current_date_str,
+    parse_timestamp_dir,
+)
+
+
+class PochiWorkspaceManager:
+    """
+    タイムスタンプ付きワークスペース管理クラス.
+
+    yyyymmdd_xxx 形式のディレクトリ構造を管理し、
+    モデル保存、設定ファイル、画像リスト、学習グラフの保存先を提供
+
+    Args:
+        base_dir (str): ベースディレクトリのパス (デフォルト: "work_dirs")
+    """
+
+    def __init__(self, base_dir: str = "work_dirs"):
+        """PochiWorkspaceManagerを初期化."""
+        self.base_dir = Path(base_dir)
+        self.current_workspace: Optional[Path] = None
+
+    def create_workspace(self) -> Path:
+        """
+        新しいワークスペースを作成.
+
+        yyyymmdd_xxx 形式のディレクトリを作成し、
+        必要なサブディレクトリ (models/) も作成
+
+        Returns:
+            Path: 作成されたワークスペースのパス
+
+        Examples:
+            work_dirs/20241220_001/
+            work_dirs/20241220_001/models/
+        """
+        # ベースディレクトリが存在しない場合は作成
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+        # 現在の日付を取得
+        date_str = get_current_date_str()
+
+        # 次のインデックスを取得
+        next_index = find_next_index(self.base_dir, date_str)
+
+        # ワークスペース名を生成
+        workspace_name = format_workspace_name(date_str, next_index)
+        workspace_path = self.base_dir / workspace_name
+
+        # ワークスペースディレクトリを作成
+        workspace_path.mkdir(parents=True, exist_ok=True)
+
+        # サブディレクトリを作成
+        models_dir = workspace_path / "models"
+        models_dir.mkdir(exist_ok=True)
+
+        # 現在のワークスペースとして設定
+        self.current_workspace = workspace_path
+
+        return workspace_path
+
+    def get_current_workspace(self) -> Optional[Path]:
+        """
+        現在のワークスペースのパスを取得.
+
+        Returns:
+            Optional[Path]: 現在のワークスペースのパス、未作成の場合はNone
+        """
+        return self.current_workspace
+
+    def get_models_dir(self) -> Path:
+        """
+        モデル保存用ディレクトリのパスを取得.
+
+        Returns:
+            Path: モデル保存用ディレクトリのパス
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        return self.current_workspace / "models"
+
+    def get_workspace_info(self) -> dict:
+        """
+        現在のワークスペースの情報を取得.
+
+        Returns:
+            dict: ワークスペース情報
+        """
+        if self.current_workspace is None:
+            return {
+                "workspace_path": None,
+                "models_dir": None,
+                "exists": False,
+                "date": None,
+                "index": None,
+            }
+
+        try:
+            date_str, index = parse_timestamp_dir(self.current_workspace.name)
+        except ValueError:
+            date_str, index = None, None
+
+        return {
+            "workspace_path": str(self.current_workspace),
+            "models_dir": str(self.current_workspace / "models"),
+            "exists": self.current_workspace.exists(),
+            "date": date_str,
+            "index": index,
+        }
+
+    def save_config(self, config_path: Path, target_name: str = "config.py") -> Path:
+        """
+        設定ファイルをワークスペースにコピー.
+
+        Args:
+            config_path (Path): コピー元の設定ファイルパス
+            target_name (str): コピー先のファイル名
+
+        Returns:
+            Path: コピー先のファイルパス
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+            FileNotFoundError: コピー元ファイルが存在しない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
+
+        target_path = self.current_workspace / target_name
+        shutil.copy2(config_path, target_path)
+
+        return target_path
+
+    def save_image_list(
+        self, image_paths: list, filename: str = "images_list.txt"
+    ) -> Path:
+        """
+        使用した画像のリストを保存.
+
+        Args:
+            image_paths (list): 画像パスのリスト
+            filename (str): 保存するファイル名
+
+        Returns:
+            Path: 保存されたファイルのパス
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        file_path = self.current_workspace / filename
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            for image_path in image_paths:
+                f.write(f"{image_path}\n")
+
+        return file_path
+
+    def get_available_workspaces(self) -> list[dict]:
+        """
+        利用可能なワークスペースの一覧を取得.
+
+        Returns:
+            list[dict]: ワークスペース情報のリスト
+        """
+        if not self.base_dir.exists():
+            return []
+
+        workspaces = []
+
+        for item in self.base_dir.iterdir():
+            if item.is_dir():
+                try:
+                    date_str, index = parse_timestamp_dir(item.name)
+                    workspaces.append(
+                        {
+                            "name": item.name,
+                            "path": str(item),
+                            "date": date_str,
+                            "index": index,
+                            "models_dir": str(item / "models"),
+                            "exists": item.exists(),
+                        }
+                    )
+                except ValueError:
+                    # 形式が合わないディレクトリは無視
+                    continue
+
+        # 日付とインデックスでソート
+        workspaces.sort(key=lambda x: (x["date"], x["index"]))
+
+        return workspaces
