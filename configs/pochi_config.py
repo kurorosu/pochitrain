@@ -1,4 +1,4 @@
-# pochitrain シンプル設定ファイル
+# pochitrain Pochi設定ファイル
 
 # モデル設定
 model_name = 'resnet18'  # 'resnet18', 'resnet34', 'resnet50'

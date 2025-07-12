@@ -1,11 +1,11 @@
 """
-pochitrain.models: シンプルなモデル定義モジュール
+pochitrain.models: Pochiモデル定義モジュール
 
-torchvisionモデルを使用したシンプルなモデル定義
+torchvisionモデルを使用したPochiモデル定義
 """
 
-from .simple_models import TorchvisionModel, create_model
+from .pochi_models import PochiModel, create_model
 
 __all__ = [
-    'TorchvisionModel', 'create_model'
+    'PochiModel', 'create_model'
 ]
