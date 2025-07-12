@@ -1,18 +1,17 @@
 """
-pochitrain.models.simple_models: シンプルなモデル実装
+pochitrain.models.pochi_models: Pochiモデル実装
 
 torchvisionのモデルを直接使用するシンプルなラッパー
 """
 
-from typing import Optional
 import torch
 import torch.nn as nn
 import torchvision.models as models
 
 
-class TorchvisionModel(nn.Module):
+class PochiModel(nn.Module):
     """
-    torchvisionモデルのシンプルなラッパー
+    torchvisionモデルのPochiラッパー
 
     Args:
         model_name (str): モデル名 ('resnet18', 'resnet34', 'resnet50')
@@ -65,7 +64,7 @@ class TorchvisionModel(nn.Module):
         }
 
 
-def create_model(model_name: str, num_classes: int, pretrained: bool = True) -> TorchvisionModel:
+def create_model(model_name: str, num_classes: int, pretrained: bool = True) -> PochiModel:
     """
     モデルを作成する便利関数
 
@@ -75,6 +74,6 @@ def create_model(model_name: str, num_classes: int, pretrained: bool = True) -> 
         pretrained (bool): 事前学習済みモデルを使用するか
 
     Returns:
-        TorchvisionModel: 作成されたモデル
+        PochiModel: 作成されたモデル
     """
-    return TorchvisionModel(model_name, num_classes, pretrained)
+    return PochiModel(model_name, num_classes, pretrained)
