@@ -5,13 +5,12 @@ pochitrain クイックスタート
 最速で検証まで到達するサンプルコード
 """
 
-import sys
 import importlib.util
 from pathlib import Path
 
 # pochitrainモジュールのインポート
-from pochitrain.simple_trainer import SimpleTrainer
-from pochitrain.simple_dataset import create_data_loaders, print_dataset_info
+from pochitrain.pochi_trainer import PochiTrainer
+from pochitrain.pochi_dataset import create_data_loaders
 
 
 def load_config(config_path: str) -> dict:
@@ -50,14 +49,14 @@ def main():
     print("=== pochitrain クイックスタート ===")
 
     # 設定ファイルの読み込み
-    config_path = "configs/simple_config.py"
+    config_path = "configs/pochi_config.py"
 
     try:
         config = load_config(config_path)
         print(f"設定ファイルを読み込みました: {config_path}")
     except FileNotFoundError:
         print(f"設定ファイルが見つかりません: {config_path}")
-        print("configs/simple_config.py を作成してください。")
+        print("configs/pochi_config.py を作成してください。")
         return
 
     # データローダーの作成
@@ -87,7 +86,7 @@ def main():
 
     # トレーナーの作成
     print("\nトレーナーを作成しています...")
-    trainer = SimpleTrainer(
+    trainer = PochiTrainer(
         model_name=config['model_name'],
         num_classes=config['num_classes'],
         pretrained=config['pretrained'],

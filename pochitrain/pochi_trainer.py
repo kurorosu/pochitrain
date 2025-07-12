@@ -1,11 +1,9 @@
 """
-pochitrain.simple_trainer: シンプルなトレーナー
+pochitrain.pochi_trainer: Pochiトレーナー
 
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
-import os
-import time
 import logging
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
@@ -15,12 +13,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from .models.simple_models import create_model
+from .models.pochi_models import create_model
 
 
-class SimpleTrainer:
+class PochiTrainer:
     """
-    シンプルなトレーナークラス
+    Pochiトレーナークラス
 
     Args:
         model_name (str): モデル名 ('resnet18', 'resnet34', 'resnet50')
@@ -73,7 +71,7 @@ class SimpleTrainer:
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定"""
-        logger = logging.getLogger('pochitrain_simple')
+        logger = logging.getLogger('pochitrain_pochi')
         logger.setLevel(logging.INFO)
 
         # ハンドラーが既に存在する場合は追加しない

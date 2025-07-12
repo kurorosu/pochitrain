@@ -1,10 +1,9 @@
 """
-pochitrain.simple_dataset: シンプルなデータセット
+pochitrain.pochi_dataset: Pochiデータセット
 
 カスタムデータセット用のシンプルなクラスと基本的なtransform
 """
 
-import os
 from typing import List, Tuple, Optional, Callable
 from pathlib import Path
 
@@ -14,9 +13,9 @@ from PIL import Image
 import torchvision.transforms as transforms
 
 
-class SimpleImageDataset(Dataset):
+class PochiImageDataset(Dataset):
     """
-    シンプルな画像分類データセット
+    Pochi画像分類データセット
 
     フォルダ構造:
     root/
@@ -161,7 +160,7 @@ def create_data_loaders(train_root: str,
     """
     # 訓練データセット
     train_transform = get_basic_transforms(image_size, is_training=True)
-    train_dataset = SimpleImageDataset(train_root, transform=train_transform)
+    train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
         train_dataset,
@@ -175,7 +174,7 @@ def create_data_loaders(train_root: str,
     val_loader = None
     if val_root:
         val_transform = get_basic_transforms(image_size, is_training=False)
-        val_dataset = SimpleImageDataset(val_root, transform=val_transform)
+        val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
         val_loader = DataLoader(
             val_dataset,
@@ -209,7 +208,7 @@ def create_simple_transforms(image_size: int = 224) -> dict:
 
 
 # データセットの情報を表示するヘルパー関数
-def print_dataset_info(dataset: SimpleImageDataset) -> None:
+def print_dataset_info(dataset: PochiImageDataset) -> None:
     """データセットの情報を表示"""
     print(f"データセット情報:")
     print(f"  総サンプル数: {len(dataset)}")
@@ -222,13 +221,13 @@ def print_dataset_info(dataset: SimpleImageDataset) -> None:
         print(f"    {cls_name}: {count}")
 
 
-def split_dataset(dataset: SimpleImageDataset,
+def split_dataset(dataset: PochiImageDataset,
                   train_ratio: float = 0.8) -> Tuple[Dataset, Dataset]:
     """
     データセットを訓練用と検証用に分割
 
     Args:
-        dataset (SimpleImageDataset): 分割するデータセット
+        dataset (PochiImageDataset): 分割するデータセット
         train_ratio (float): 訓練用の割合
 
     Returns:
