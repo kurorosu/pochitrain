@@ -36,8 +36,9 @@ class PochiModel(nn.Module):
                 f"サポートされているモデル: {list(supported_models.keys())}"
             )
 
-        # モデルの作成
-        self.model = supported_models[model_name](pretrained=pretrained)
+        # モデルの作成 - 新しいweights APIを使用
+        weights = "DEFAULT" if pretrained else None
+        self.model = supported_models[model_name](weights=weights)
 
         # 最終層を置き換え
         if hasattr(self.model, "fc"):
