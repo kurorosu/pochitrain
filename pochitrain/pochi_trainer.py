@@ -1,12 +1,12 @@
 """
-pochitrain.pochi_trainer: Pochiトレーナー
+pochitrain.pochi_trainer: Pochiトレーナー.
 
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
 import logging
-from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,7 @@ from .models.pochi_models import create_model
 
 class PochiTrainer:
     """
-    Pochiトレーナークラス
+    Pochiトレーナークラス.
 
     Args:
         model_name (str): モデル名 ('resnet18', 'resnet34', 'resnet50')
@@ -28,16 +28,18 @@ class PochiTrainer:
         work_dir (str, optional): 作業ディレクトリ
     """
 
-    def __init__(self,
-                 model_name: str,
-                 num_classes: int,
-                 pretrained: bool = True,
-                 device: Optional[str] = None,
-                 work_dir: str = 'work_dirs'):
-
+    def __init__(
+        self,
+        model_name: str,
+        num_classes: int,
+        pretrained: bool = True,
+        device: Optional[str] = None,
+        work_dir: str = "work_dirs",
+    ):
+        """PochiTrainerを初期化."""
         # デバイスの設定
         if device is None:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(device)
 
@@ -65,33 +67,33 @@ class PochiTrainer:
         self.best_accuracy = 0.0
 
         # 最適化器・損失関数は後で設定
-        self.optimizer = None
-        self.scheduler = None
-        self.criterion = None
+        self.optimizer: Optional[optim.Optimizer] = None
+        self.scheduler: Optional[optim.lr_scheduler._LRScheduler] = None
+        self.criterion: Optional[nn.Module] = None
 
     def _setup_logger(self) -> logging.Logger:
-        """ロガーの設定"""
-        logger = logging.getLogger('pochitrain_pochi')
+        """ロガーの設定."""
+        logger = logging.getLogger("pochitrain_pochi")
         logger.setLevel(logging.INFO)
 
         # ハンドラーが既に存在する場合は追加しない
         if not logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                '%(asctime)s - %(levelname)s - %(message)s'
-            )
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
             logger.addHandler(handler)
 
         return logger
 
-    def setup_training(self,
-                       learning_rate: float = 0.001,
-                       optimizer_name: str = 'Adam',
-                       scheduler_name: Optional[str] = None,
-                       scheduler_params: Optional[dict] = None) -> None:
+    def setup_training(
+        self,
+        learning_rate: float = 0.001,
+        optimizer_name: str = "Adam",
+        scheduler_name: Optional[str] = None,
+        scheduler_params: Optional[dict] = None,
+    ) -> None:
         """
-        訓練の設定
+        訓練の設定.
 
         Args:
             learning_rate (float): 学習率
@@ -103,32 +105,39 @@ class PochiTrainer:
         self.criterion = nn.CrossEntropyLoss()
 
         # 最適化器の設定
-        if optimizer_name == 'Adam':
+        if optimizer_name == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        elif optimizer_name == 'SGD':
-            self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate,
-                                       momentum=0.9, weight_decay=1e-4)
+        elif optimizer_name == "SGD":
+            self.optimizer = optim.SGD(
+                self.model.parameters(),
+                lr=learning_rate,
+                momentum=0.9,
+                weight_decay=1e-4,
+            )
         else:
             raise ValueError(f"サポートされていない最適化器: {optimizer_name}")
 
         # スケジューラーの設定
         if scheduler_name:
-            if scheduler_name == 'StepLR':
-                params = scheduler_params or {'step_size': 30, 'gamma': 0.1}
+            if scheduler_name == "StepLR":
+                params = scheduler_params or {"step_size": 30, "gamma": 0.1}
                 self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, **params)
-            elif scheduler_name == 'CosineAnnealingLR':
-                params = scheduler_params or {'T_max': 100}
+            elif scheduler_name == "CosineAnnealingLR":
+                params = scheduler_params or {"T_max": 100}
                 self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimizer, **params)
+                    self.optimizer, **params
+                )
             else:
-                raise ValueError(f"サポートされていないスケジューラー: {scheduler_name}")
+                raise ValueError(
+                    f"サポートされていないスケジューラー: {scheduler_name}"
+                )
 
         self.logger.info(f"最適化器: {optimizer_name} (学習率: {learning_rate})")
         if scheduler_name:
             self.logger.info(f"スケジューラー: {scheduler_name}")
 
     def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
-        """1エポックの訓練"""
+        """1エポックの訓練."""
         self.model.train()
         total_loss = 0.0
         correct = 0
@@ -138,15 +147,20 @@ class PochiTrainer:
             data, target = data.to(self.device), target.to(self.device)
 
             # 勾配をゼロにリセット
-            self.optimizer.zero_grad()
+            if self.optimizer is not None:
+                self.optimizer.zero_grad()
 
             # 順伝播
             output = self.model(data)
-            loss = self.criterion(output, target)
+            if self.criterion is not None:
+                loss = self.criterion(output, target)
+            else:
+                raise RuntimeError("criterion is not set")
 
             # 逆伝播
             loss.backward()
-            self.optimizer.step()
+            if self.optimizer is not None:
+                self.optimizer.step()
 
             # 統計情報の更新
             total_loss += loss.item()
@@ -157,21 +171,18 @@ class PochiTrainer:
             # ログ出力
             if batch_idx % 100 == 0:
                 self.logger.info(
-                    f'エポック {self.epoch}, バッチ {batch_idx}/{len(train_loader)}, '
-                    f'損失: {loss.item():.4f}, 精度: {100.0 * correct / total:.2f}%'
+                    f"エポック {self.epoch}, バッチ {batch_idx}/{len(train_loader)}, "
+                    f"損失: {loss.item():.4f}, 精度: {100.0 * correct / total:.2f}%"
                 )
 
         # エポックの統計情報
         avg_loss = total_loss / len(train_loader)
         accuracy = 100.0 * correct / total
 
-        return {
-            'loss': avg_loss,
-            'accuracy': accuracy
-        }
+        return {"loss": avg_loss, "accuracy": accuracy}
 
     def validate(self, val_loader: DataLoader) -> Dict[str, float]:
-        """検証"""
+        """検証."""
         self.model.eval()
         total_loss = 0.0
         correct = 0
@@ -182,7 +193,10 @@ class PochiTrainer:
                 data, target = data.to(self.device), target.to(self.device)
 
                 output = self.model(data)
-                loss = self.criterion(output, target)
+                if self.criterion is not None:
+                    loss = self.criterion(output, target)
+                else:
+                    raise RuntimeError("criterion is not set")
 
                 total_loss += loss.item()
                 _, predicted = output.max(1)
@@ -192,22 +206,23 @@ class PochiTrainer:
         avg_loss = total_loss / len(val_loader)
         accuracy = 100.0 * correct / total
 
-        return {
-            'val_loss': avg_loss,
-            'val_accuracy': accuracy
-        }
+        return {"val_loss": avg_loss, "val_accuracy": accuracy}
 
-    def save_checkpoint(self, filename: str = 'checkpoint.pth', is_best: bool = False) -> None:
-        """チェックポイントの保存"""
+    def save_checkpoint(
+        self, filename: str = "checkpoint.pth", is_best: bool = False
+    ) -> None:
+        """チェックポイントの保存."""
         checkpoint = {
-            'epoch': self.epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'best_accuracy': self.best_accuracy,
+            "epoch": self.epoch,
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": (
+                self.optimizer.state_dict() if self.optimizer is not None else None
+            ),
+            "best_accuracy": self.best_accuracy,
         }
 
-        if self.scheduler:
-            checkpoint['scheduler_state_dict'] = self.scheduler.state_dict()
+        if self.scheduler is not None:
+            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
 
         # チェックポイントの保存
         checkpoint_path = self.work_dir / filename
@@ -215,37 +230,45 @@ class PochiTrainer:
 
         # ベストモデルの場合は別途保存
         if is_best:
-            best_path = self.work_dir / 'best_model.pth'
+            best_path = self.work_dir / "best_model.pth"
             torch.save(checkpoint, best_path)
             self.logger.info(f"ベストモデルを保存: {best_path}")
 
-    def load_checkpoint(self, filename: str = 'checkpoint.pth') -> None:
-        """チェックポイントの読み込み"""
+    def load_checkpoint(self, filename: str = "checkpoint.pth") -> None:
+        """チェックポイントの読み込み."""
         checkpoint_path = self.work_dir / filename
 
         if not checkpoint_path.exists():
-            raise FileNotFoundError(f"チェックポイントが見つかりません: {checkpoint_path}")
+            raise FileNotFoundError(
+                f"チェックポイントが見つかりません: {checkpoint_path}"
+            )
 
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
 
-        self.epoch = checkpoint['epoch']
-        self.best_accuracy = checkpoint['best_accuracy']
+        self.epoch = checkpoint["epoch"]
+        self.best_accuracy = checkpoint["best_accuracy"]
 
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        if (
+            self.optimizer is not None
+            and checkpoint["optimizer_state_dict"] is not None
+        ):
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        if 'scheduler_state_dict' in checkpoint and self.scheduler:
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
+            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
         self.logger.info(f"チェックポイントを読み込み: {checkpoint_path}")
 
-    def train(self,
-              train_loader: DataLoader,
-              val_loader: Optional[DataLoader] = None,
-              epochs: int = 10,
-              save_every: int = 5) -> None:
+    def train(
+        self,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader] = None,
+        epochs: int = 10,
+        save_every: int = 5,
+    ) -> None:
         """
-        訓練の実行
+        訓練の実行.
 
         Args:
             train_loader (DataLoader): 訓練データローダー
@@ -269,7 +292,7 @@ class PochiTrainer:
                 val_metrics = self.validate(val_loader)
 
             # スケジューラーの更新
-            if self.scheduler:
+            if self.scheduler is not None:
                 self.scheduler.step()
 
             # ログ出力
@@ -286,13 +309,13 @@ class PochiTrainer:
                 )
 
                 # ベストモデルの更新
-                if val_metrics['val_accuracy'] > self.best_accuracy:
-                    self.best_accuracy = val_metrics['val_accuracy']
-                    self.save_checkpoint('best_checkpoint.pth', is_best=True)
+                if val_metrics["val_accuracy"] > self.best_accuracy:
+                    self.best_accuracy = val_metrics["val_accuracy"]
+                    self.save_checkpoint("best_checkpoint.pth", is_best=True)
 
             # 定期的なチェックポイント保存
             if epoch % save_every == 0:
-                self.save_checkpoint(f'checkpoint_epoch_{epoch}.pth')
+                self.save_checkpoint(f"checkpoint_epoch_{epoch}.pth")
 
         self.logger.info("訓練が完了しました")
         if val_loader:
@@ -300,7 +323,7 @@ class PochiTrainer:
 
     def predict(self, data_loader: DataLoader) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        予測の実行
+        予測の実行.
 
         Args:
             data_loader (DataLoader): 予測データローダー
