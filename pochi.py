@@ -110,6 +110,10 @@ def main():
         scheduler_params=config.get("scheduler_params"),
     )
 
+    # データセットパスの保存
+    print("\nデータセットパスを保存しています...")
+    trainer.save_dataset_paths(train_loader, val_loader)
+
     # 訓練実行
     print("\n訓練を開始します...")
     trainer.train(

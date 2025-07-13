@@ -99,11 +99,20 @@ class PochiImageDataset(Dataset):
         return self.classes
 
     def get_class_counts(self) -> dict:
-        """各クラスのサンプル数を取得."""
+        """各クラスの画像数を取得."""
         counts = {}
-        for cls_name in self.classes:
-            counts[cls_name] = self.labels.count(self.classes.index(cls_name))
+        for class_name in self.classes:
+            counts[class_name] = self.labels.count(self.classes.index(class_name))
         return counts
+
+    def get_file_paths(self) -> List[str]:
+        """
+        データセット内のすべてのファイルパスを取得.
+
+        Returns:
+            List[str]: ファイルパスのリスト
+        """
+        return [str(path) for path in self.image_paths]
 
 
 def get_basic_transforms(

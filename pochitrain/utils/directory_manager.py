@@ -6,7 +6,7 @@ pochitrain.utils.directory_manager: ワークスペース管理クラス.
 
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from .timestamp_utils import (
     find_next_index,
@@ -66,6 +66,10 @@ class PochiWorkspaceManager:
         models_dir = workspace_path / "models"
         models_dir.mkdir(exist_ok=True)
 
+        # pathsディレクトリを作成
+        paths_dir = workspace_path / "paths"
+        paths_dir.mkdir(exist_ok=True)
+
         # 現在のワークスペースとして設定
         self.current_workspace = workspace_path
 
@@ -97,6 +101,23 @@ class PochiWorkspaceManager:
 
         return self.current_workspace / "models"
 
+    def get_paths_dir(self) -> Path:
+        """
+        パス保存用ディレクトリのパスを取得.
+
+        Returns:
+            Path: パス保存用ディレクトリのパス
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        return self.current_workspace / "paths"
+
     def get_workspace_info(self) -> dict:
         """
         現在のワークスペースの情報を取得.
@@ -108,6 +129,7 @@ class PochiWorkspaceManager:
             return {
                 "workspace_path": None,
                 "models_dir": None,
+                "paths_dir": None,
                 "exists": False,
                 "date": None,
                 "index": None,
@@ -121,6 +143,7 @@ class PochiWorkspaceManager:
         return {
             "workspace_path": str(self.current_workspace),
             "models_dir": str(self.current_workspace / "models"),
+            "paths_dir": str(self.current_workspace / "paths"),
             "exists": self.current_workspace.exists(),
             "date": date_str,
             "index": index,
@@ -182,6 +205,45 @@ class PochiWorkspaceManager:
                 f.write(f"{image_path}\n")
 
         return file_path
+
+    def save_dataset_paths(
+        self, train_paths: list, val_paths: Optional[list] = None
+    ) -> Tuple[Path, Optional[Path]]:
+        """
+        訓練・検証データのパスリストを保存.
+
+        Args:
+            train_paths (list): 訓練データのパスリスト
+            val_paths (list, optional): 検証データのパスリスト
+
+        Returns:
+            Tuple[Path, Optional[Path]]: 保存されたファイルのパス (train.txt, val.txt)
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        paths_dir = self.get_paths_dir()
+
+        # train.txtの保存
+        train_file_path = paths_dir / "train.txt"
+        with open(train_file_path, "w", encoding="utf-8") as f:
+            for path in train_paths:
+                f.write(f"{path}\n")
+
+        # val.txtの保存
+        val_file_path = None
+        if val_paths is not None:
+            val_file_path = paths_dir / "val.txt"
+            with open(val_file_path, "w", encoding="utf-8") as f:
+                for path in val_paths:
+                    f.write(f"{path}\n")
+
+        return train_file_path, val_file_path
 
     def get_available_workspaces(self) -> list[dict]:
         """
