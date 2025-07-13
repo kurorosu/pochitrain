@@ -11,7 +11,7 @@ pretrained = True  # 事前学習済みモデルを使用
 train_data_root = "data/train"  # 訓練データのパス
 val_data_root = "data/val"  # 検証データのパス（Noneの場合は検証なし）
 image_size = 224  # 画像サイズ
-batch_size = 32  # バッチサイズ
+batch_size = 2  # バッチサイズ
 num_workers = 4  # データローダーのワーカー数
 
 # 訓練設定
@@ -25,5 +25,4 @@ scheduler_params = {"step_size": 30, "gamma": 0.1}
 
 # その他設定
 work_dir = "work_dirs"  # 作業ディレクトリ
-save_every = 10  # チェックポイント保存間隔
 device = None  # デバイス (None で自動選択)

@@ -116,7 +116,6 @@ def main():
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=config["epochs"],
-        save_every=config["save_every"],
     )
 
     print("\n訓練が完了しました！")
