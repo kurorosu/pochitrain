@@ -398,3 +398,44 @@ class PochiTrainer:
             Path: 保存されたファイルのパス
         """
         return self.workspace_manager.save_image_list(image_paths)
+
+    def save_dataset_paths(
+        self, train_loader: DataLoader, val_loader: Optional[DataLoader] = None
+    ) -> Tuple[Path, Optional[Path]]:
+        """
+        訓練・検証データのファイルパスを保存.
+
+        Args:
+            train_loader (DataLoader): 訓練データローダー
+            val_loader (DataLoader, optional): 検証データローダー
+
+        Returns:
+            Tuple[Path, Optional[Path]]: 保存されたファイルのパス (train.txt, val.txt)
+        """
+        # 訓練データのパスを取得
+        train_paths = []
+        if hasattr(train_loader.dataset, "get_file_paths"):
+            train_paths = train_loader.dataset.get_file_paths()
+        else:
+            self.logger.warning("訓練データセットにget_file_pathsメソッドがありません")
+
+        # 検証データのパスを取得
+        val_paths: Optional[list] = None
+        if val_loader is not None:
+            if hasattr(val_loader.dataset, "get_file_paths"):
+                val_paths = val_loader.dataset.get_file_paths()
+            else:
+                self.logger.warning(
+                    "検証データセットにget_file_pathsメソッドがありません"
+                )
+
+        # パスを保存
+        train_file_path, val_file_path = self.workspace_manager.save_dataset_paths(
+            train_paths, val_paths
+        )
+
+        self.logger.info(f"訓練データパスを保存: {train_file_path}")
+        if val_file_path is not None:
+            self.logger.info(f"検証データパスを保存: {val_file_path}")
+
+        return train_file_path, val_file_path
