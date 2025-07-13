@@ -232,11 +232,27 @@ class PochiTrainer:
         checkpoint_path = self.work_dir / filename
         torch.save(checkpoint, checkpoint_path)
 
-        # ベストモデルの場合は別途保存
-        if is_best:
-            best_path = self.work_dir / "best_model.pth"
-            torch.save(checkpoint, best_path)
-            self.logger.info(f"ベストモデルを保存: {best_path}")
+    def save_best_model(self, epoch: int) -> None:
+        """
+        ベストモデルの保存（エポック数付き、上書き）.
+
+        Args:
+            epoch (int): 現在のエポック数
+        """
+        # 既存のベストモデルファイルを削除
+        for existing_file in self.work_dir.glob("best_epoch*.pth"):
+            existing_file.unlink()
+            self.logger.info(f"既存のベストモデルを削除: {existing_file}")
+
+        # 新しいベストモデルを保存
+        best_filename = f"best_epoch{epoch}.pth"
+        self.save_checkpoint(best_filename)
+        self.logger.info(f"ベストモデルを保存: {self.work_dir / best_filename}")
+
+    def save_last_model(self) -> None:
+        """ラストモデルの保存（上書き）."""
+        last_filename = "last_model.pth"
+        self.save_checkpoint(last_filename)
 
     def load_checkpoint(self, filename: str = "checkpoint.pth") -> None:
         """チェックポイントの読み込み."""
@@ -269,7 +285,6 @@ class PochiTrainer:
         train_loader: DataLoader,
         val_loader: Optional[DataLoader] = None,
         epochs: int = 10,
-        save_every: int = 5,
     ) -> None:
         """
         訓練の実行.
@@ -278,7 +293,6 @@ class PochiTrainer:
             train_loader (DataLoader): 訓練データローダー
             val_loader (DataLoader, optional): 検証データローダー
             epochs (int): エポック数
-            save_every (int): チェックポイント保存間隔
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
@@ -312,14 +326,13 @@ class PochiTrainer:
                     f"検証精度: {val_metrics['val_accuracy']:.2f}%"
                 )
 
-                # ベストモデルの更新
-                if val_metrics["val_accuracy"] > self.best_accuracy:
+                # ベストモデルの更新（精度が前回以上なら保存）
+                if val_metrics["val_accuracy"] >= self.best_accuracy:
                     self.best_accuracy = val_metrics["val_accuracy"]
-                    self.save_checkpoint("best_checkpoint.pth", is_best=True)
+                    self.save_best_model(epoch)
 
-            # 定期的なチェックポイント保存
-            if epoch % save_every == 0:
-                self.save_checkpoint(f"checkpoint_epoch_{epoch}.pth")
+            # ラストモデルの保存（毎エポック上書き）
+            self.save_last_model()
 
         self.logger.info("訓練が完了しました")
         if val_loader:
