@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-pochitrain クイックスタート.
+pochitrain クイックスタート実行スクリプト.
 
-最速で検証まで到達するサンプルコード
+設定ファイルを読み込み、シンプルな訓練パイプラインを実行
 """
 
 import importlib.util
 from pathlib import Path
 
-from pochitrain.pochi_dataset import create_data_loaders
-
-# pochitrainモジュールのインポート
-from pochitrain.pochi_trainer import PochiTrainer
+from pochitrain import PochiTrainer, create_data_loaders
 
 
 def load_config(config_path: str) -> dict:
@@ -57,6 +54,7 @@ def main():
 
     # 設定ファイルの読み込み
     config_path = "configs/pochi_config.py"
+    config_path_obj = Path(config_path)
 
     try:
         config = load_config(config_path)
@@ -113,6 +111,11 @@ def main():
     # データセットパスの保存
     print("\nデータセットパスを保存しています...")
     trainer.save_dataset_paths(train_loader, val_loader)
+
+    # 設定ファイルの保存
+    print("\n設定ファイルを保存しています...")
+    saved_config_path = trainer.save_training_config(config_path_obj)
+    print(f"設定ファイルを保存しました: {saved_config_path}")
 
     # 訓練実行
     print("\n訓練を開始します...")
