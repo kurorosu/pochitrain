@@ -77,17 +77,10 @@ class PochiTrainer:
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
-        logger = logging.getLogger("pochitrain_pochi")
-        logger.setLevel(logging.INFO)
+        from pochitrain.logging import LoggerManager
 
-        # ハンドラーが既に存在する場合は追加しない
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-
-        return logger
+        logger_manager = LoggerManager()
+        return logger_manager.get_logger("pochitrain")
 
     def setup_training(
         self,
