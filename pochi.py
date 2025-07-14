@@ -8,7 +8,7 @@ pochitrain クイックスタート実行スクリプト.
 import importlib.util
 from pathlib import Path
 
-from pochitrain import PochiTrainer, create_data_loaders
+from pochitrain import LoggerManager, PochiTrainer, create_data_loaders
 
 
 def load_config(config_path: str) -> dict:
@@ -50,7 +50,11 @@ def load_config(config_path: str) -> dict:
 
 def main():
     """メイン関数."""
-    print("=== pochitrain クイックスタート ===")
+    # ロガーの設定
+    logger_manager = LoggerManager()
+    logger = logger_manager.get_logger("pochitrain")
+
+    logger.info("=== pochitrain クイックスタート ===")
 
     # 設定ファイルの読み込み
     config_path = "configs/pochi_config.py"
@@ -58,14 +62,14 @@ def main():
 
     try:
         config = load_config(config_path)
-        print(f"設定ファイルを読み込みました: {config_path}")
+        logger.info(f"設定ファイルを読み込みました: {config_path}")
     except FileNotFoundError:
-        print(f"設定ファイルが見つかりません: {config_path}")
-        print("configs/pochi_config.py を作成してください。")
+        logger.error(f"設定ファイルが見つかりません: {config_path}")
+        logger.error("configs/pochi_config.py を作成してください。")
         return
 
     # データローダーの作成
-    print("\nデータローダーを作成しています...")
+    logger.info("データローダーを作成しています...")
     try:
         train_loader, val_loader, classes = create_data_loaders(
             train_root=config["train_data_root"],
@@ -75,22 +79,22 @@ def main():
             num_workers=config["num_workers"],
         )
 
-        print(f"クラス数: {len(classes)}")
-        print(f"クラス名: {classes}")
-        print(f"訓練バッチ数: {len(train_loader)}")
+        logger.info(f"クラス数: {len(classes)}")
+        logger.info(f"クラス名: {classes}")
+        logger.info(f"訓練バッチ数: {len(train_loader)}")
         if val_loader:
-            print(f"検証バッチ数: {len(val_loader)}")
+            logger.info(f"検証バッチ数: {len(val_loader)}")
 
         # 設定のクラス数を更新
         config["num_classes"] = len(classes)
 
     except Exception as e:
-        print(f"データローダーの作成に失敗しました: {e}")
-        print("データディレクトリの構造を確認してください。")
+        logger.error(f"データローダーの作成に失敗しました: {e}")
+        logger.error("データディレクトリの構造を確認してください。")
         return
 
     # トレーナーの作成
-    print("\nトレーナーを作成しています...")
+    logger.info("トレーナーを作成しています...")
     trainer = PochiTrainer(
         model_name=config["model_name"],
         num_classes=config["num_classes"],
@@ -100,7 +104,7 @@ def main():
     )
 
     # 訓練設定
-    print("\n訓練設定を行っています...")
+    logger.info("訓練設定を行っています...")
     trainer.setup_training(
         learning_rate=config["learning_rate"],
         optimizer_name=config["optimizer"],
@@ -109,24 +113,24 @@ def main():
     )
 
     # データセットパスの保存
-    print("\nデータセットパスを保存しています...")
+    logger.info("データセットパスを保存しています...")
     trainer.save_dataset_paths(train_loader, val_loader)
 
     # 設定ファイルの保存
-    print("\n設定ファイルを保存しています...")
+    logger.info("設定ファイルを保存しています...")
     saved_config_path = trainer.save_training_config(config_path_obj)
-    print(f"設定ファイルを保存しました: {saved_config_path}")
+    logger.info(f"設定ファイルを保存しました: {saved_config_path}")
 
     # 訓練実行
-    print("\n訓練を開始します...")
+    logger.info("訓練を開始します...")
     trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=config["epochs"],
     )
 
-    print("\n訓練が完了しました！")
-    print(f"結果は {config['work_dir']} に保存されています。")
+    logger.info("訓練が完了しました！")
+    logger.info(f"結果は {config['work_dir']} に保存されています。")
 
 
 if __name__ == "__main__":

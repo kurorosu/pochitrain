@@ -11,6 +11,8 @@ Example:
     >>> trainer.train(train_loader, val_loader, epochs=50)
 """
 
+# Logging
+from .logging import LoggerManager
 from .models.pochi_models import PochiModel, create_model
 from .pochi_dataset import (
     PochiImageDataset,
@@ -30,6 +32,8 @@ __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
 __all__ = [
+    # Logging
+    "LoggerManager",
     # Pochiインターフェース
     "PochiTrainer",
     "PochiImageDataset",
