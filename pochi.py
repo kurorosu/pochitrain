@@ -77,6 +77,8 @@ def main():
             batch_size=config["batch_size"],
             image_size=config["image_size"],
             num_workers=config["num_workers"],
+            train_transform=config.get("train_transform"),
+            val_transform=config.get("val_transform"),
         )
 
         logger.info(f"クラス数: {len(classes)}")
