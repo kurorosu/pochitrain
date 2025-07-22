@@ -165,6 +165,8 @@ def create_data_loaders(
     image_size: int = 224,
     num_workers: int = 4,
     pin_memory: bool = True,
+    train_transform=None,
+    val_transform=None,
 ) -> Tuple[DataLoader, Optional[DataLoader], List[str]]:
     """
     データローダーを作成.
@@ -176,12 +178,15 @@ def create_data_loaders(
         image_size (int): 画像サイズ
         num_workers (int): ワーカー数
         pin_memory (bool): メモリピニング
+        train_transform (transforms.Compose, optional): 訓練用変換
+        val_transform (transforms.Compose, optional): 検証用変換
 
     Returns:
         Tuple[DataLoader, Optional[DataLoader], List[str]]: (訓練ローダー, 検証ローダー, クラス名)
     """
     # 訓練データセット
-    train_transform = get_basic_transforms(image_size, is_training=True)
+    if train_transform is None:
+        train_transform = get_basic_transforms(image_size, is_training=True)
     train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
@@ -195,7 +200,8 @@ def create_data_loaders(
     # 検証データセット
     val_loader = None
     if val_root:
-        val_transform = get_basic_transforms(image_size, is_training=False)
+        if val_transform is None:
+            val_transform = get_basic_transforms(image_size, is_training=False)
         val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
         val_loader = DataLoader(
