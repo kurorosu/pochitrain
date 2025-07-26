@@ -250,7 +250,6 @@ class TestCreateDataLoaders:
                 train_root=train_root,
                 val_root=val_root,
                 batch_size=1,
-                image_size=128,
                 num_workers=0,
                 pin_memory=False,
             )

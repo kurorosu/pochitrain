@@ -75,7 +75,6 @@ def main():
             train_root=config["train_data_root"],
             val_root=config.get("val_data_root"),
             batch_size=config["batch_size"],
-            image_size=config["image_size"],
             num_workers=config["num_workers"],
             train_transform=config.get("train_transform"),
             val_transform=config.get("val_transform"),
@@ -112,6 +111,8 @@ def main():
         optimizer_name=config["optimizer"],
         scheduler_name=config.get("scheduler"),
         scheduler_params=config.get("scheduler_params"),
+        class_weights=config.get("class_weights"),
+        num_classes=len(classes),
     )
 
     # データセットパスの保存
