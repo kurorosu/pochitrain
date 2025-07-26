@@ -162,7 +162,6 @@ def create_data_loaders(
     train_root: str,
     val_root: Optional[str] = None,
     batch_size: int = 32,
-    image_size: int = 224,
     num_workers: int = 4,
     pin_memory: bool = True,
     train_transform=None,
@@ -175,7 +174,6 @@ def create_data_loaders(
         train_root (str): 訓練データのルートディレクトリ
         val_root (str, optional): 検証データのルートディレクトリ
         batch_size (int): バッチサイズ
-        image_size (int): 画像サイズ
         num_workers (int): ワーカー数
         pin_memory (bool): メモリピニング
         train_transform (transforms.Compose, optional): 訓練用変換
@@ -186,7 +184,7 @@ def create_data_loaders(
     """
     # 訓練データセット
     if train_transform is None:
-        train_transform = get_basic_transforms(image_size, is_training=True)
+        train_transform = get_basic_transforms(224, is_training=True)
     train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
@@ -201,7 +199,7 @@ def create_data_loaders(
     val_loader = None
     if val_root:
         if val_transform is None:
-            val_transform = get_basic_transforms(image_size, is_training=False)
+            val_transform = get_basic_transforms(224, is_training=False)
         val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
         val_loader = DataLoader(
