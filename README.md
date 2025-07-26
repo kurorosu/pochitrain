@@ -4,6 +4,10 @@ A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
 **シンプルで親しみやすいCNNパイプラインフレームワーク**
 
+## 📚 ドキュメント
+
+- [設定ファイルガイド](configs/docs/configuration.md) - 詳細な設定方法とカスタマイズ
+
 ## 🚀 クイックスタート
 
 最速で検証まで到達するためのシンプルなガイド

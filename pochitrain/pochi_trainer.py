@@ -6,7 +6,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -88,6 +88,8 @@ class PochiTrainer:
         optimizer_name: str = "Adam",
         scheduler_name: Optional[str] = None,
         scheduler_params: Optional[dict] = None,
+        class_weights: Optional[List[float]] = None,
+        num_classes: Optional[int] = None,
     ) -> None:
         """
         訓練の設定.
@@ -95,11 +97,24 @@ class PochiTrainer:
         Args:
             learning_rate (float): 学習率
             optimizer_name (str): 最適化器名 ('Adam', 'SGD')
-            scheduler_name (str, optional): スケジューラー名 ('StepLR', 'CosineAnnealingLR')
+            scheduler_name (str, optional): スケジューラー名
+                ('StepLR', 'MultiStepLR', 'CosineAnnealingLR')
             scheduler_params (dict, optional): スケジューラーのパラメータ
+            class_weights (List[float], optional): クラス毎の損失重み
+            num_classes (int, optional): クラス数（重みのバリデーション用）
         """
-        # 損失関数の設定
-        self.criterion = nn.CrossEntropyLoss()
+        # 損失関数の設定（クラス重み対応）
+        if class_weights is not None:
+            # クラス数の整合性チェック
+            if num_classes is not None and len(class_weights) != num_classes:
+                raise ValueError(
+                    f"クラス重みの長さ({len(class_weights)})がクラス数({num_classes})と一致しません"
+                )
+            weights_tensor = torch.tensor(class_weights, dtype=torch.float32)
+            self.criterion = nn.CrossEntropyLoss(weight=weights_tensor)
+            self.logger.info(f"クラス重みを設定: {class_weights}")
+        else:
+            self.criterion = nn.CrossEntropyLoss()
 
         # 最適化器の設定
         if optimizer_name == "Adam":
@@ -119,6 +134,11 @@ class PochiTrainer:
             if scheduler_name == "StepLR":
                 params = scheduler_params or {"step_size": 30, "gamma": 0.1}
                 self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, **params)
+            elif scheduler_name == "MultiStepLR":
+                params = scheduler_params or {"milestones": [30, 60, 90], "gamma": 0.1}
+                self.scheduler = optim.lr_scheduler.MultiStepLR(
+                    self.optimizer, **params
+                )
             elif scheduler_name == "CosineAnnealingLR":
                 params = scheduler_params or {"T_max": 100}
                 self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
