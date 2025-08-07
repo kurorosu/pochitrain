@@ -42,7 +42,8 @@ def load_config(config_path: str) -> dict:
     for key in dir(config_module):
         if not key.startswith("_"):
             value = getattr(config_module, key)
-            if not callable(value):
+            # 関数やメソッドは除外するが、transformsオブジェクトは含める
+            if not callable(value) or hasattr(value, "transforms"):
                 config[key] = value
 
     return config
@@ -63,6 +64,7 @@ def main():
     try:
         config = load_config(config_path)
         logger.info(f"設定ファイルを読み込みました: {config_path}")
+
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {config_path}")
         logger.error("configs/pochi_config.py を作成してください。")
