@@ -13,7 +13,7 @@ pretrained = True  # 事前学習済みモデルを使用
 # データ設定
 train_data_root = "data/train"  # 訓練データのパス
 val_data_root = "data/val"  # 検証データのパス
-batch_size = 16  # バッチサイズ
+batch_size = 2  # バッチサイズ
 num_workers = 4  # データローダーのワーカー数
 
 # 訓練設定
