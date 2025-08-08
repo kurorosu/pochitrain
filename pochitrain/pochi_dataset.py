@@ -176,15 +176,27 @@ def create_data_loaders(
         batch_size (int): バッチサイズ
         num_workers (int): ワーカー数
         pin_memory (bool): メモリピニング
-        train_transform (transforms.Compose, optional): 訓練用変換
-        val_transform (transforms.Compose, optional): 検証用変換
+        train_transform (transforms.Compose): 訓練用変換（必須）
+        val_transform (transforms.Compose): 検証用変換（val_root指定時は必須）
 
     Returns:
         Tuple[DataLoader, Optional[DataLoader], List[str]]: (訓練ローダー, 検証ローダー, クラス名)
     """
-    # 訓練データセット
+    # Transform必須バリデーション
     if train_transform is None:
-        train_transform = get_basic_transforms(224, is_training=True)
+        raise ValueError(
+            "train_transform が必須です。configs/pochi_config.py で "
+            "transforms.Compose([...]) を train_transform として定義してください。"
+        )
+
+    if val_root is not None and val_transform is None:
+        raise ValueError(
+            "検証データが指定されている場合、val_transform が必須です。"
+            "configs/pochi_config.py で transforms.Compose([...]) を "
+            "val_transform として定義してください。"
+        )
+
+    # 訓練データセット
     train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
@@ -198,8 +210,6 @@ def create_data_loaders(
     # 検証データセット
     val_loader = None
     if val_root:
-        if val_transform is None:
-            val_transform = get_basic_transforms(224, is_training=False)
         val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
         val_loader = DataLoader(

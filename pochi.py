@@ -64,7 +64,6 @@ def main():
     try:
         config = load_config(config_path)
         logger.info(f"設定ファイルを読み込みました: {config_path}")
-
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {config_path}")
         logger.error("configs/pochi_config.py を作成してください。")
@@ -93,7 +92,6 @@ def main():
 
     except Exception as e:
         logger.error(f"データローダーの作成に失敗しました: {e}")
-        logger.error("データディレクトリの構造を確認してください。")
         return
 
     # トレーナーの作成
