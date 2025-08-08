@@ -160,27 +160,27 @@ def get_basic_transforms(
 
 def create_data_loaders(
     train_root: str,
-    val_root: Optional[str] = None,
+    val_root: str,
     batch_size: int = 32,
     num_workers: int = 4,
     pin_memory: bool = True,
     train_transform=None,
     val_transform=None,
-) -> Tuple[DataLoader, Optional[DataLoader], List[str]]:
+) -> Tuple[DataLoader, DataLoader, List[str]]:
     """
     データローダーを作成.
 
     Args:
         train_root (str): 訓練データのルートディレクトリ
-        val_root (str, optional): 検証データのルートディレクトリ
+        val_root (str): 検証データのルートディレクトリ（必須）
         batch_size (int): バッチサイズ
         num_workers (int): ワーカー数
         pin_memory (bool): メモリピニング
         train_transform (transforms.Compose): 訓練用変換（必須）
-        val_transform (transforms.Compose): 検証用変換（val_root指定時は必須）
+        val_transform (transforms.Compose): 検証用変換（必須）
 
     Returns:
-        Tuple[DataLoader, Optional[DataLoader], List[str]]: (訓練ローダー, 検証ローダー, クラス名)
+        Tuple[DataLoader, DataLoader, List[str]]: (訓練ローダー, 検証ローダー, クラス名)
     """
     # Transform必須バリデーション
     if train_transform is None:
@@ -189,11 +189,10 @@ def create_data_loaders(
             "transforms.Compose([...]) を train_transform として定義してください。"
         )
 
-    if val_root is not None and val_transform is None:
+    if val_transform is None:
         raise ValueError(
-            "検証データが指定されている場合、val_transform が必須です。"
-            "configs/pochi_config.py で transforms.Compose([...]) を "
-            "val_transform として定義してください。"
+            "val_transform が必須です。configs/pochi_config.py で "
+            "transforms.Compose([...]) を val_transform として定義してください。"
         )
 
     # 訓練データセット
@@ -208,17 +207,15 @@ def create_data_loaders(
     )
 
     # 検証データセット
-    val_loader = None
-    if val_root:
-        val_dataset = PochiImageDataset(val_root, transform=val_transform)
+    val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
 
     return train_loader, val_loader, train_dataset.get_classes()
 
