@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import torchvision.transforms as transforms
 from PIL import Image
 
 from pochitrain.pochi_dataset import PochiImageDataset, create_data_loaders
@@ -207,11 +208,17 @@ class TestCreateDataLoaders:
         with tempfile.TemporaryDirectory() as temp_dir:
             train_root, val_root = self.create_test_datasets(temp_dir)
 
+            # 必要なtransformを追加
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=train_root,
                 val_root=val_root,
                 batch_size=2,
                 num_workers=0,  # テスト用に0に設定
+                train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             # データローダーが正しく作成されることを確認
@@ -230,11 +237,15 @@ class TestCreateDataLoaders:
         with tempfile.TemporaryDirectory() as temp_dir:
             train_root, _ = self.create_test_datasets(temp_dir)
 
+            # 必要なtransformを追加
+            train_transform = transforms.Compose([transforms.ToTensor()])
+
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=train_root,
                 val_root=None,  # 検証データなし
                 batch_size=1,
                 num_workers=0,
+                train_transform=train_transform,
             )
 
             assert train_loader is not None
@@ -246,14 +257,184 @@ class TestCreateDataLoaders:
         with tempfile.TemporaryDirectory() as temp_dir:
             train_root, val_root = self.create_test_datasets(temp_dir)
 
+            # 必要なtransformを追加
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=train_root,
                 val_root=val_root,
                 batch_size=1,
                 num_workers=0,
                 pin_memory=False,
+                train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             # カスタムパラメータが適用されることを確認
             assert train_loader.batch_size == 1
             assert train_loader.pin_memory is False
+
+
+class TestTransformValidation:
+    """Transform必須バリデーションのテスト"""
+
+    def create_test_datasets(self, temp_dir: str):
+        """train/valディレクトリ構造を作成"""
+        base_path = Path(temp_dir)
+
+        # trainディレクトリ
+        train_dir = base_path / "train"
+        for class_name in ["cat", "dog"]:
+            class_dir = train_dir / class_name
+            class_dir.mkdir(parents=True)
+            for i in range(2):
+                img = Image.new("RGB", (64, 64), color=(i * 80, 100, 200))
+                img.save(class_dir / f"train_{i}.jpg")
+
+        # valディレクトリ
+        val_dir = base_path / "val"
+        for class_name in ["cat", "dog"]:
+            class_dir = val_dir / class_name
+            class_dir.mkdir(parents=True)
+            for i in range(1):
+                img = Image.new("RGB", (64, 64), color=(i * 80, 150, 100))
+                img.save(class_dir / f"val_{i}.jpg")
+
+        return str(train_dir), str(val_dir)
+
+    def test_train_transform_required(self):
+        """train_transform必須のテスト"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            train_root, val_root = self.create_test_datasets(temp_dir)
+
+            # train_transformがNoneの場合はエラー
+            with pytest.raises(ValueError, match="train_transform が必須です"):
+                create_data_loaders(
+                    train_root=train_root,
+                    val_root=None,
+                    batch_size=1,
+                    num_workers=0,
+                    train_transform=None,  # None → エラー
+                    val_transform=None,
+                )
+
+    def test_val_transform_required_when_val_data_exists(self):
+        """検証データありでval_transform必須のテスト"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            train_root, val_root = self.create_test_datasets(temp_dir)
+
+            train_transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                ]
+            )
+
+            # 検証データがあるのにval_transformがNoneの場合はエラー
+            with pytest.raises(ValueError, match="val_transform が必須です"):
+                create_data_loaders(
+                    train_root=train_root,
+                    val_root=val_root,  # 検証データあり
+                    batch_size=1,
+                    num_workers=0,
+                    train_transform=train_transform,
+                    val_transform=None,  # None → エラー
+                )
+
+    def test_val_transform_not_required_when_no_val_data(self):
+        """検証データなしでval_transform不要のテスト"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            train_root, _ = self.create_test_datasets(temp_dir)
+
+            train_transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                ]
+            )
+
+            # 検証データがない場合はval_transformはNoneでもOK
+            train_loader, val_loader, classes = create_data_loaders(
+                train_root=train_root,
+                val_root=None,  # 検証データなし
+                batch_size=1,
+                num_workers=0,
+                train_transform=train_transform,
+                val_transform=None,  # None でもOK
+            )
+
+            assert train_loader is not None
+            assert val_loader is None
+            assert len(classes) == 2
+
+    def test_valid_transforms_work(self):
+        """正しいtransformが設定されている場合は正常動作のテスト"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            train_root, val_root = self.create_test_datasets(temp_dir)
+
+            train_transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]),
+                ]
+            )
+
+            val_transform = transforms.Compose(
+                [
+                    transforms.Resize(256),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.25, 0.25, 0.25]),
+                ]
+            )
+
+            # 正しい設定では正常に動作
+            train_loader, val_loader, classes = create_data_loaders(
+                train_root=train_root,
+                val_root=val_root,
+                batch_size=1,
+                num_workers=0,
+                train_transform=train_transform,
+                val_transform=val_transform,
+            )
+
+            assert train_loader is not None
+            assert val_loader is not None
+            assert len(classes) == 2
+
+            # データローダーが実際に動作することを確認
+            train_batch = next(iter(train_loader))
+            val_batch = next(iter(val_loader))
+
+            assert train_batch[0].shape[0] == 1  # バッチサイズ
+            assert val_batch[0].shape[0] == 1  # バッチサイズ
+
+    def test_transform_validation_error_messages(self):
+        """エラーメッセージの内容テスト"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            train_root, val_root = self.create_test_datasets(temp_dir)
+
+            # train_transform未設定のエラーメッセージ
+            with pytest.raises(ValueError) as exc_info:
+                create_data_loaders(
+                    train_root=train_root,
+                    batch_size=1,
+                    num_workers=0,
+                    train_transform=None,
+                )
+
+            assert "train_transform が必須です" in str(exc_info.value)
+            assert "configs/pochi_config.py" in str(exc_info.value)
+
+            # val_transform未設定のエラーメッセージ
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            with pytest.raises(ValueError) as exc_info:
+                create_data_loaders(
+                    train_root=train_root,
+                    val_root=val_root,
+                    batch_size=1,
+                    num_workers=0,
+                    train_transform=train_transform,
+                    val_transform=None,
+                )
+
+            assert "val_transform が必須です" in str(exc_info.value)
+            assert "configs/pochi_config.py" in str(exc_info.value)

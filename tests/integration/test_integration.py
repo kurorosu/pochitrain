@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import torchvision.transforms as transforms
 from PIL import Image
 
 from pochitrain.pochi_dataset import create_data_loaders
@@ -130,9 +131,18 @@ device = "cpu"
             # テストデータの作成
             train_root, val_root = self.create_test_data_structure(temp_dir)
 
+            # 必要なtransformを定義
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             # データローダーの作成
             train_loader, val_loader, classes = create_data_loaders(
-                train_root=train_root, val_root=val_root, batch_size=1, num_workers=0
+                train_root=train_root,
+                val_root=val_root,
+                batch_size=1,
+                num_workers=0,
+                train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             # 基本的な検証
@@ -161,12 +171,18 @@ device = "cpu"
 
             config = load_config(str(config_path))
 
+            # 必要なtransformを定義
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             # クラス数の動的設定テスト
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=config["train_data_root"],
                 val_root=config["val_data_root"],
                 batch_size=config["batch_size"],
                 num_workers=config["num_workers"],
+                train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             config["num_classes"] = len(classes)
@@ -203,9 +219,18 @@ device = "cpu"
             workspace_manager = PochiWorkspaceManager(temp_dir)
             workspace_manager.create_workspace()
 
+            # 必要なtransformを定義
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             # データローダー作成
             train_loader, val_loader, classes = create_data_loaders(
-                train_root=train_root, val_root=val_root, batch_size=1, num_workers=0
+                train_root=train_root,
+                val_root=val_root,
+                batch_size=1,
+                num_workers=0,
+                train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             # データセットからパスを取得
@@ -250,10 +275,16 @@ device = "cpu"
     def test_error_handling_integration(self):
         """エラーハンドリングの統合テスト"""
         with tempfile.TemporaryDirectory():
+            # 必要なtransformを定義
+            train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
+
             # 存在しないデータディレクトリでの処理
             with pytest.raises(Exception):  # 具体的なエラー型は実装による
                 create_data_loaders(
                     train_root="/nonexistent/train",
                     val_root="/nonexistent/val",
                     batch_size=1,
+                    train_transform=train_transform,
+                    val_transform=val_transform,
                 )
