@@ -74,7 +74,7 @@ def main():
     try:
         train_loader, val_loader, classes = create_data_loaders(
             train_root=config["train_data_root"],
-            val_root=config.get("val_data_root"),
+            val_root=config["val_data_root"],  # 必須に変更
             batch_size=config["batch_size"],
             num_workers=config["num_workers"],
             train_transform=config.get("train_transform"),
@@ -84,8 +84,7 @@ def main():
         logger.info(f"クラス数: {len(classes)}")
         logger.info(f"クラス名: {classes}")
         logger.info(f"訓練バッチ数: {len(train_loader)}")
-        if val_loader:
-            logger.info(f"検証バッチ数: {len(val_loader)}")
+        logger.info(f"検証バッチ数: {len(val_loader)}")
 
         # 設定のクラス数を更新
         config["num_classes"] = len(classes)
