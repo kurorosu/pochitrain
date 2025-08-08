@@ -232,24 +232,26 @@ class TestCreateDataLoaders:
             train_batch = next(iter(train_loader))
             assert len(train_batch[0]) <= 2  # バッチサイズ以下
 
-    def test_create_data_loaders_train_only(self):
-        """訓練データのみでのデータローダー作成テスト"""
+    def test_create_data_loaders_both_required(self):
+        """訓練・検証データ両方必須のテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            train_root, _ = self.create_test_datasets(temp_dir)
+            train_root, val_root = self.create_test_datasets(temp_dir)
 
             # 必要なtransformを追加
             train_transform = transforms.Compose([transforms.ToTensor()])
+            val_transform = transforms.Compose([transforms.ToTensor()])
 
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=train_root,
-                val_root=None,  # 検証データなし
+                val_root=val_root,  # 検証データ必須
                 batch_size=1,
                 num_workers=0,
                 train_transform=train_transform,
+                val_transform=val_transform,
             )
 
             assert train_loader is not None
-            assert val_loader is None
+            assert val_loader is not None
             assert len(classes) == 2
 
     def test_create_data_loaders_custom_params(self):
@@ -312,11 +314,11 @@ class TestTransformValidation:
             with pytest.raises(ValueError, match="train_transform が必須です"):
                 create_data_loaders(
                     train_root=train_root,
-                    val_root=None,
+                    val_root=val_root,  # 検証データも必須
                     batch_size=1,
                     num_workers=0,
                     train_transform=None,  # None → エラー
-                    val_transform=None,
+                    val_transform=transforms.Compose([transforms.ToTensor()]),
                 )
 
     def test_val_transform_required_when_val_data_exists(self):
@@ -341,29 +343,34 @@ class TestTransformValidation:
                     val_transform=None,  # None → エラー
                 )
 
-    def test_val_transform_not_required_when_no_val_data(self):
-        """検証データなしでval_transform不要のテスト"""
+    def test_val_data_required(self):
+        """検証データ必須のテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            train_root, _ = self.create_test_datasets(temp_dir)
+            train_root, val_root = self.create_test_datasets(temp_dir)
 
             train_transform = transforms.Compose(
                 [
                     transforms.ToTensor(),
                 ]
             )
+            val_transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                ]
+            )
 
-            # 検証データがない場合はval_transformはNoneでもOK
+            # 検証データとval_transformが両方必須
             train_loader, val_loader, classes = create_data_loaders(
                 train_root=train_root,
-                val_root=None,  # 検証データなし
+                val_root=val_root,  # 検証データ必須
                 batch_size=1,
                 num_workers=0,
                 train_transform=train_transform,
-                val_transform=None,  # None でもOK
+                val_transform=val_transform,  # 必須
             )
 
             assert train_loader is not None
-            assert val_loader is None
+            assert val_loader is not None
             assert len(classes) == 2
 
     def test_valid_transforms_work(self):
@@ -416,9 +423,11 @@ class TestTransformValidation:
             with pytest.raises(ValueError) as exc_info:
                 create_data_loaders(
                     train_root=train_root,
+                    val_root=val_root,
                     batch_size=1,
                     num_workers=0,
                     train_transform=None,
+                    val_transform=transforms.Compose([transforms.ToTensor()]),
                 )
 
             assert "train_transform が必須です" in str(exc_info.value)
