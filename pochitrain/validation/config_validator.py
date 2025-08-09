@@ -8,6 +8,7 @@ import logging
 from typing import Any, Dict, Protocol
 
 from .validators import (
+    ClassWeightsValidator,
     DataValidator,
     DeviceValidator,
     SchedulerValidator,
@@ -34,10 +35,11 @@ class ConfigValidator:
             logger (logging.Logger): ロガーインスタンス
         """
         self.logger = logger
-        self.device_validator = DeviceValidator()
-        self.transform_validator = TransformValidator()
+        self.class_weights_validator = ClassWeightsValidator()
         self.data_validator = DataValidator()
+        self.device_validator = DeviceValidator()
         self.scheduler_validator = SchedulerValidator()
+        self.transform_validator = TransformValidator()
 
     def validate(self, config: Dict[str, Any]) -> bool:
         """
@@ -52,6 +54,7 @@ class ConfigValidator:
         # 個別バリデーターを順次実行
         validators: list[ValidatorProtocol] = [
             self.data_validator,  # データパス（最初にチェック）
+            self.class_weights_validator,  # クラス重み設定
             self.transform_validator,  # Transform設定
             self.device_validator,  # デバイス設定
             self.scheduler_validator,  # スケジューラー設定
