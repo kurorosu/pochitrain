@@ -7,7 +7,12 @@
 import logging
 from typing import Any, Dict, Protocol
 
-from .validators import DataValidator, DeviceValidator, TransformValidator
+from .validators import (
+    DataValidator,
+    DeviceValidator,
+    SchedulerValidator,
+    TransformValidator,
+)
 
 
 class ValidatorProtocol(Protocol):
@@ -32,6 +37,7 @@ class ConfigValidator:
         self.device_validator = DeviceValidator()
         self.transform_validator = TransformValidator()
         self.data_validator = DataValidator()
+        self.scheduler_validator = SchedulerValidator()
 
     def validate(self, config: Dict[str, Any]) -> bool:
         """
@@ -48,6 +54,7 @@ class ConfigValidator:
             self.data_validator,  # データパス（最初にチェック）
             self.transform_validator,  # Transform設定
             self.device_validator,  # デバイス設定
+            self.scheduler_validator,  # スケジューラー設定
         ]
 
         for validator in validators:
