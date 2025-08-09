@@ -76,6 +76,24 @@ def main():
         logger.error("設定にエラーがあります。修正してください。")
         return
 
+    # バリデーション成功後の設定ログ出力（SchedulerValidatorで出力済みだが、再確認用）
+    logger.info("=== 設定確認 ===")
+    logger.info(f"モデル: {config['model_name']}")
+    logger.info(f"デバイス: {config['device']}")
+    logger.info(f"学習率: {config['learning_rate']}")
+    logger.info(f"オプティマイザー: {config['optimizer']}")
+
+    # スケジューラー設定の明示的ログ出力
+    scheduler_name = config.get("scheduler")
+    if scheduler_name is None:
+        logger.info("スケジューラー: なし（固定学習率）")
+    else:
+        logger.info(f"スケジューラー: {scheduler_name}")
+        scheduler_params = config.get("scheduler_params", {})
+        logger.info(f"スケジューラーパラメータ: {scheduler_params}")
+
+    logger.info("==================")
+
     # データローダーの作成
     logger.info("データローダーを作成しています...")
     try:
