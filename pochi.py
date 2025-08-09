@@ -9,6 +9,7 @@ import importlib.util
 from pathlib import Path
 
 from pochitrain import LoggerManager, PochiTrainer, create_data_loaders
+from pochitrain.validation import ConfigValidator
 
 
 def load_config(config_path: str) -> dict:
@@ -67,6 +68,12 @@ def main():
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {config_path}")
         logger.error("configs/pochi_config.py を作成してください。")
+        return
+
+    # 設定のバリデーション
+    validator = ConfigValidator(logger)
+    if not validator.validate(config):
+        logger.error("設定にエラーがあります。修正してください。")
         return
 
     # データローダーの作成
