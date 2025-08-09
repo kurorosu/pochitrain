@@ -92,6 +92,13 @@ def main():
         scheduler_params = config.get("scheduler_params", {})
         logger.info(f"スケジューラーパラメータ: {scheduler_params}")
 
+    # クラス重み設定の明示的ログ出力
+    class_weights = config.get("class_weights")
+    if class_weights is None:
+        logger.info("クラス重み: なし（均等扱い）")
+    else:
+        logger.info(f"クラス重み: {class_weights}")
+
     logger.info("==================")
 
     # データローダーの作成

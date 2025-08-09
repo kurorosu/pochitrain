@@ -31,10 +31,12 @@ class TestConfigValidator(unittest.TestCase):
     @patch("pochitrain.validation.config_validator.SchedulerValidator")
     @patch("pochitrain.validation.config_validator.DeviceValidator")
     @patch("pochitrain.validation.config_validator.TransformValidator")
+    @patch("pochitrain.validation.config_validator.ClassWeightsValidator")
     @patch("pochitrain.validation.config_validator.DataValidator")
     def test_validation_success(
         self,
         mock_data_validator_class,
+        mock_class_weights_validator_class,
         mock_transform_validator_class,
         mock_device_validator_class,
         mock_scheduler_validator_class,
@@ -44,6 +46,10 @@ class TestConfigValidator(unittest.TestCase):
         mock_data_validator = Mock()
         mock_data_validator.validate.return_value = True
         mock_data_validator_class.return_value = mock_data_validator
+
+        mock_class_weights_validator = Mock()
+        mock_class_weights_validator.validate.return_value = True
+        mock_class_weights_validator_class.return_value = mock_class_weights_validator
 
         mock_transform_validator = Mock()
         mock_transform_validator.validate.return_value = True
@@ -66,6 +72,9 @@ class TestConfigValidator(unittest.TestCase):
         assert result is True
         # 全てのバリデーターが呼ばれることを確認
         mock_data_validator.validate.assert_called_once_with(config, self.mock_logger)
+        mock_class_weights_validator.validate.assert_called_once_with(
+            config, self.mock_logger
+        )
         mock_transform_validator.validate.assert_called_once_with(
             config, self.mock_logger
         )
@@ -77,10 +86,12 @@ class TestConfigValidator(unittest.TestCase):
     @patch("pochitrain.validation.config_validator.SchedulerValidator")
     @patch("pochitrain.validation.config_validator.DeviceValidator")
     @patch("pochitrain.validation.config_validator.TransformValidator")
+    @patch("pochitrain.validation.config_validator.ClassWeightsValidator")
     @patch("pochitrain.validation.config_validator.DataValidator")
     def test_validation_failure(
         self,
         mock_data_validator_class,
+        mock_class_weights_validator_class,
         mock_transform_validator_class,
         mock_device_validator_class,
         mock_scheduler_validator_class,
@@ -90,6 +101,10 @@ class TestConfigValidator(unittest.TestCase):
         mock_data_validator = Mock()
         mock_data_validator.validate.return_value = False
         mock_data_validator_class.return_value = mock_data_validator
+
+        mock_class_weights_validator = Mock()
+        mock_class_weights_validator.validate.return_value = True
+        mock_class_weights_validator_class.return_value = mock_class_weights_validator
 
         mock_transform_validator = Mock()
         mock_transform_validator.validate.return_value = True
@@ -113,6 +128,7 @@ class TestConfigValidator(unittest.TestCase):
         # 最初のバリデーター（DataValidator）だけが呼ばれることを確認
         mock_data_validator.validate.assert_called_once_with(config, self.mock_logger)
         # 失敗したため、後続のバリデーターは呼ばれない
+        mock_class_weights_validator.validate.assert_not_called()
         mock_transform_validator.validate.assert_not_called()
         mock_device_validator.validate.assert_not_called()
         mock_scheduler_validator.validate.assert_not_called()
@@ -122,6 +138,8 @@ class TestConfigValidator(unittest.TestCase):
         # 成功ケース
         config_success = {
             "device": "cuda",
+            "num_classes": 4,
+            "class_weights": None,
             "train_data_root": str(self.valid_train_path),
             "val_data_root": str(self.valid_val_path),
             "train_transform": "valid_train_transform",
@@ -135,6 +153,8 @@ class TestConfigValidator(unittest.TestCase):
         # 失敗ケース（device=None）
         config_failure_device = {
             "device": None,
+            "num_classes": 4,
+            "class_weights": None,
             "train_data_root": str(self.valid_train_path),
             "val_data_root": str(self.valid_val_path),
             "train_transform": "valid_train_transform",
@@ -147,6 +167,8 @@ class TestConfigValidator(unittest.TestCase):
         # 失敗ケース（transform=None）
         config_failure_transform = {
             "device": "cuda",
+            "num_classes": 4,
+            "class_weights": None,
             "train_data_root": str(self.valid_train_path),
             "val_data_root": str(self.valid_val_path),
             "train_transform": None,
@@ -159,6 +181,8 @@ class TestConfigValidator(unittest.TestCase):
         # 失敗ケース（scheduler設定エラー）
         config_failure_scheduler = {
             "device": "cuda",
+            "num_classes": 4,
+            "class_weights": None,
             "train_data_root": str(self.valid_train_path),
             "val_data_root": str(self.valid_val_path),
             "train_transform": "valid_train_transform",
