@@ -28,6 +28,7 @@ class TestConfigValidator(unittest.TestCase):
         self.valid_train_path.mkdir()
         self.valid_val_path.mkdir()
 
+    @patch("pochitrain.validation.config_validator.SchedulerValidator")
     @patch("pochitrain.validation.config_validator.DeviceValidator")
     @patch("pochitrain.validation.config_validator.TransformValidator")
     @patch("pochitrain.validation.config_validator.DataValidator")
@@ -36,6 +37,7 @@ class TestConfigValidator(unittest.TestCase):
         mock_data_validator_class,
         mock_transform_validator_class,
         mock_device_validator_class,
+        mock_scheduler_validator_class,
     ):
         """全てのバリデーションが成功する場合のテスト."""
         # モックの設定
@@ -51,6 +53,10 @@ class TestConfigValidator(unittest.TestCase):
         mock_device_validator.validate.return_value = True
         mock_device_validator_class.return_value = mock_device_validator
 
+        mock_scheduler_validator = Mock()
+        mock_scheduler_validator.validate.return_value = True
+        mock_scheduler_validator_class.return_value = mock_scheduler_validator
+
         # テスト実行
         validator = ConfigValidator(self.mock_logger)
         config = {"device": "cuda"}
@@ -64,7 +70,11 @@ class TestConfigValidator(unittest.TestCase):
             config, self.mock_logger
         )
         mock_device_validator.validate.assert_called_once_with(config, self.mock_logger)
+        mock_scheduler_validator.validate.assert_called_once_with(
+            config, self.mock_logger
+        )
 
+    @patch("pochitrain.validation.config_validator.SchedulerValidator")
     @patch("pochitrain.validation.config_validator.DeviceValidator")
     @patch("pochitrain.validation.config_validator.TransformValidator")
     @patch("pochitrain.validation.config_validator.DataValidator")
@@ -73,6 +83,7 @@ class TestConfigValidator(unittest.TestCase):
         mock_data_validator_class,
         mock_transform_validator_class,
         mock_device_validator_class,
+        mock_scheduler_validator_class,
     ):
         """いずれかのバリデーションが失敗する場合のテスト."""
         # モックの設定（DataValidatorが失敗）
@@ -88,6 +99,10 @@ class TestConfigValidator(unittest.TestCase):
         mock_device_validator.validate.return_value = True
         mock_device_validator_class.return_value = mock_device_validator
 
+        mock_scheduler_validator = Mock()
+        mock_scheduler_validator.validate.return_value = True
+        mock_scheduler_validator_class.return_value = mock_scheduler_validator
+
         # テスト実行
         validator = ConfigValidator(self.mock_logger)
         config = {"device": None}
@@ -100,6 +115,7 @@ class TestConfigValidator(unittest.TestCase):
         # 失敗したため、後続のバリデーターは呼ばれない
         mock_transform_validator.validate.assert_not_called()
         mock_device_validator.validate.assert_not_called()
+        mock_scheduler_validator.validate.assert_not_called()
 
     def test_validation_with_real_validators(self):
         """実際のバリデーターを使った統合テスト."""
@@ -110,6 +126,8 @@ class TestConfigValidator(unittest.TestCase):
             "val_data_root": str(self.valid_val_path),
             "train_transform": "valid_train_transform",
             "val_transform": "valid_val_transform",
+            "scheduler": "StepLR",
+            "scheduler_params": {"step_size": 30, "gamma": 0.1},
         }
         result_success = self.validator.validate(config_success)
         assert result_success is True
@@ -121,6 +139,7 @@ class TestConfigValidator(unittest.TestCase):
             "val_data_root": str(self.valid_val_path),
             "train_transform": "valid_train_transform",
             "val_transform": "valid_val_transform",
+            "scheduler": None,
         }
         result_failure_device = self.validator.validate(config_failure_device)
         assert result_failure_device is False
@@ -132,9 +151,23 @@ class TestConfigValidator(unittest.TestCase):
             "val_data_root": str(self.valid_val_path),
             "train_transform": None,
             "val_transform": "valid_val_transform",
+            "scheduler": None,
         }
         result_failure_transform = self.validator.validate(config_failure_transform)
         assert result_failure_transform is False
+
+        # 失敗ケース（scheduler設定エラー）
+        config_failure_scheduler = {
+            "device": "cuda",
+            "train_data_root": str(self.valid_train_path),
+            "val_data_root": str(self.valid_val_path),
+            "train_transform": "valid_train_transform",
+            "val_transform": "valid_val_transform",
+            "scheduler": "StepLR",
+            "scheduler_params": None,  # scheduler_paramsが未設定
+        }
+        result_failure_scheduler = self.validator.validate(config_failure_scheduler)
+        assert result_failure_scheduler is False
 
 
 if __name__ == "__main__":
