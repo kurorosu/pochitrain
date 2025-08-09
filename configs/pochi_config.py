@@ -30,7 +30,7 @@ class_weights = None  # クラス毎の損失重み
 
 # その他設定
 work_dir = "work_dirs"  # 作業ディレクトリ
-device = None  # デバイス
+device = "cuda"  # デバイス
 
 # データ変換設定
 mean = [0.485, 0.456, 0.406]  # 正規化平均値
