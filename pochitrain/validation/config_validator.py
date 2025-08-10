@@ -5,8 +5,9 @@
 """
 
 import logging
-from typing import Any, Dict, Protocol
+from typing import Any, Dict
 
+from .base_validator import BaseValidator
 from .validators import (
     ClassWeightsValidator,
     DataValidator,
@@ -14,14 +15,6 @@ from .validators import (
     SchedulerValidator,
     TransformValidator,
 )
-
-
-class ValidatorProtocol(Protocol):
-    """バリデータープロトコル."""
-
-    def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
-        """バリデーション実行."""
-        ...
 
 
 class ConfigValidator:
@@ -52,7 +45,7 @@ class ConfigValidator:
             bool: 全てのバリデーションが成功した場合True、いずれかが失敗した場合False
         """
         # 個別バリデーターを順次実行
-        validators: list[ValidatorProtocol] = [
+        validators: list[BaseValidator] = [
             self.data_validator,  # データパス（最初にチェック）
             self.class_weights_validator,  # クラス重み設定
             self.transform_validator,  # Transform設定

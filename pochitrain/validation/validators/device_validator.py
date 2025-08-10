@@ -7,8 +7,10 @@ GPU/CPU設定の意図しない動作を防止します。
 import logging
 from typing import Any, Dict
 
+from ..base_validator import BaseValidator
 
-class DeviceValidator:
+
+class DeviceValidator(BaseValidator):
     """デバイス設定のバリデーションクラス."""
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
