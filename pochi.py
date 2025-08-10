@@ -89,7 +89,7 @@ def main():
         logger.info("スケジューラー: なし（固定学習率）")
     else:
         logger.info(f"スケジューラー: {scheduler_name}")
-        scheduler_params = config.get("scheduler_params", {})
+        scheduler_params = config.get("scheduler_params")
         logger.info(f"スケジューラーパラメータ: {scheduler_params}")
 
     # クラス重み設定の明示的ログ出力
@@ -141,7 +141,9 @@ def main():
         learning_rate=config["learning_rate"],
         optimizer_name=config["optimizer"],
         scheduler_name=config.get("scheduler"),
-        scheduler_params=config.get("scheduler_params"),
+        scheduler_params=config.get(
+            "scheduler_params"
+        ),  # バリデーション済みなのでscheduler使用時は必ず存在
         class_weights=config.get("class_weights"),
         num_classes=len(classes),
     )
