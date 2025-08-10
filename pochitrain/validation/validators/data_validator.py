@@ -8,8 +8,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from ..base_validator import BaseValidator
 
-class DataValidator:
+
+class DataValidator(BaseValidator):
     """データパス設定のバリデーションクラス."""
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
