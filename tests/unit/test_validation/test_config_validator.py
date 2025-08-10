@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from pochitrain.validation.base_validator import BaseValidator
 from pochitrain.validation.config_validator import ConfigValidator
 
 
@@ -192,6 +193,15 @@ class TestConfigValidator(unittest.TestCase):
         }
         result_failure_scheduler = self.validator.validate(config_failure_scheduler)
         assert result_failure_scheduler is False
+
+    def test_all_validators_inherit_base_validator(self):
+        """全てのバリデーターがBaseValidatorを継承していることをテスト."""
+        # ConfigValidatorのバリデーターインスタンスを確認
+        assert isinstance(self.validator.data_validator, BaseValidator)
+        assert isinstance(self.validator.class_weights_validator, BaseValidator)
+        assert isinstance(self.validator.transform_validator, BaseValidator)
+        assert isinstance(self.validator.device_validator, BaseValidator)
+        assert isinstance(self.validator.scheduler_validator, BaseValidator)
 
 
 if __name__ == "__main__":

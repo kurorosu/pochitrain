@@ -7,8 +7,10 @@ Transform設定のバリデーター.
 import logging
 from typing import Any, Dict
 
+from ..base_validator import BaseValidator
 
-class TransformValidator:
+
+class TransformValidator(BaseValidator):
     """Transform設定のバリデーションクラス."""
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:

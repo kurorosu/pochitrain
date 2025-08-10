@@ -3,8 +3,10 @@
 import logging
 from typing import Any, Dict
 
+from ..base_validator import BaseValidator
 
-class SchedulerValidator:
+
+class SchedulerValidator(BaseValidator):
     """
     スケジューラー設定のバリデーションを行うクラス.
 
