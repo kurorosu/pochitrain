@@ -7,8 +7,10 @@
 import logging
 from typing import Any, Dict
 
+from ..base_validator import BaseValidator
 
-class ClassWeightsValidator:
+
+class ClassWeightsValidator(BaseValidator):
     """クラス重み設定のバリデーションクラス."""
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
