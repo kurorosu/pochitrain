@@ -130,8 +130,8 @@ def main():
     trainer = PochiTrainer(
         model_name=config["model_name"],
         num_classes=config["num_classes"],
+        device=config["device"],  # バリデーション済みなので必ず存在
         pretrained=config["pretrained"],
-        device=config.get("device"),
         work_dir=config["work_dir"],
     )
 
