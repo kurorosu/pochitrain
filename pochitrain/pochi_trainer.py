@@ -126,20 +126,25 @@ class PochiTrainer:
         else:
             raise ValueError(f"サポートされていない最適化器: {optimizer_name}")
 
-        # スケジューラーの設定
+        # スケジューラーの設定（バリデーション済みパラメータを使用）
         if scheduler_name:
+            if scheduler_params is None:
+                raise ValueError(
+                    f"スケジューラー '{scheduler_name}' を使用する場合、"
+                    f"scheduler_paramsが必須です。configs/pochi_config.pyで設定してください。"
+                )
+
             if scheduler_name == "StepLR":
-                params = scheduler_params or {"step_size": 30, "gamma": 0.1}
-                self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, **params)
+                self.scheduler = optim.lr_scheduler.StepLR(
+                    self.optimizer, **scheduler_params
+                )
             elif scheduler_name == "MultiStepLR":
-                params = scheduler_params or {"milestones": [30, 60, 90], "gamma": 0.1}
                 self.scheduler = optim.lr_scheduler.MultiStepLR(
-                    self.optimizer, **params
+                    self.optimizer, **scheduler_params
                 )
             elif scheduler_name == "CosineAnnealingLR":
-                params = scheduler_params or {"T_max": 100}
                 self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimizer, **params
+                    self.optimizer, **scheduler_params
                 )
             else:
                 raise ValueError(
