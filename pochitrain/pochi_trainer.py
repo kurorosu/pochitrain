@@ -25,7 +25,7 @@ class PochiTrainer:
         model_name (str): モデル名 ('resnet18', 'resnet34', 'resnet50')
         num_classes (int): 分類クラス数
         pretrained (bool): 事前学習済みモデルを使用するか
-        device (str, optional): デバイス ('cuda' or 'cpu')
+        device (str): デバイス ('cuda' or 'cpu') - 必須設定
         work_dir (str, optional): 作業ディレクトリ
     """
 
@@ -33,16 +33,13 @@ class PochiTrainer:
         self,
         model_name: str,
         num_classes: int,
+        device: str,
         pretrained: bool = True,
-        device: Optional[str] = None,
         work_dir: str = "work_dirs",
     ):
         """PochiTrainerを初期化."""
-        # デバイスの設定
-        if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
+        # デバイスの設定（バリデーション済みの設定を使用）
+        self.device = torch.device(device)
 
         # ワークスペースマネージャーの初期化
         self.workspace_manager = PochiWorkspaceManager(work_dir)
