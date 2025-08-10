@@ -10,20 +10,20 @@ class SchedulerValidator(BaseValidator):
     """
     スケジューラー設定のバリデーションを行うクラス.
 
-    サポートするスケジューラー:
-    - 'StepLR': step_size (int) が必須
-    - 'MultiStepLR': milestones (List[int]) が必須
-    - 'CosineAnnealingLR': T_max (int) が必須
+    サポートするスケジューラー（全パラメータ明示的設定必須）:
+    - 'StepLR': step_size (int), gamma (float) が必須
+    - 'MultiStepLR': milestones (List[int]), gamma (float) が必須
+    - 'CosineAnnealingLR': T_max (int), eta_min (float) が必須
     - None: スケジューラーなし（固定学習率）
     """
 
     def __init__(self) -> None:
         """SchedulerValidatorを初期化."""
-        # サポートするスケジューラーの必須パラメータ定義
+        # サポートするスケジューラーの必須パラメータ定義（全パラメータ明示的設定必須）
         self.supported_schedulers = {
-            "StepLR": ["step_size"],
-            "MultiStepLR": ["milestones"],
-            "CosineAnnealingLR": ["T_max"],
+            "StepLR": ["step_size", "gamma"],
+            "MultiStepLR": ["milestones", "gamma"],
+            "CosineAnnealingLR": ["T_max", "eta_min"],
         }
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
@@ -137,8 +137,15 @@ class SchedulerValidator(BaseValidator):
             )
             return False
 
-        # gammaパラメータがある場合の検証（オプション）
-        gamma = params.get("gamma", 0.1)  # デフォルト値
+        # gammaパラメータの検証（必須）
+        gamma = params.get("gamma")
+        if gamma is None:
+            logger.error(
+                "StepLRのgammaパラメータが必須です。"
+                "configs/pochi_config.pyで設定してください。"
+            )
+            return False
+
         if not isinstance(gamma, (int, float)):
             logger.error(
                 f"StepLRのgammaは数値である必要があります。"
@@ -196,8 +203,15 @@ class SchedulerValidator(BaseValidator):
             )
             return False
 
-        # gammaパラメータがある場合の検証（オプション）
-        gamma = params.get("gamma", 0.1)  # デフォルト値
+        # gammaパラメータの検証（必須）
+        gamma = params.get("gamma")
+        if gamma is None:
+            logger.error(
+                "MultiStepLRのgammaパラメータが必須です。"
+                "configs/pochi_config.pyで設定してください。"
+            )
+            return False
+
         if not isinstance(gamma, (int, float)):
             logger.error(
                 f"MultiStepLRのgammaは数値である必要があります。"
@@ -234,8 +248,15 @@ class SchedulerValidator(BaseValidator):
             )
             return False
 
-        # eta_minパラメータがある場合の検証（オプション）
-        eta_min = params.get("eta_min", 0)  # デフォルト値
+        # eta_minパラメータの検証（必須）
+        eta_min = params.get("eta_min")
+        if eta_min is None:
+            logger.error(
+                "CosineAnnealingLRのeta_minパラメータが必須です。"
+                "configs/pochi_config.pyで設定してください。"
+            )
+            return False
+
         if not isinstance(eta_min, (int, float)):
             logger.error(
                 f"CosineAnnealingLRのeta_minは数値である必要があります。"
