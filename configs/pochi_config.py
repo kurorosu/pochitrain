@@ -47,7 +47,6 @@ train_transform = transforms.Compose(
 # 検証用変換
 val_transform = transforms.Compose(
     [
-        transforms.Resize(256),
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std),
     ]
