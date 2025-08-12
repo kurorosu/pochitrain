@@ -4,7 +4,6 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import torchvision.transforms as transforms
@@ -159,9 +158,9 @@ device = "cpu"
             assert len(train_batch) == 2  # (images, labels)
             assert len(val_batch) == 2
 
-    @patch("pochitrain.PochiTrainer")
-    def test_trainer_creation_workflow(self, mock_trainer_class):
+    def test_trainer_creation_workflow(self, mocker):
         """トレーナー作成ワークフローのテスト"""
+        mock_trainer_class = mocker.patch("pochitrain.PochiTrainer")
         with tempfile.TemporaryDirectory() as temp_dir:
             train_root, val_root = self.create_test_data_structure(temp_dir)
             config_path = self.create_test_config_file(temp_dir, train_root, val_root)
