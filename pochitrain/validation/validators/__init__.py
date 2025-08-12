@@ -9,6 +9,7 @@ from .data_validator import DataValidator
 from .device_validator import DeviceValidator
 from .optimizer_validator import OptimizerValidator
 from .scheduler_validator import SchedulerValidator
+from .training_validator import TrainingValidator
 from .transform_validator import TransformValidator
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "DeviceValidator",
     "OptimizerValidator",
     "SchedulerValidator",
+    "TrainingValidator",
     "TransformValidator",
 ]
