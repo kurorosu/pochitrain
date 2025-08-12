@@ -3,7 +3,6 @@ LoggerManagerのテスト
 """
 
 import logging
-from unittest.mock import patch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -90,9 +89,11 @@ class TestLoggerManager:
         logger = manager.get_logger("default_level_test")
         assert logger.level == logging.WARNING
 
-    @patch("pochitrain.logging.logger_manager.COLORLOG_AVAILABLE", False)
-    def test_fallback_when_colorlog_unavailable(self):
+    def test_fallback_when_colorlog_unavailable(self, mocker):
         """colorlogが利用できない場合のフォールバック機能テスト"""
+        # colorlogが利用できない状態をモック
+        mocker.patch("pochitrain.logging.logger_manager.COLORLOG_AVAILABLE", False)
+
         # 新しいマネージャーを作成（colorlogが無効な状態で）
         LoggerManager.reset()
         manager = LoggerManager()
@@ -102,9 +103,11 @@ class TestLoggerManager:
         assert len(logger.handlers) > 0
         assert isinstance(logger.handlers[0], logging.StreamHandler)
 
-    @patch("pochitrain.logging.logger_manager.COLORLOG_AVAILABLE", True)
-    def test_colorlog_when_available(self):
+    def test_colorlog_when_available(self, mocker):
         """colorlogが利用可能な場合のテスト"""
+        # colorlogが利用可能な状態をモック
+        mocker.patch("pochitrain.logging.logger_manager.COLORLOG_AVAILABLE", True)
+
         LoggerManager.reset()
         manager = LoggerManager()
 
