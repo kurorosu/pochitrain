@@ -66,6 +66,13 @@ class TestConfigValidator:
         )
         mock_scheduler_validator_class.return_value = mock_scheduler_validator
 
+        mock_training_validator = mocker.Mock()
+        mock_training_validator.validate.return_value = True
+        mock_training_validator_class = mocker.patch(
+            "pochitrain.validation.config_validator.TrainingValidator"
+        )
+        mock_training_validator_class.return_value = mock_training_validator
+
         # テスト実行
         validator = ConfigValidator(mock_logger)
         config = {"device": "cuda"}
@@ -79,6 +86,7 @@ class TestConfigValidator:
         )
         mock_transform_validator.validate.assert_called_once_with(config, mock_logger)
         mock_device_validator.validate.assert_called_once_with(config, mock_logger)
+        mock_training_validator.validate.assert_called_once_with(config, mock_logger)
         mock_optimizer_validator.validate.assert_called_once_with(config, mock_logger)
         mock_scheduler_validator.validate.assert_called_once_with(config, mock_logger)
 
@@ -129,6 +137,13 @@ class TestConfigValidator:
         )
         mock_scheduler_validator_class.return_value = mock_scheduler_validator
 
+        mock_training_validator = mocker.Mock()
+        mock_training_validator.validate.return_value = True
+        mock_training_validator_class = mocker.patch(
+            "pochitrain.validation.config_validator.TrainingValidator"
+        )
+        mock_training_validator_class.return_value = mock_training_validator
+
         # テスト実行
         validator = ConfigValidator(mock_logger)
         config = {"device": "cuda"}
@@ -141,6 +156,7 @@ class TestConfigValidator:
         mock_class_weights_validator.validate.assert_not_called()
         mock_transform_validator.validate.assert_not_called()
         mock_device_validator.validate.assert_not_called()
+        mock_training_validator.validate.assert_not_called()
         mock_optimizer_validator.validate.assert_not_called()
         mock_scheduler_validator.validate.assert_not_called()
 
@@ -155,6 +171,7 @@ class TestConfigValidator:
         assert isinstance(validator.class_weights_validator, BaseValidator)
         assert isinstance(validator.transform_validator, BaseValidator)
         assert isinstance(validator.device_validator, BaseValidator)
+        assert isinstance(validator.training_validator, BaseValidator)
         assert isinstance(validator.optimizer_validator, BaseValidator)
         assert isinstance(validator.scheduler_validator, BaseValidator)
 
@@ -176,6 +193,9 @@ class TestConfigValidator:
             "optimizer": "Adam",
             "scheduler": "StepLR",
             "scheduler_params": {"step_size": 30, "gamma": 0.1},
+            "epochs": 100,
+            "batch_size": 32,
+            "model_name": "resnet50",
         }
         result_success = validator.validate(config_success)
         assert result_success is True
@@ -192,6 +212,9 @@ class TestConfigValidator:
             "learning_rate": 0.001,
             "optimizer": "Adam",
             "scheduler": None,
+            "epochs": 100,
+            "batch_size": 32,
+            "model_name": "resnet50",
         }
         result_failure_device = validator.validate(config_failure_device)
         assert result_failure_device is False
@@ -208,6 +231,9 @@ class TestConfigValidator:
             "learning_rate": 0.001,
             "optimizer": "Adam",
             "scheduler": None,
+            "epochs": 100,
+            "batch_size": 32,
+            "model_name": "resnet50",
         }
         result_failure_transform = validator.validate(config_failure_transform)
         assert result_failure_transform is False
@@ -225,6 +251,9 @@ class TestConfigValidator:
             "optimizer": "Adam",
             "scheduler": "StepLR",
             "scheduler_params": None,  # scheduler_params がNone
+            "epochs": 100,
+            "batch_size": 32,
+            "model_name": "resnet50",
         }
         result_failure_scheduler = validator.validate(config_failure_scheduler)
         assert result_failure_scheduler is False
@@ -241,6 +270,9 @@ class TestConfigValidator:
             "learning_rate": 0.001,
             "optimizer": "InvalidOptimizer",  # サポート外optimizer
             "scheduler": None,
+            "epochs": 100,
+            "batch_size": 32,
+            "model_name": "resnet50",
         }
         result_failure_optimizer = validator.validate(config_failure_optimizer)
         assert result_failure_optimizer is False
