@@ -12,6 +12,7 @@ from .validators import (
     ClassWeightsValidator,
     DataValidator,
     DeviceValidator,
+    OptimizerValidator,
     SchedulerValidator,
     TransformValidator,
 )
@@ -31,6 +32,7 @@ class ConfigValidator:
         self.class_weights_validator = ClassWeightsValidator()
         self.data_validator = DataValidator()
         self.device_validator = DeviceValidator()
+        self.optimizer_validator = OptimizerValidator()
         self.scheduler_validator = SchedulerValidator()
         self.transform_validator = TransformValidator()
 
@@ -50,6 +52,7 @@ class ConfigValidator:
             self.class_weights_validator,  # クラス重み設定
             self.transform_validator,  # Transform設定
             self.device_validator,  # デバイス設定
+            self.optimizer_validator,  # 最適化器設定
             self.scheduler_validator,  # スケジューラー設定
         ]
 
