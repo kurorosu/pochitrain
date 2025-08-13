@@ -59,7 +59,7 @@ def main():
     logger.info("=== pochitrain クイックスタート ===")
 
     # 設定ファイルの読み込み
-    config_path = "configs/pochi_config.py"
+    config_path = "configs/pochi_train_config.py"
     config_path_obj = Path(config_path)
 
     try:
@@ -67,7 +67,7 @@ def main():
         logger.info(f"設定ファイルを読み込みました: {config_path}")
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {config_path}")
-        logger.error("configs/pochi_config.py を作成してください。")
+        logger.error("configs/pochi_train_config.py を作成してください。")
         return
 
     # 設定のバリデーション

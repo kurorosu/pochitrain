@@ -64,7 +64,7 @@ class TrainingValidator(BaseValidator):
         # 必須チェック
         if epochs is None:
             logger.error(
-                "epochs が設定されていません。configs/pochi_config.py で "
+                "epochs が設定されていません。configs/pochi_train_config.py で "
                 "エポック数を設定してください。"
             )
             return False
@@ -102,7 +102,7 @@ class TrainingValidator(BaseValidator):
         # 必須チェック
         if batch_size is None:
             logger.error(
-                "batch_size が設定されていません。configs/pochi_config.py で "
+                "batch_size が設定されていません。configs/pochi_train_config.py で "
                 "バッチサイズを設定してください。"
             )
             return False
@@ -142,7 +142,7 @@ class TrainingValidator(BaseValidator):
         # 必須チェック
         if model_name is None:
             logger.error(
-                "model_name が設定されていません。configs/pochi_config.py で "
+                "model_name が設定されていません。configs/pochi_train_config.py で "
                 "モデル名を設定してください。"
             )
             return False

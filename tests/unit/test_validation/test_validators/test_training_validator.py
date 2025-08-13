@@ -23,7 +23,7 @@ class TestEpochsValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs が設定されていません。configs/pochi_config.py で "
+            "epochs が設定されていません。configs/pochi_train_config.py で "
             "エポック数を設定してください。"
         )
 
@@ -101,7 +101,7 @@ class TestBatchSizeValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size が設定されていません。configs/pochi_config.py で "
+            "batch_size が設定されていません。configs/pochi_train_config.py で "
             "バッチサイズを設定してください。"
         )
 
@@ -179,7 +179,7 @@ class TestModelNameValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "model_name が設定されていません。configs/pochi_config.py で "
+            "model_name が設定されていません。configs/pochi_train_config.py で "
             "モデル名を設定してください。"
         )
 
