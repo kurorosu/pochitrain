@@ -23,7 +23,7 @@ def test_train_transform_none_validation_fails(validator, mocker):
     # アサーション
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_transform が必須です。configs/pochi_config.py で "
+        "train_transform が必須です。configs/pochi_train_config.py で "
         "transforms.Compose([...]) を train_transform として定義してください。"
     )
 
@@ -38,7 +38,7 @@ def test_val_transform_none_validation_fails(validator, mocker):
     # アサーション
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "val_transform が必須です。configs/pochi_config.py で "
+        "val_transform が必須です。configs/pochi_train_config.py で "
         "transforms.Compose([...]) を val_transform として定義してください。"
     )
 
@@ -53,7 +53,7 @@ def test_both_transforms_none_validation_fails(validator, mocker):
     # アサーション（train_transformで先に失敗）
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_transform が必須です。configs/pochi_config.py で "
+        "train_transform が必須です。configs/pochi_train_config.py で "
         "transforms.Compose([...]) を train_transform として定義してください。"
     )
 
@@ -68,7 +68,7 @@ def test_transforms_missing_from_config(validator, mocker):
     # アサーション（train_transform=Noneと同じ扱い）
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_transform が必須です。configs/pochi_config.py で "
+        "train_transform が必須です。configs/pochi_train_config.py で "
         "transforms.Compose([...]) を train_transform として定義してください。"
     )
 

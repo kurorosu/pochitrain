@@ -28,7 +28,7 @@ class TransformValidator(BaseValidator):
         train_transform = config.get("train_transform")
         if train_transform is None:
             logger.error(
-                "train_transform が必須です。configs/pochi_config.py で "
+                "train_transform が必須です。configs/pochi_train_config.py で "
                 "transforms.Compose([...]) を train_transform として定義してください。"
             )
             return False
@@ -37,7 +37,7 @@ class TransformValidator(BaseValidator):
         val_transform = config.get("val_transform")
         if val_transform is None:
             logger.error(
-                "val_transform が必須です。configs/pochi_config.py で "
+                "val_transform が必須です。configs/pochi_train_config.py で "
                 "transforms.Compose([...]) を val_transform として定義してください。"
             )
             return False

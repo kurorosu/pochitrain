@@ -29,7 +29,7 @@ class DataValidator(BaseValidator):
         train_data_root = config.get("train_data_root")
         if not train_data_root:
             logger.error(
-                "train_data_root が必須です。configs/pochi_config.py で "
+                "train_data_root が必須です。configs/pochi_train_config.py で "
                 "有効な訓練データパスを設定してください。"
             )
             return False
@@ -44,7 +44,7 @@ class DataValidator(BaseValidator):
         val_data_root = config.get("val_data_root")
         if not val_data_root:
             logger.error(
-                "val_data_root が必須です。configs/pochi_config.py で "
+                "val_data_root が必須です。configs/pochi_train_config.py で "
                 "有効な検証データパスを設定してください。"
             )
             return False

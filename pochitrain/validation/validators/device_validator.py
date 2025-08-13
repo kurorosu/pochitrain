@@ -29,7 +29,8 @@ class DeviceValidator(BaseValidator):
         # device設定がNoneの場合はエラー（意図しないCPU使用を防止）
         if device_config is None:
             logger.error(
-                "device設定が必須です。configs/pochi_config.pyでdeviceを'cuda'または'cpu'に設定してください。"
+                "device設定が必須です。configs/pochi_train_config.pyで"
+                "deviceを'cuda'または'cpu'に設定してください。"
             )
             logger.error("例: device = 'cuda' または device = 'cpu'")
             return False

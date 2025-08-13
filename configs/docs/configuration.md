@@ -2,7 +2,7 @@
 
 ## 概要
 
-`configs/pochi_config.py` は、pochitrainの全ての設定を管理するPythonファイルです。
+`configs/pochi_train_config.py` は、pochitrainの訓練用設定を管理するPythonファイルです。
 `importlib.util`を使用してPythonコードとして読み込まれるため、関数やオブジェクトを直接定義できます。
 
 ## 基本設定

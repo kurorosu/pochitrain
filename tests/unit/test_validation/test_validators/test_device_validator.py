@@ -25,7 +25,7 @@ def test_device_none_validation_fails(validator, mocker):
     # エラーメッセージが出力されることを確認
     assert mock_logger.error.call_count == 2
     mock_logger.error.assert_any_call(
-        "device設定が必須です。configs/pochi_config.pyでdeviceを'cuda'または'cpu'に設定してください。"
+        "device設定が必須です。configs/pochi_train_config.pyでdeviceを'cuda'または'cpu'に設定してください。"
     )
     mock_logger.error.assert_any_call("例: device = 'cuda' または device = 'cpu'")
 
