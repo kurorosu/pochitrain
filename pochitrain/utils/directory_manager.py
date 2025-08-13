@@ -279,3 +279,116 @@ class PochiWorkspaceManager:
         workspaces.sort(key=lambda x: (x["date"], x["index"]))
 
         return workspaces
+
+
+class InferenceWorkspaceManager(PochiWorkspaceManager):
+    """
+    推論専用ワークスペース管理クラス.
+
+    PochiWorkspaceManagerを継承し、推論に特化したワークスペース管理を提供します。
+    訓練用とは異なり、推論結果とメタデータのみを保存します。
+
+    Args:
+        base_dir (str): ベースディレクトリのパス (デフォルト: "inference_results")
+    """
+
+    def __init__(self, base_dir: str = "inference_results"):
+        """InferenceWorkspaceManagerを初期化."""
+        super().__init__(base_dir)
+
+    def create_workspace(self) -> Path:
+        """
+        推論専用ワークスペースを作成.
+
+        親クラスのワークスペース作成機能を使用しますが、
+        推論専用なのでmodelsディレクトリは作成しません。
+
+        Returns:
+            Path: 作成されたワークスペースのパス
+        """
+        # ベースディレクトリが存在しない場合は作成
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+        # 今日の日付を取得
+        date_str = get_current_date_str()
+
+        # 次のインデックスを取得
+        next_index = find_next_index(self.base_dir, date_str)
+
+        # ワークスペース名を生成
+        workspace_name = format_workspace_name(date_str, next_index)
+        workspace_path = self.base_dir / workspace_name
+
+        # ワークスペースディレクトリのみ作成（modelsディレクトリは作らない）
+        workspace_path.mkdir(exist_ok=True)
+
+        # 現在のワークスペースとして設定
+        self.current_workspace = workspace_path
+
+        return workspace_path
+
+    def save_model_info(
+        self, model_info: dict, filename: str = "model_info.json"
+    ) -> Path:
+        """
+        モデル情報をJSONファイルとして保存.
+
+        Args:
+            model_info (dict): モデル情報の辞書
+            filename (str): 保存ファイル名
+
+        Returns:
+            Path: 保存されたファイルのパス
+        """
+        import json
+
+        if self.current_workspace is None:
+            raise ValueError(
+                "ワークスペースが作成されていません。create_workspace()を先に呼び出してください。"
+            )
+
+        info_path = self.current_workspace / filename
+
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(model_info, f, ensure_ascii=False, indent=2)
+
+        return info_path
+
+    def get_csv_output_path(self, filename: str) -> Path:
+        """
+        CSV出力用のパスを取得.
+
+        Args:
+            filename (str): CSVファイル名
+
+        Returns:
+            Path: CSV出力パス
+        """
+        if self.current_workspace is None:
+            raise ValueError(
+                "ワークスペースが作成されていません。create_workspace()を先に呼び出してください。"
+            )
+
+        return self.current_workspace / filename
+
+    def get_workspace_info(self) -> dict:
+        """
+        推論ワークスペース情報を取得.
+
+        Returns:
+            dict: 推論ワークスペース情報
+        """
+        if self.current_workspace is None:
+            return {
+                "workspace": None,
+                "workspace_name": None,
+                "base_dir": str(self.base_dir),
+                "exists": False,
+            }
+
+        return {
+            "workspace": str(self.current_workspace),
+            "workspace_name": self.current_workspace.name,
+            "base_dir": str(self.base_dir),
+            "exists": self.current_workspace.exists(),
+        }

@@ -20,12 +20,13 @@ from .pochi_dataset import (
     get_basic_transforms,
     print_dataset_info,
 )
+from .pochi_predictor import PochiPredictor
 
 # Pochiインターフェース
 from .pochi_trainer import PochiTrainer
 
 # ユーティリティ
-from .utils.directory_manager import PochiWorkspaceManager
+from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
 __version__ = "0.1.0"
 __author__ = "Pochi Team"
@@ -36,6 +37,7 @@ __all__ = [
     "LoggerManager",
     # Pochiインターフェース
     "PochiTrainer",
+    "PochiPredictor",
     "PochiImageDataset",
     "PochiModel",
     "create_data_loaders",
@@ -44,4 +46,5 @@ __all__ = [
     "print_dataset_info",
     # ユーティリティ
     "PochiWorkspaceManager",
+    "InferenceWorkspaceManager",
 ]
