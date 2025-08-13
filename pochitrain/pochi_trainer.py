@@ -38,6 +38,10 @@ class PochiTrainer:
         work_dir: str = "work_dirs",
     ):
         """PochiTrainerを初期化."""
+        # モデル設定の保存
+        self.model_name = model_name
+        self.num_classes = num_classes
+
         # デバイスの設定（バリデーション済みの設定を使用）
         self.device = torch.device(device)
 
