@@ -30,7 +30,7 @@ class ClassWeightsValidator(BaseValidator):
         # num_classesの必須チェック
         if num_classes is None:
             logger.error(
-                "num_classes が設定されていません。configs/pochi_config.py で "
+                "num_classes が設定されていません。configs/pochi_train_config.py で "
                 "クラス数を設定してください。"
             )
             return False

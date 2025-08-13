@@ -40,7 +40,7 @@ data/
 
 ### 2. 設定ファイルの編集
 
-`configs/pochi_config.py` を編集してください：
+`configs/pochi_train_config.py` を編集してください：
 
 ```python
 # モデル設定
@@ -63,7 +63,7 @@ optimizer = 'Adam'            # 最適化器
 ### 3. 訓練実行
 
 ```bash
-python pochi.py
+python pochi_train.py
 ```
 
 これだけで訓練が開始されます！

@@ -27,7 +27,7 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes が設定されていません。configs/pochi_config.py で "
+            "num_classes が設定されていません。configs/pochi_train_config.py で "
             "クラス数を設定してください。"
         )
 
@@ -40,7 +40,7 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes が設定されていません。configs/pochi_config.py で "
+            "num_classes が設定されていません。configs/pochi_train_config.py で "
             "クラス数を設定してください。"
         )
 
