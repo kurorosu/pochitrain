@@ -33,7 +33,7 @@ class OptimizerValidator(BaseValidator):
         learning_rate = config.get("learning_rate")
         if learning_rate is None:
             logger.error(
-                "learning_rate が設定されていません。configs/pochi_config.py で "
+                "learning_rate が設定されていません。configs/pochi_train_config.py で "
                 "学習率を設定してください。"
             )
             return False
@@ -57,7 +57,7 @@ class OptimizerValidator(BaseValidator):
         optimizer = config.get("optimizer")
         if optimizer is None:
             logger.error(
-                "optimizer が設定されていません。configs/pochi_config.py で "
+                "optimizer が設定されていません。configs/pochi_train_config.py で "
                 "最適化器を設定してください。"
             )
             return False

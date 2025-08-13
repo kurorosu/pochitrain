@@ -20,7 +20,7 @@ def test_learning_rate_missing_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "learning_rate が設定されていません。configs/pochi_config.py で "
+        "learning_rate が設定されていません。configs/pochi_train_config.py で "
         "学習率を設定してください。"
     )
 
@@ -62,7 +62,7 @@ def test_optimizer_missing_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "optimizer が設定されていません。configs/pochi_config.py で "
+        "optimizer が設定されていません。configs/pochi_train_config.py で "
         "最適化器を設定してください。"
     )
 

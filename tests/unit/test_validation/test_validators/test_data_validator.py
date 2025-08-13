@@ -48,7 +48,7 @@ def test_train_data_root_none_validation_fails(validator, temp_paths, mocker):
     # アサーション
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_data_root が必須です。configs/pochi_config.py で "
+        "train_data_root が必須です。configs/pochi_train_config.py で "
         "有効な訓練データパスを設定してください。"
     )
 
@@ -63,7 +63,7 @@ def test_train_data_root_missing_validation_fails(validator, temp_paths, mocker)
     # アサーション
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_data_root が必須です。configs/pochi_config.py で "
+        "train_data_root が必須です。configs/pochi_train_config.py で "
         "有効な訓練データパスを設定してください。"
     )
 
@@ -99,7 +99,7 @@ def test_val_data_root_none_validation_fails(validator, temp_paths, mocker):
     # アサーション
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "val_data_root が必須です。configs/pochi_config.py で "
+        "val_data_root が必須です。configs/pochi_train_config.py で "
         "有効な検証データパスを設定してください。"
     )
 
@@ -147,6 +147,6 @@ def test_empty_string_paths_validation_fails(validator, mocker):
     # アサーション（train_data_rootで先に失敗）
     assert result is False
     mock_logger.error.assert_called_once_with(
-        "train_data_root が必須です。configs/pochi_config.py で "
+        "train_data_root が必須です。configs/pochi_train_config.py で "
         "有効な訓練データパスを設定してください。"
     )
