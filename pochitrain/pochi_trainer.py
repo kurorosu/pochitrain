@@ -304,6 +304,7 @@ class PochiTrainer:
         train_loader: DataLoader,
         val_loader: Optional[DataLoader] = None,
         epochs: int = 10,
+        stop_flag_callback=None,
     ) -> None:
         """
         訓練の実行.
@@ -312,11 +313,20 @@ class PochiTrainer:
             train_loader (DataLoader): 訓練データローダー
             val_loader (DataLoader, optional): 検証データローダー
             epochs (int): エポック数
+            stop_flag_callback (callable, optional): 停止フラグをチェックするコールバック関数
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
+
+            # 停止フラグのチェック（エポック開始前）
+            if stop_flag_callback and stop_flag_callback():
+                self.logger.warning(
+                    f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
+                )
+                self.save_last_model()  # 現在の状態を保存
+                break
 
             self.logger.info(f"エポック {epoch}/{epochs} を開始")
 
@@ -352,6 +362,13 @@ class PochiTrainer:
 
             # ラストモデルの保存（毎エポック上書き）
             self.save_last_model()
+
+            # 停止フラグのチェック（エポック完了後）
+            if stop_flag_callback and stop_flag_callback():
+                self.logger.warning(
+                    f"安全停止が要求されました。エポック {epoch} で訓練を終了します。"
+                )
+                break
 
         self.logger.info("訓練が完了しました")
         if val_loader:

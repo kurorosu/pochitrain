@@ -7,6 +7,7 @@ pochitrain 統一CLI エントリーポイント.
 
 import argparse
 import importlib.util
+import signal
 import sys
 from pathlib import Path
 
@@ -20,6 +21,20 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.validation import ConfigValidator
+
+# グローバル変数で訓練停止フラグを管理
+training_interrupted = False
+
+
+def signal_handler(signum, frame):
+    """Ctrl+Cのシグナルハンドラー."""
+    global training_interrupted
+    training_interrupted = True
+
+    # シグナルハンドラー内で直接ロガーを作成
+    logger = setup_logging()
+    logger.warning("訓練を安全に停止しています... (Ctrl+Cが検出されました)")
+    logger.warning("現在のエポックが完了次第、訓練を終了します。")
 
 
 def setup_logging(logger_name: str = "pochitrain"):
@@ -123,8 +138,14 @@ def validate_config(config: dict, logger) -> bool:
 
 def train_command(args):
     """訓練サブコマンドの実行."""
+    # Ctrl+Cの安全な処理を設定
+    signal.signal(signal.SIGINT, signal_handler)
+
     logger = setup_logging()
     logger.info("=== pochitrain 訓練モード ===")
+    logger.info(
+        "安全終了: 訓練中にCtrl+Cを押すと、現在のエポック完了後に安全に終了します。"
+    )
 
     # 設定ファイルの読み込み
     try:
@@ -226,6 +247,7 @@ def train_command(args):
         train_loader=train_loader,
         val_loader=val_loader,
         epochs=config["epochs"],
+        stop_flag_callback=lambda: training_interrupted,
     )
 
     logger.info("訓練が完了しました！")
@@ -263,13 +285,14 @@ def infer_command(args):
         return
     logger.info(f"推論データ: {data_root}")
 
-    # 出力ディレクトリの決定（モデルと同じディレクトリ）
+    # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
         output_dir = args.output
     else:
-        # モデルファイルと同じディレクトリに出力
-        model_dir = model_path.parent
-        output_dir = str(model_dir / "inference_results")
+        # modelsフォルダと同階層に出力
+        model_dir = model_path.parent  # models フォルダ
+        work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
+        output_dir = str(work_dir / "inference_results")
 
     logger.info(f"推論結果出力先: {output_dir}")
 
@@ -283,7 +306,7 @@ def infer_command(args):
             model_path=str(model_path),
             work_dir=output_dir,
         )
-        logger.info("✅ 推論器の作成成功")
+        logger.info("推論器の作成成功")
     except Exception as e:
         logger.error(f"推論器作成エラー: {e}")
         return
@@ -300,8 +323,8 @@ def infer_command(args):
             pin_memory=True,
         )
 
-        logger.info(f"📊 推論データ: {len(val_dataset)}枚の画像")
-        logger.info("📋 使用されたTransform (設定ファイルから):")
+        logger.info(f"推論データ: {len(val_dataset)}枚の画像")
+        logger.info("使用されたTransform (設定ファイルから):")
         for i, transform in enumerate(config["val_transform"].transforms):
             logger.info(f"   {i+1}. {transform}")
 
@@ -321,7 +344,7 @@ def infer_command(args):
         true_labels = val_dataset.labels
         class_names = val_dataset.get_classes()
 
-        logger.info("✅ 推論完了")
+        logger.info("推論完了")
 
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
