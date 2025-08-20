@@ -38,18 +38,18 @@ class PochiPredictor(PochiTrainer):
         work_dir: str = "inference_results",
     ):
         """PochiPredictorを初期化."""
-        # 親クラスを初期化（pretrainedはFalseにして後でロード）
+        # 推論専用ワークスペースマネージャーを先に作成
+        self.inference_workspace_manager = InferenceWorkspaceManager(work_dir)
+        self.inference_workspace = self.inference_workspace_manager.create_workspace()
+
+        # 親クラスを初期化（推論ワークスペースを使用）
         super().__init__(
             model_name=model_name,
             num_classes=num_classes,
             device=device,
             pretrained=False,
-            work_dir="temp_workspace",  # 一時的なワークスペース
+            work_dir=str(self.inference_workspace),  # 推論ワークスペースを使用
         )
-
-        # 推論専用ワークスペースマネージャーで上書き
-        self.inference_workspace_manager = InferenceWorkspaceManager(work_dir)
-        self.inference_workspace = self.inference_workspace_manager.create_workspace()
 
         self.model_path = Path(model_path)
         self._load_trained_model()

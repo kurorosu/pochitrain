@@ -13,8 +13,8 @@ pretrained = True  # 事前学習済みモデルを使用
 # データ設定
 train_data_root = "data/train"  # 訓練データのパス
 val_data_root = "data/val"  # 検証データのパス
-batch_size = 2  # バッチサイズ
-num_workers = 4  # データローダーのワーカー数
+batch_size = 16  # バッチサイズ
+num_workers = 0  # データローダーのワーカー数（Ctrl+Cエラー回避のため0に設定）
 
 # 訓練設定
 epochs = 50  # エポック数

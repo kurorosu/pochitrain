@@ -71,6 +71,9 @@ class PochiTrainer:
         self.epoch = 0
         self.best_accuracy = 0.0
 
+        # 混同行列計算のためのクラス数（後で設定）
+        self.num_classes_for_cm: Optional[int] = None
+
         # 最適化器・損失関数は後で設定
         self.optimizer: Optional[optim.Optimizer] = None
         self.scheduler: Optional[optim.lr_scheduler._LRScheduler] = None
@@ -159,6 +162,11 @@ class PochiTrainer:
         if scheduler_name:
             self.logger.info(f"スケジューラー: {scheduler_name}")
 
+        # 混同行列計算のためのクラス数を設定
+        if num_classes:
+            self.num_classes_for_cm = num_classes
+            self.logger.info(f"混同行列計算を有効化しました (クラス数: {num_classes})")
+
     def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
         """1エポックの訓練."""
         self.model.train()
@@ -211,6 +219,10 @@ class PochiTrainer:
         correct = 0
         total = 0
 
+        # 混同行列計算のためのリスト
+        all_predicted = []
+        all_targets = []
+
         with torch.no_grad():
             for data, target in val_loader:
                 data, target = data.to(self.device), target.to(self.device)
@@ -226,10 +238,127 @@ class PochiTrainer:
                 total += target.size(0)
                 correct += predicted.eq(target).sum().item()
 
+                # 混同行列用にデータを保存
+                all_predicted.append(predicted)
+                all_targets.append(target)
+
         avg_loss = total_loss / len(val_loader)
         accuracy = 100.0 * correct / total
 
+        # 混同行列の計算と出力（Fortranエラー回避のため純粋PyTorch実装）
+        if self.num_classes_for_cm is not None and all_predicted and all_targets:
+            # バッチごとに収集した予測値と正解値を連結
+            # 各バッチのテンソルを1つの大きなテンソルにまとめる
+            all_predicted_tensor = torch.cat(all_predicted, dim=0)
+            all_targets_tensor = torch.cat(all_targets, dim=0)
+
+            # 混同行列を計算（sklearn/torchmetrics不使用）
+            # 基本的なPyTorchテンソル操作のみを使用してFortranエラーを回避
+            cm = self._compute_confusion_matrix_pytorch(
+                all_predicted_tensor, all_targets_tensor, self.num_classes_for_cm
+            )
+
+            # 簡易形式でログファイルに追記出力
+            # epoch番号と行列データを1行で記録し、後続分析に使用可能
+            self._log_confusion_matrix(cm)
+
         return {"val_loss": avg_loss, "val_accuracy": accuracy}
+
+    def _compute_confusion_matrix_pytorch(
+        self, predicted: torch.Tensor, targets: torch.Tensor, num_classes: int
+    ) -> torch.Tensor:
+        """
+        純粹なPyTorchテンソル操作による混同行列計算.
+
+        sklearn.metrics.confusion_matrixやtorchmetricsを使用せず、
+        基本的なPyTorchテンソル操作のみで混同行列を計算します。
+        これにより、Ctrl+C割り込み時のFortranランタイムエラーを回避できます。
+
+        Args:
+            predicted (torch.Tensor): 予測ラベル（各要素は0からnum_classes-1の整数）
+            targets (torch.Tensor): 正解ラベル（各要素は0からnum_classes-1の整数）
+            num_classes (int): クラス数
+
+        Returns:
+            torch.Tensor: 混同行列（[num_classes, num_classes]の2次元テンソル）
+                         行が正解ラベル、列が予測ラベルに対応
+                         confusion_matrix[i, j] = 正解がi、予測がjの個数
+
+        Note:
+            - メモリ効率のため、要素数の多い場合は時間がかかる可能性があります
+            - GPU/CPUデバイス間の一貫性を保つため、計算前にデバイスを統一します
+        """
+        # デバイスを統一（GPU/CPUの混在を防ぐ）
+        predicted = predicted.to(self.device)
+        targets = targets.to(self.device)
+
+        # 混同行列を初期化（行=正解、列=予測）
+        # dtype=int64で十分な範囲の整数カウントに対応
+        confusion_matrix = torch.zeros(
+            num_classes, num_classes, dtype=torch.int64, device=self.device
+        )
+
+        # 各サンプルの（正解, 予測）ペアをカウント
+        # view(-1)でテンソルを1次元に平坦化してからペアワイズ処理
+        for t, p in zip(targets.view(-1), predicted.view(-1)):
+            # .long()でint64型に変換してインデックスとして使用
+            confusion_matrix[t.long(), p.long()] += 1
+
+        return confusion_matrix
+
+    def _log_confusion_matrix(self, confusion_matrix: torch.Tensor) -> None:
+        """
+        混同行列をログファイルに出力.
+
+        各エポックの検証時に混同行列を.logファイルに追記します。
+        出力形式は簡易的で、後続の分析やレポート生成に使用可能です。
+
+        Args:
+            confusion_matrix (torch.Tensor): PyTorchテンソル形式の混同行列
+                                           [num_classes, num_classes]の2次元テンソル
+
+        Output Format:
+            epoch1
+             [row1]
+             [row2]
+             [row3]
+            epoch2
+             [row1]
+             [row2]
+             [row3]
+
+        Example (3クラス分類):
+            epoch1
+             [10, 0, 0]
+             [0, 8, 2]
+             [1, 0, 9]
+            epoch2
+             [9, 1, 0]
+             [0, 9, 1]
+             [0, 1, 9]
+
+        Note:
+            - ワークスペースが存在しない場合は何もしません
+            - ファイルは追記モードで開くため、訓練継続時も過去のデータが保持されます
+            - UTF-8エンコーディングで保存されます
+        """
+        # ワークスペースが未初期化の場合はスキップ
+        if self.current_workspace is None:
+            return
+
+        # ログファイルパスの構築
+        log_file = Path(self.current_workspace) / "confusion_matrix.log"
+
+        # PyTorchテンソルをNumPy配列に変換し、int型にキャスト
+        # CPUに移動してからnumpy()でNumPy配列化
+        cm_numpy = confusion_matrix.cpu().numpy().astype(int)
+
+        # ファイルに追記モードで書き込み
+        # エポック番号を単独行で出力し、その後に混同行列の各行を縦に並べる
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"epoch{self.epoch}\n")  # エポック番号を単独行で出力
+            for row in cm_numpy:
+                f.write(f" {row.tolist()}\n")  # 各行を改行で区切って出力
 
     def save_checkpoint(
         self, filename: str = "checkpoint.pth", is_best: bool = False
@@ -304,6 +433,7 @@ class PochiTrainer:
         train_loader: DataLoader,
         val_loader: Optional[DataLoader] = None,
         epochs: int = 10,
+        stop_flag_callback=None,
     ) -> None:
         """
         訓練の実行.
@@ -312,11 +442,20 @@ class PochiTrainer:
             train_loader (DataLoader): 訓練データローダー
             val_loader (DataLoader, optional): 検証データローダー
             epochs (int): エポック数
+            stop_flag_callback (callable, optional): 停止フラグをチェックするコールバック関数
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
+
+            # 停止フラグのチェック（エポック開始前）
+            if stop_flag_callback and stop_flag_callback():
+                self.logger.warning(
+                    f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
+                )
+                self.save_last_model()  # 現在の状態を保存
+                break
 
             self.logger.info(f"エポック {epoch}/{epochs} を開始")
 
@@ -352,6 +491,13 @@ class PochiTrainer:
 
             # ラストモデルの保存（毎エポック上書き）
             self.save_last_model()
+
+            # 停止フラグのチェック（エポック完了後）
+            if stop_flag_callback and stop_flag_callback():
+                self.logger.warning(
+                    f"安全停止が要求されました。エポック {epoch} で訓練を終了します。"
+                )
+                break
 
         self.logger.info("訓練が完了しました")
         if val_loader:
