@@ -51,3 +51,27 @@ val_transform = transforms.Compose(
         transforms.Normalize(mean=mean, std=std),
     ]
 )
+
+# 混同行列可視化設定
+confusion_matrix_config = {
+    "title": "Confusion Matrix",  # タイトル
+    "xlabel": "Predicted Label",  # x軸ラベル
+    "ylabel": "True Label",  # y軸ラベル
+    "fontsize": 14,  # セル内数値のフォントサイズ
+    "title_fontsize": 16,  # タイトルのフォントサイズ
+    "label_fontsize": 12,  # 軸ラベルのフォントサイズ
+    "figsize": (8, 6),  # 図のサイズ (幅, 高さ)
+    "cmap": "Blues",  # カラーマップ
+}
+
+# 日本語表示の例:
+# confusion_matrix_config = {
+#     "title": "混同行列",
+#     "xlabel": "予測ラベル",
+#     "ylabel": "実際ラベル",
+#     "fontsize": 14,
+#     "title_fontsize": 16,
+#     "label_fontsize": 12,
+#     "figsize": (8, 6),
+#     "cmap": "Blues",
+# }
