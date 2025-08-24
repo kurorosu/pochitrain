@@ -38,17 +38,18 @@ class PochiPredictor(PochiTrainer):
         work_dir: str = "inference_results",
     ):
         """PochiPredictorを初期化."""
-        # 推論専用ワークスペースマネージャーを先に作成
+        # 推論専用ワークスペースマネージャーを作成（遅延作成）
         self.inference_workspace_manager = InferenceWorkspaceManager(work_dir)
-        self.inference_workspace = self.inference_workspace_manager.create_workspace()
+        self.inference_workspace: Optional[Path] = None  # 遅延作成のためNoneで初期化
 
-        # 親クラスを初期化（推論ワークスペースを使用）
+        # 親クラスを初期化（推論モードではワークスペース作成をスキップ）
         super().__init__(
             model_name=model_name,
             num_classes=num_classes,
             device=device,
             pretrained=False,
-            work_dir=str(self.inference_workspace),  # 推論ワークスペースを使用
+            work_dir=work_dir,
+            create_workspace=False,  # 推論時はワークスペース作成をスキップ
         )
 
         self.model_path = Path(model_path)
@@ -82,6 +83,23 @@ class PochiPredictor(PochiTrainer):
 
         except Exception as e:
             raise RuntimeError(f"モデルの読み込みに失敗しました: {e}")
+
+    def _ensure_inference_workspace(self) -> Path:
+        """
+        必要時にワークスペースを作成.
+
+        遅延作成パターンにより、実際にワークスペースが必要になったタイミングで
+        InferenceWorkspaceManagerを使用してワークスペースを作成します。
+
+        Returns:
+            Path: 作成されたワークスペースのパス
+        """
+        if self.inference_workspace is None:
+            self.inference_workspace = (
+                self.inference_workspace_manager.create_workspace()
+            )
+            self.logger.info(f"推論ワークスペースを作成: {self.inference_workspace}")
+        return self.inference_workspace
 
     def predict_with_paths(
         self,
@@ -208,9 +226,12 @@ class PochiPredictor(PochiTrainer):
         """
         from .inference.csv_exporter import InferenceCSVExporter
 
+        # 推論ワークスペースを確保（遅延作成）
+        inference_workspace = self._ensure_inference_workspace()
+
         # CSV出力器を作成（推論ワークスペースを指定）
         csv_exporter = InferenceCSVExporter(
-            output_dir=str(self.inference_workspace), logger=self.logger
+            output_dir=str(inference_workspace), logger=self.logger
         )
 
         # モデル情報の取得
@@ -261,7 +282,15 @@ class PochiPredictor(PochiTrainer):
         Returns:
             Dict[str, any]: ワークスペース情報
         """
-        return self.inference_workspace_manager.get_workspace_info()
+        # ワークスペースが作成されている場合のみ情報を取得
+        if self.inference_workspace is not None:
+            return self.inference_workspace_manager.get_workspace_info()
+        else:
+            return {
+                "workspace_path": None,
+                "workspace_name": None,
+                "exists": False,
+            }
 
     def save_confusion_matrix_image(
         self,
@@ -351,8 +380,11 @@ class PochiPredictor(PochiTrainer):
         # レイアウト調整
         plt.tight_layout()
 
+        # 推論ワークスペースを確保（遅延作成）
+        inference_workspace = self._ensure_inference_workspace()
+
         # ファイル保存
-        output_path = self.inference_workspace / filename
+        output_path = inference_workspace / filename
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
         plt.close(fig)
 
