@@ -353,6 +353,9 @@ def infer_command(args):
     # CSV出力
     logger.info("結果をCSVに出力しています...")
     try:
+        # 混同行列設定を取得（設定ファイルにあれば使用）
+        cm_config = config.get("confusion_matrix_config", None)
+
         results_csv, summary_csv = predictor.export_results_to_workspace(
             image_paths=image_paths,
             predicted_labels=predicted_labels,
@@ -361,6 +364,7 @@ def infer_command(args):
             class_names=class_names,
             results_filename="inference_results.csv",
             summary_filename="inference_summary.csv",
+            cm_config=cm_config,
         )
 
         # 精度計算・表示
