@@ -27,7 +27,14 @@ class PochiTrainer:
         pretrained (bool): 事前学習済みモデルを使用するか
         device (str): デバイス ('cuda' or 'cpu') - 必須設定
         work_dir (str, optional): 作業ディレクトリ
+        create_workspace (bool, optional): ワークスペースを作成するか（推論時はFalse）
     """
+
+    # 型アノテーション（推論時にワークスペース作成をスキップするため、current_workspaceがNoneになる可能性がある）
+    current_workspace: Optional[
+        Path
+    ]  # 推論モードではNone、訓練モードではPathオブジェクト
+    work_dir: Path  # ワークスペース作成の有無に関わらず常にPathオブジェクト
 
     def __init__(
         self,
@@ -36,6 +43,7 @@ class PochiTrainer:
         device: str,
         pretrained: bool = True,
         work_dir: str = "work_dirs",
+        create_workspace: bool = True,
     ):
         """PochiTrainerを初期化."""
         # モデル設定の保存
@@ -47,8 +55,12 @@ class PochiTrainer:
 
         # ワークスペースマネージャーの初期化
         self.workspace_manager = PochiWorkspaceManager(work_dir)
-        self.current_workspace = self.workspace_manager.create_workspace()
-        self.work_dir = self.workspace_manager.get_models_dir()
+        if create_workspace:
+            self.current_workspace = self.workspace_manager.create_workspace()
+            self.work_dir = self.workspace_manager.get_models_dir()
+        else:
+            self.current_workspace = None
+            self.work_dir = Path(work_dir)
 
         # ロガーの設定
         self.logger = self._setup_logger()
