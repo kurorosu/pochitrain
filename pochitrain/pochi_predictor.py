@@ -5,7 +5,7 @@ pochitrain.pochi_predictor: 推論機能のメインモジュール.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch.utils.data import DataLoader
@@ -189,6 +189,7 @@ class PochiPredictor(PochiTrainer):
         class_names: List[str],
         results_filename: str = "inference_results.csv",
         summary_filename: str = "inference_summary.csv",
+        cm_config: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Path, Path]:
         """
         推論結果をワークスペース内にCSV出力.
@@ -239,6 +240,18 @@ class PochiPredictor(PochiTrainer):
         # モデル情報もJSONで保存
         self.inference_workspace_manager.save_model_info(model_info)
 
+        # 混同行列画像を自動生成
+        try:
+            confusion_matrix_path = self.save_confusion_matrix_image(
+                predicted_labels=predicted_labels,
+                true_labels=true_labels,
+                class_names=class_names,
+                cm_config=cm_config,
+            )
+            self.logger.info(f"混同行列画像も生成されました: {confusion_matrix_path}")
+        except Exception as e:
+            self.logger.warning(f"混同行列画像生成に失敗しました: {e}")
+
         return results_csv, summary_csv
 
     def get_inference_workspace_info(self) -> Dict[str, Any]:
@@ -249,3 +262,99 @@ class PochiPredictor(PochiTrainer):
             Dict[str, any]: ワークスペース情報
         """
         return self.inference_workspace_manager.get_workspace_info()
+
+    def save_confusion_matrix_image(
+        self,
+        predicted_labels: List[int],
+        true_labels: List[int],
+        class_names: List[str],
+        filename: str = "confusion_matrix.png",
+        cm_config: Optional[Dict[str, Any]] = None,
+    ) -> Path:
+        """
+        混同行列の画像を保存.
+
+        Args:
+            predicted_labels (List[int]): 予測ラベルのリスト
+            true_labels (List[int]): 正解ラベルのリスト
+            class_names (List[str]): クラス名のリスト
+            filename (str): 保存ファイル名
+            cm_config (Optional[Dict[str, Any]]): 混同行列可視化設定
+
+        Returns:
+            Path: 保存されたファイルのパス
+        """
+        import japanize_matplotlib
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        # 日本語フォント設定を明示的に適用
+        japanize_matplotlib.japanize()
+
+        # デフォルト設定
+        default_config = {
+            "title": "Confusion Matrix",
+            "xlabel": "Predicted Label",
+            "ylabel": "True Label",
+            "fontsize": 14,
+            "title_fontsize": 16,
+            "label_fontsize": 12,
+            "figsize": (8, 6),
+            "cmap": "Blues",
+        }
+
+        # 設定をマージ（cm_configが指定されていれば優先）
+        config = default_config.copy()
+        if cm_config:
+            config.update(cm_config)
+
+        # リストをPyTorchテンソルに変換
+        predicted = torch.tensor(predicted_labels, dtype=torch.long, device=self.device)
+        targets = torch.tensor(true_labels, dtype=torch.long, device=self.device)
+
+        # 継承した混同行列計算メソッドを使用
+        cm_tensor = self._compute_confusion_matrix_pytorch(
+            predicted, targets, len(class_names)
+        )
+        cm = cm_tensor.cpu().numpy()
+
+        # プロット作成（設定から図のサイズを取得）
+        fig, ax = plt.subplots(figsize=config["figsize"])
+
+        # ヒートマップを描画（設定からカラーマップを取得）
+        ax.imshow(cm, interpolation="nearest", cmap=config["cmap"])
+
+        # ラベル設定
+        ax.set_xticks(np.arange(len(class_names)))
+        ax.set_yticks(np.arange(len(class_names)))
+        ax.set_xticklabels(class_names)
+        ax.set_yticklabels(class_names)
+
+        # ラベルとタイトル（設定から取得）
+        ax.set_xlabel(config["xlabel"], fontsize=config["label_fontsize"])
+        ax.set_ylabel(config["ylabel"], fontsize=config["label_fontsize"])
+        ax.set_title(config["title"], fontsize=config["title_fontsize"])
+
+        # 各セルに数値を表示（設定からフォントサイズを取得）
+        for i in range(len(class_names)):
+            for j in range(len(class_names)):
+                ax.text(
+                    j,
+                    i,
+                    cm[i, j],
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=config["fontsize"],
+                )
+
+        # レイアウト調整
+        plt.tight_layout()
+
+        # ファイル保存
+        output_path = self.inference_workspace / filename
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+        self.logger.info(f"混同行列画像保存: {output_path}")
+        return output_path
