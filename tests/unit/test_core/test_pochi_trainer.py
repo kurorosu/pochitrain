@@ -74,6 +74,109 @@ def test_pochi_trainer_invalid_optimizer():
             )
 
 
+def test_pochi_trainer_class_weights_cpu():
+    """CPU環境でのクラス重み設定テスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=3,
+            pretrained=False,
+            device="cpu",
+            work_dir=temp_dir,
+        )
+
+        # クラス重みを設定
+        class_weights = [1.0, 2.0, 0.5]
+        trainer.setup_training(
+            learning_rate=0.001,
+            optimizer_name="Adam",
+            class_weights=class_weights,
+            num_classes=3,
+        )
+
+        assert trainer.criterion is not None
+        # 損失関数の重みがCPUデバイスに配置されていることを確認
+        assert trainer.criterion.weight.device == torch.device("cpu")
+        # 重みの値が正しく設定されていることを確認
+        expected_weights = torch.tensor(class_weights, dtype=torch.float32)
+        assert torch.allclose(trainer.criterion.weight, expected_weights)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_pochi_trainer_class_weights_cuda():
+    """CUDA環境でのクラス重み設定テスト（CUDA利用可能時のみ）"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=4,
+            pretrained=False,
+            device="cuda",
+            work_dir=temp_dir,
+        )
+
+        # クラス重みを設定
+        class_weights = [1.0, 3.0, 1.5, 0.8]
+        trainer.setup_training(
+            learning_rate=0.001,
+            optimizer_name="Adam",
+            class_weights=class_weights,
+            num_classes=4,
+        )
+
+        assert trainer.criterion is not None
+        # 損失関数の重みがCUDAデバイスに配置されていることを確認
+        assert trainer.criterion.weight.device.type == "cuda"
+        # 重みの値が正しく設定されていることを確認
+        expected_weights = torch.tensor(class_weights, dtype=torch.float32)
+        assert torch.allclose(trainer.criterion.weight.cpu(), expected_weights)
+
+
+def test_pochi_trainer_class_weights_mismatch():
+    """クラス重みとクラス数の不整合テスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=3,
+            pretrained=False,
+            device="cpu",
+            work_dir=temp_dir,
+        )
+
+        # クラス重みの長さがクラス数と一致しない場合
+        class_weights = [1.0, 2.0]  # 2つの重みだが、クラス数は3
+        with pytest.raises(
+            ValueError, match="クラス重みの長さ.*がクラス数.*と一致しません"
+        ):
+            trainer.setup_training(
+                learning_rate=0.001,
+                optimizer_name="Adam",
+                class_weights=class_weights,
+                num_classes=3,
+            )
+
+
+def test_pochi_trainer_class_weights_none():
+    """クラス重みなしの場合のテスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=5,
+            pretrained=False,
+            device="cpu",
+            work_dir=temp_dir,
+        )
+
+        trainer.setup_training(
+            learning_rate=0.001,
+            optimizer_name="Adam",
+            class_weights=None,
+        )
+
+        assert trainer.criterion is not None
+        # 重みが設定されていないことを確認
+        assert trainer.criterion.weight is None
+
+
 class TestConfusionMatrixCalculation:
     """混同行列計算メソッドのテストクラス"""
 
