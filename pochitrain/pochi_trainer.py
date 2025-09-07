@@ -126,7 +126,9 @@ class PochiTrainer:
                 raise ValueError(
                     f"クラス重みの長さ({len(class_weights)})がクラス数({num_classes})と一致しません"
                 )
-            weights_tensor = torch.tensor(class_weights, dtype=torch.float32)
+            weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(
+                self.device
+            )
             self.criterion = nn.CrossEntropyLoss(weight=weights_tensor)
             self.logger.info(f"クラス重みを設定: {class_weights}")
         else:
