@@ -70,6 +70,10 @@ class PochiWorkspaceManager:
         paths_dir = workspace_path / "paths"
         paths_dir.mkdir(exist_ok=True)
 
+        # visualizationディレクトリを作成
+        visualization_dir = workspace_path / "visualization"
+        visualization_dir.mkdir(exist_ok=True)
+
         # 現在のワークスペースとして設定
         self.current_workspace = workspace_path
 
@@ -118,6 +122,23 @@ class PochiWorkspaceManager:
 
         return self.current_workspace / "paths"
 
+    def get_visualization_dir(self) -> Path:
+        """
+        可視化ファイル保存用ディレクトリのパスを取得.
+
+        Returns:
+            Path: 可視化ファイル保存用ディレクトリのパス
+
+        Raises:
+            RuntimeError: ワークスペースが作成されていない場合
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+            )
+
+        return self.current_workspace / "visualization"
+
     def get_workspace_info(self) -> dict:
         """
         現在のワークスペースの情報を取得.
@@ -144,6 +165,7 @@ class PochiWorkspaceManager:
             "workspace_path": str(self.current_workspace),
             "models_dir": str(self.current_workspace / "models"),
             "paths_dir": str(self.current_workspace / "paths"),
+            "visualization_dir": str(self.current_workspace / "visualization"),
             "exists": self.current_workspace.exists(),
             "date": date_str,
             "index": index,

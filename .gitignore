@@ -9,3 +9,5 @@ PROGRESS.md
 data/*
 work_dirs/*
 test_inference_functionality.py
+.vscode
+.kiro

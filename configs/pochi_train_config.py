@@ -32,6 +32,9 @@ class_weights = None  # クラス毎の損失重み
 work_dir = "work_dirs"  # 作業ディレクトリ
 device = "cuda"  # デバイス
 
+# 訓練メトリクス可視化設定
+enable_metrics_export = True  # メトリクスのCSV出力とグラフ生成を有効化
+
 # データ変換設定
 mean = [0.485, 0.456, 0.406]  # 正規化平均値
 std = [0.229, 0.224, 0.225]  # 正規化標準偏差
