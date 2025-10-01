@@ -241,6 +241,11 @@ def train_command(args):
     saved_config_path = trainer.save_training_config(config_path_obj)
     logger.info(f"設定ファイルを保存しました: {saved_config_path}")
 
+    # メトリクスエクスポート設定の適用
+    trainer.enable_metrics_export = config.get("enable_metrics_export", True)
+    if trainer.enable_metrics_export:
+        logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
+
     # 訓練実行
     logger.info("訓練を開始します...")
     trainer.train(

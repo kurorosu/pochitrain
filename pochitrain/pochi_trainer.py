@@ -6,7 +6,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -90,6 +90,10 @@ class PochiTrainer:
         self.optimizer: Optional[optim.Optimizer] = None
         self.scheduler: Optional[optim.lr_scheduler._LRScheduler] = None
         self.criterion: Optional[nn.Module] = None
+
+        # メトリクスエクスポーター（訓練時のみ初期化）
+        self.metrics_exporter: Optional[Any] = None  # TrainingMetricsExporter
+        self.enable_metrics_export = True  # デフォルトで有効
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
@@ -460,6 +464,18 @@ class PochiTrainer:
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
+        # メトリクスエクスポーターの初期化
+        if self.enable_metrics_export and self.current_workspace is not None:
+            from pochitrain.visualization import TrainingMetricsExporter
+
+            visualization_dir = self.workspace_manager.get_visualization_dir()
+            self.metrics_exporter = TrainingMetricsExporter(
+                output_dir=visualization_dir,
+                enable_visualization=True,
+                logger=self.logger,
+            )
+            self.logger.info("メトリクス記録機能を有効化しました")
+
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
 
@@ -506,6 +522,22 @@ class PochiTrainer:
             # ラストモデルの保存（毎エポック上書き）
             self.save_last_model()
 
+            # メトリクスの記録
+            if self.metrics_exporter is not None:
+                # 現在の学習率を取得
+                current_lr = (
+                    self.optimizer.param_groups[0]["lr"] if self.optimizer else 0.0
+                )
+
+                self.metrics_exporter.record_epoch(
+                    epoch=epoch,
+                    learning_rate=current_lr,
+                    train_loss=train_metrics["loss"],
+                    train_accuracy=train_metrics["accuracy"],
+                    val_loss=val_metrics.get("val_loss"),
+                    val_accuracy=val_metrics.get("val_accuracy"),
+                )
+
             # 停止フラグのチェック（エポック完了後）
             if stop_flag_callback and stop_flag_callback():
                 self.logger.warning(
@@ -516,6 +548,30 @@ class PochiTrainer:
         self.logger.info("訓練が完了しました")
         if val_loader:
             self.logger.info(f"最高精度: {self.best_accuracy:.2f}%")
+
+        # 訓練完了後にメトリクスをエクスポート
+        if self.metrics_exporter is not None:
+            csv_path, graph_paths = self.metrics_exporter.export_all()
+            if csv_path:
+                self.logger.info(f"メトリクスCSVを出力: {csv_path}")
+            if graph_paths:
+                for graph_path in graph_paths:
+                    self.logger.info(f"メトリクスグラフを出力: {graph_path}")
+
+            # サマリー情報の表示
+            summary = self.metrics_exporter.get_summary()
+            if summary:
+                self.logger.info("=== 訓練サマリー ===")
+                self.logger.info(f"総エポック数: {summary['total_epochs']}")
+                self.logger.info(f"最終訓練損失: {summary['final_train_loss']:.4f}")
+                self.logger.info(
+                    f"最終訓練精度: {summary['final_train_accuracy']:.2f}%"
+                )
+                if "best_val_accuracy" in summary:
+                    self.logger.info(
+                        f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
+                        f"(エポック {summary['best_val_accuracy_epoch']})"
+                    )
 
     def predict(self, data_loader: DataLoader) -> Tuple[torch.Tensor, torch.Tensor]:
         """
