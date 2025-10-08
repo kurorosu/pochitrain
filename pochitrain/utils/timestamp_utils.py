@@ -94,6 +94,16 @@ def get_current_date_str() -> str:
     return datetime.now().strftime("%Y%m%d")
 
 
+def get_current_timestamp() -> str:
+    """
+    現在の日時を yyyymmdd_hhmmss 形式で取得.
+
+    Returns:
+        str: 現在の日時文字列 (例: "20241220_153045")
+    """
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
 def format_workspace_name(date_str: str, index: int) -> str:
     """
     日付とインデックスからワークスペース名を生成.
