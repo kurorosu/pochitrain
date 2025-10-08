@@ -95,6 +95,13 @@ class PochiTrainer:
         self.metrics_exporter: Optional[Any] = None  # TrainingMetricsExporter
         self.enable_metrics_export = True  # デフォルトで有効
 
+        # 勾配トレーサー（訓練時のみ初期化）
+        self.gradient_tracer: Optional[Any] = None  # GradientTracer
+        self.enable_gradient_tracking = False  # デフォルトでOFF（計算コスト考慮）
+        self.gradient_tracking_config: Dict[str, Any] = {
+            "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
+        }
+
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
         from pochitrain.logging import LoggerManager
@@ -476,6 +483,30 @@ class PochiTrainer:
             )
             self.logger.info("メトリクス記録機能を有効化しました")
 
+        # 勾配トレーサーの初期化
+        if self.enable_gradient_tracking and self.current_workspace is not None:
+            from pochitrain.visualization import GradientTracer
+
+            # 設定を取得
+            exclude_patterns = self.gradient_tracking_config.get(
+                "exclude_patterns", ["fc\\.", "\\.bias"]
+            )
+            group_by_block = self.gradient_tracking_config.get("group_by_block", True)
+            aggregation_method = self.gradient_tracking_config.get(
+                "aggregation_method", "median"
+            )
+
+            self.gradient_tracer = GradientTracer(
+                logger=self.logger,
+                exclude_patterns=exclude_patterns,
+                group_by_block=group_by_block,
+                aggregation_method=aggregation_method,
+            )
+            self.logger.info(
+                f"勾配トレース機能を有効化しました "
+                f"(集約: {aggregation_method}, ブロック化: {group_by_block})"
+            )
+
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
 
@@ -538,6 +569,12 @@ class PochiTrainer:
                     val_accuracy=val_metrics.get("val_accuracy"),
                 )
 
+            # 勾配ノルムの記録
+            if self.gradient_tracer is not None:
+                record_freq = self.gradient_tracking_config.get("record_frequency", 1)
+                if epoch % record_freq == 0:
+                    self.gradient_tracer.record_gradients(self.model, epoch)
+
             # 停止フラグのチェック（エポック完了後）
             if stop_flag_callback and stop_flag_callback():
                 self.logger.warning(
@@ -572,6 +609,15 @@ class PochiTrainer:
                         f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
                         f"(エポック {summary['best_val_accuracy_epoch']})"
                     )
+
+        # 勾配トレースをCSVに保存
+        if self.gradient_tracer is not None:
+            from pochitrain.utils.timestamp_utils import get_current_timestamp
+
+            visualization_dir = self.workspace_manager.get_visualization_dir()
+            timestamp = get_current_timestamp()
+            gradient_csv_path = visualization_dir / f"gradient_trace_{timestamp}.csv"
+            self.gradient_tracer.save_csv(gradient_csv_path)
 
     def predict(self, data_loader: DataLoader) -> Tuple[torch.Tensor, torch.Tensor]:
         """

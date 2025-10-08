@@ -246,6 +246,13 @@ def train_command(args):
     if trainer.enable_metrics_export:
         logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
+    # 勾配トレース設定の適用
+    trainer.enable_gradient_tracking = config.get("enable_gradient_tracking", False)
+    if trainer.enable_gradient_tracking:
+        logger.info("勾配トレース機能が有効です")
+        gradient_config = config.get("gradient_tracking_config", {})
+        trainer.gradient_tracking_config.update(gradient_config)
+
     # 訓練実行
     logger.info("訓練を開始します...")
     trainer.train(
