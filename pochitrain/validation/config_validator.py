@@ -12,6 +12,7 @@ from .validators import (
     ClassWeightsValidator,
     DataValidator,
     DeviceValidator,
+    LayerWiseLRValidator,
     OptimizerValidator,
     SchedulerValidator,
     TrainingValidator,
@@ -33,6 +34,7 @@ class ConfigValidator:
         self.class_weights_validator = ClassWeightsValidator()
         self.data_validator = DataValidator()
         self.device_validator = DeviceValidator()
+        self.layer_wise_lr_validator = LayerWiseLRValidator()
         self.optimizer_validator = OptimizerValidator()
         self.scheduler_validator = SchedulerValidator()
         self.training_validator = TrainingValidator()
@@ -57,6 +59,7 @@ class ConfigValidator:
             self.training_validator,  # 訓練設定（epochs、batch_size、model_name）
             self.optimizer_validator,  # 最適化器設定
             self.scheduler_validator,  # スケジューラー設定
+            self.layer_wise_lr_validator,  # 層別学習率設定
         ]
 
         for validator in validators:

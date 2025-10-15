@@ -44,6 +44,20 @@ gradient_tracking_config = {
     "aggregation_method": "median",  # 集約方法: "median", "mean", "max", "rms"
 }
 
+# 層別学習率設定
+enable_layer_wise_lr = False
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0001,
+        "bn1": 0.0001,
+        "layer1": 0.0002,
+        "layer2": 0.0005,
+        "layer3": 0.001,
+        "layer4": 0.002,
+        "fc": 0.01,
+    }
+}
+
 # データ変換設定
 mean = [0.485, 0.456, 0.406]  # 正規化平均値
 std = [0.229, 0.224, 0.225]  # 正規化標準偏差

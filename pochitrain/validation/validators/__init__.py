@@ -7,6 +7,7 @@ pochitrain.validation.validators: 個別バリデーターモジュール.
 from .class_weights_validator import ClassWeightsValidator
 from .data_validator import DataValidator
 from .device_validator import DeviceValidator
+from .layer_wise_lr_validator import LayerWiseLRValidator
 from .optimizer_validator import OptimizerValidator
 from .scheduler_validator import SchedulerValidator
 from .training_validator import TrainingValidator
@@ -16,6 +17,7 @@ __all__ = [
     "ClassWeightsValidator",
     "DataValidator",
     "DeviceValidator",
+    "LayerWiseLRValidator",
     "OptimizerValidator",
     "SchedulerValidator",
     "TrainingValidator",
