@@ -72,6 +72,7 @@ class TrainingMetricsExporter:
         train_accuracy: float,
         val_loss: Optional[float] = None,
         val_accuracy: Optional[float] = None,
+        layer_wise_lr_enabled: bool = False,
         **kwargs: Any,
     ) -> None:
         """
@@ -84,6 +85,7 @@ class TrainingMetricsExporter:
             train_accuracy (float): 訓練精度
             val_loss (float, optional): 検証損失
             val_accuracy (float, optional): 検証精度
+            layer_wise_lr_enabled (bool): 層別学習率が有効かどうか
             **kwargs: 拡張メトリクス（Issue 9用のパラメータ値など）
         """
         metrics = {
@@ -99,10 +101,26 @@ class TrainingMetricsExporter:
         for key, value in kwargs.items():
             metrics[key] = value
 
+        # 層別学習率の状態を記録
+        metrics["layer_wise_lr_enabled"] = layer_wise_lr_enabled
+
+        # 層別学習率のカラムを動的に追加
+        if layer_wise_lr_enabled:
+            for key in kwargs:
+                if key.startswith("lr_") and key not in self.extended_headers:
+                    self.add_extended_headers([key])
+
         self.metrics_history.append(metrics)
+
+        # ログ出力（層別学習率対応）
+        if layer_wise_lr_enabled:
+            lr_display = f"{learning_rate:.6f} (層別設定)"
+        else:
+            lr_display = f"{learning_rate:.6f}"
+
         self.logger.debug(
             f"エポック {epoch} のメトリクスを記録: "
-            f"LR={learning_rate:.6f}, Loss={train_loss:.4f}, Acc={train_accuracy:.2f}%"
+            f"LR={lr_display}, Loss={train_loss:.4f}, Acc={train_accuracy:.2f}%"
         )
 
     def export_to_csv(self, filename: Optional[str] = None) -> Optional[Path]:
@@ -224,7 +242,7 @@ class TrainingMetricsExporter:
         output_paths.append(loss_path)
         self.logger.info(f"損失グラフを生成: {loss_path}")
 
-        # 2. 精度推移グラフ（学習率を第2軸に統合）
+        # 2. 精度推移グラフ（層別学習率対応）
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
         # 精度を第1軸にプロット
@@ -254,28 +272,42 @@ class TrainingMetricsExporter:
         ax1.tick_params(axis="y")
         ax1.grid(True, alpha=0.3)
 
-        # 学習率を第2軸にプロット
-        ax2 = ax1.twinx()
-        color_lr = "tab:green"
-        ax2.plot(
-            epochs,
-            learning_rates,
-            color=color_lr,
-            linewidth=2,
-            linestyle="--",
-            marker="^",
-            markersize=4,
-            label="Learning Rate",
+        # 層別学習率が有効かどうかを判定（メトリクス履歴から取得）
+        layer_wise_lr_active = any(
+            m.get("layer_wise_lr_enabled", False) for m in self.metrics_history
         )
-        ax2.set_ylabel("Learning Rate", fontsize=12, color=color_lr)
-        ax2.tick_params(axis="y", labelcolor=color_lr)
 
-        # 凡例を統合
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc="center right", fontsize=11)
+        if not layer_wise_lr_active:
+            # 通常の場合：学習率を第2軸にプロット
+            ax2 = ax1.twinx()
+            color_lr = "tab:green"
+            ax2.plot(
+                epochs,
+                learning_rates,
+                color=color_lr,
+                linewidth=2,
+                linestyle="--",
+                marker="^",
+                markersize=4,
+                label="Learning Rate",
+            )
+            ax2.set_ylabel("Learning Rate", fontsize=12, color=color_lr)
+            ax2.tick_params(axis="y", labelcolor=color_lr)
 
-        ax1.set_title("Accuracy and Learning Rate", fontsize=14, fontweight="bold")
+            # 凡例を統合
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax1.legend(
+                lines1 + lines2, labels1 + labels2, loc="center right", fontsize=11
+            )
+
+            title = "Accuracy and Learning Rate"
+        else:
+            # 層別学習率有効時：学習率を表示しない
+            ax1.legend(loc="center right", fontsize=11)
+            title = "Accuracy (Layer-wise LR Active)"
+
+        ax1.set_title(title, fontsize=14, fontweight="bold")
         plt.tight_layout()
 
         acc_path = self.output_dir / f"{base_filename}_accuracy.png"
@@ -284,7 +316,70 @@ class TrainingMetricsExporter:
         output_paths.append(acc_path)
         self.logger.info(f"精度・学習率グラフを生成: {acc_path}")
 
+        # 3. 層別学習率グラフ（層別学習率有効時のみ）
+        if layer_wise_lr_active:
+            lr_graph_path = self._generate_layer_wise_lr_graph(base_filename)
+            if lr_graph_path:
+                output_paths.append(lr_graph_path)
+
         return output_paths
+
+    def _generate_layer_wise_lr_graph(self, base_filename: str) -> Optional[Path]:
+        """
+        層別学習率専用のグラフを生成.
+
+        Args:
+            base_filename (str): ベースファイル名
+
+        Returns:
+            Optional[Path]: 生成されたグラフファイルのパス
+        """
+        if not self.metrics_history:
+            return None
+
+        # 層別学習率のカラムを抽出
+        lr_columns = []
+        for key in self.metrics_history[0].keys():
+            if key.startswith("lr_"):
+                lr_columns.append(key)
+
+        if not lr_columns:
+            return None
+
+        epochs = [m["epoch"] for m in self.metrics_history]
+
+        # グラフ作成
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # 各層の学習率をプロット
+        colors = plt.cm.tab10(range(len(lr_columns)))
+        for i, lr_col in enumerate(lr_columns):
+            layer_name = lr_col.replace("lr_", "")
+            learning_rates = [m.get(lr_col, 0) for m in self.metrics_history]
+            ax.plot(
+                epochs,
+                learning_rates,
+                color=colors[i],
+                linewidth=2,
+                marker="o",
+                markersize=4,
+                label=f"{layer_name}",
+            )
+
+        ax.set_xlabel("Epoch", fontsize=12)
+        ax.set_ylabel("Learning Rate", fontsize=12)
+        ax.set_title("Layer-wise Learning Rates", fontsize=14, fontweight="bold")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="best", fontsize=10)
+        ax.set_yscale("log")  # 対数スケールで表示（学習率の差が大きい場合）
+        plt.tight_layout()
+
+        lr_path = self.output_dir / f"{base_filename}_layer_wise_lr.png"
+        plt.savefig(lr_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        self.logger.info(f"層別学習率グラフを生成: {lr_path}")
+        return lr_path
 
     def export_all(
         self,

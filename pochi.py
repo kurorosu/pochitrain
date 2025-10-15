@@ -184,6 +184,16 @@ def train_command(args):
     else:
         logger.info(f"クラス重み: {class_weights}")
 
+    # 層別学習率設定の明示的ログ出力
+    enable_layer_wise_lr = config.get("enable_layer_wise_lr", False)
+    if enable_layer_wise_lr:
+        logger.info("層別学習率: 有効")
+        layer_wise_lr_config = config.get("layer_wise_lr_config", {})
+        layer_rates = layer_wise_lr_config.get("layer_rates", {})
+        logger.info(f"層別学習率設定: {layer_rates}")
+    else:
+        logger.info("層別学習率: 無効")
+
     logger.info("==================")
 
     # データローダーの作成
@@ -229,6 +239,8 @@ def train_command(args):
         scheduler_params=config.get("scheduler_params"),
         class_weights=config.get("class_weights"),
         num_classes=len(classes),
+        enable_layer_wise_lr=config.get("enable_layer_wise_lr", False),
+        layer_wise_lr_config=config.get("layer_wise_lr_config"),
     )
 
     # データセットパスの保存

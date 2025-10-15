@@ -73,6 +73,13 @@ class TestConfigValidator:
         )
         mock_training_validator_class.return_value = mock_training_validator
 
+        mock_layer_wise_lr_validator = mocker.Mock()
+        mock_layer_wise_lr_validator.validate.return_value = True
+        mock_layer_wise_lr_validator_class = mocker.patch(
+            "pochitrain.validation.config_validator.LayerWiseLRValidator"
+        )
+        mock_layer_wise_lr_validator_class.return_value = mock_layer_wise_lr_validator
+
         # テスト実行
         validator = ConfigValidator(mock_logger)
         config = {"device": "cuda"}
@@ -89,6 +96,9 @@ class TestConfigValidator:
         mock_training_validator.validate.assert_called_once_with(config, mock_logger)
         mock_optimizer_validator.validate.assert_called_once_with(config, mock_logger)
         mock_scheduler_validator.validate.assert_called_once_with(config, mock_logger)
+        mock_layer_wise_lr_validator.validate.assert_called_once_with(
+            config, mock_logger
+        )
 
     def test_validation_failure(self, mocker):
         """いずれかのバリデーションが失敗する場合のテスト."""
@@ -174,6 +184,7 @@ class TestConfigValidator:
         assert isinstance(validator.training_validator, BaseValidator)
         assert isinstance(validator.optimizer_validator, BaseValidator)
         assert isinstance(validator.scheduler_validator, BaseValidator)
+        assert isinstance(validator.layer_wise_lr_validator, BaseValidator)
 
     def test_validation_with_real_validators(self, mocker):
         """実際のバリデーターを使った統合テスト."""
@@ -196,6 +207,7 @@ class TestConfigValidator:
             "epochs": 100,
             "batch_size": 32,
             "model_name": "resnet50",
+            "enable_layer_wise_lr": False,
         }
         result_success = validator.validate(config_success)
         assert result_success is True

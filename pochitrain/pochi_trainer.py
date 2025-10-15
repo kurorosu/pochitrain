@@ -117,6 +117,8 @@ class PochiTrainer:
         scheduler_params: Optional[dict] = None,
         class_weights: Optional[List[float]] = None,
         num_classes: Optional[int] = None,
+        enable_layer_wise_lr: bool = False,
+        layer_wise_lr_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         訓練の設定.
@@ -129,6 +131,8 @@ class PochiTrainer:
             scheduler_params (dict, optional): スケジューラーのパラメータ
             class_weights (List[float], optional): クラス毎の損失重み
             num_classes (int, optional): クラス数（重みのバリデーション用）
+            enable_layer_wise_lr (bool): 層別学習率を有効にするか
+            layer_wise_lr_config (Dict[str, Any], optional): 層別学習率の設定
         """
         # 損失関数の設定（クラス重み対応）
         if class_weights is not None:
@@ -145,13 +149,25 @@ class PochiTrainer:
         else:
             self.criterion = nn.CrossEntropyLoss()
 
-        # 最適化器の設定
+        # 層別学習率の設定を保存
+        self.enable_layer_wise_lr = enable_layer_wise_lr
+        self.layer_wise_lr_config = layer_wise_lr_config or {}
+        self.base_learning_rate = learning_rate  # 基本学習率を保存
+
+        # 最適化器の設定（層別学習率対応）
+        if self.enable_layer_wise_lr:
+            # 層別学習率が有効な場合、パラメータグループを作成
+            param_groups = self._build_layer_wise_param_groups(learning_rate)
+            self._log_layer_wise_lr(param_groups)
+        else:
+            # 通常の場合、全パラメータに同じ学習率を適用
+            param_groups = [{"params": self.model.parameters(), "lr": learning_rate}]
+
         if optimizer_name == "Adam":
-            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+            self.optimizer = optim.Adam(param_groups)
         elif optimizer_name == "SGD":
             self.optimizer = optim.SGD(
-                self.model.parameters(),
-                lr=learning_rate,
+                param_groups,
                 momentum=0.9,
                 weight_decay=1e-4,
             )
@@ -555,10 +571,15 @@ class PochiTrainer:
 
             # メトリクスの記録
             if self.metrics_exporter is not None:
-                # 現在の学習率を取得
-                current_lr = (
-                    self.optimizer.param_groups[0]["lr"] if self.optimizer else 0.0
-                )
+                # 現在の学習率を取得（層別学習率対応）
+                current_lr = self._get_base_learning_rate()
+
+                # 層別学習率が有効な場合、各層の学習率も記録
+                layer_wise_rates = {}
+                if self.is_layer_wise_lr_enabled():
+                    layer_rates = self.get_layer_wise_learning_rates()
+                    for layer_name, lr in layer_rates.items():
+                        layer_wise_rates[f"lr_{layer_name}"] = lr
 
                 self.metrics_exporter.record_epoch(
                     epoch=epoch,
@@ -567,6 +588,8 @@ class PochiTrainer:
                     train_accuracy=train_metrics["accuracy"],
                     val_loss=val_metrics.get("val_loss"),
                     val_accuracy=val_metrics.get("val_accuracy"),
+                    layer_wise_lr_enabled=self.is_layer_wise_lr_enabled(),
+                    **layer_wise_rates,
                 )
 
             # 勾配ノルムの記録
@@ -720,3 +743,122 @@ class PochiTrainer:
             self.logger.info(f"検証データパスを保存: {val_file_path}")
 
         return train_file_path, val_file_path
+
+    def _get_layer_group(self, param_name: str) -> str:
+        """
+        パラメータ名から層グループ名を取得.
+
+        Args:
+            param_name (str): パラメータ名
+
+        Returns:
+            str: 層グループ名
+        """
+        # ResNetの構造に基づいて層を分類（順序重要：より具体的なものから先に判定）
+        if "layer1" in param_name:
+            return "layer1"
+        elif "layer2" in param_name:
+            return "layer2"
+        elif "layer3" in param_name:
+            return "layer3"
+        elif "layer4" in param_name:
+            return "layer4"
+        elif "conv1" in param_name:
+            return "conv1"
+        elif "bn1" in param_name:
+            return "bn1"
+        elif "fc" in param_name:
+            return "fc"
+        else:
+            # 未知の層は "other" グループに分類
+            return "other"
+
+    def _build_layer_wise_param_groups(self, base_lr: float) -> List[Dict[str, Any]]:
+        """
+        層別学習率のパラメータグループを構築.
+
+        Args:
+            base_lr (float): 基本学習率
+
+        Returns:
+            List[Dict[str, Any]]: パラメータグループのリスト
+        """
+        layer_rates = self.layer_wise_lr_config.get("layer_rates", {})
+
+        # 層ごとにパラメータを分類
+        layer_params: Dict[str, List] = {}
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                layer_group = self._get_layer_group(name)
+                if layer_group not in layer_params:
+                    layer_params[layer_group] = []
+                layer_params[layer_group].append(param)
+
+        # パラメータグループを作成
+        param_groups = []
+        for layer_name, params in layer_params.items():
+            # 設定された学習率を使用、なければ基本学習率を使用
+            lr = layer_rates.get(layer_name, base_lr)
+            param_groups.append(
+                {
+                    "params": params,
+                    "lr": lr,
+                    "layer_name": layer_name,  # デバッグ用
+                }
+            )
+
+        return param_groups
+
+    def _log_layer_wise_lr(self, param_groups: List[Dict[str, Any]]) -> None:
+        """
+        層別学習率の設定をログ出力.
+
+        Args:
+            param_groups (List[Dict[str, Any]]): パラメータグループのリスト
+        """
+        self.logger.info("=== 層別学習率設定 ===")
+        for group in param_groups:
+            layer_name = group.get("layer_name", "unknown")
+            lr = group["lr"]
+            param_count = sum(p.numel() for p in group["params"])
+            self.logger.info(f"  {layer_name}: lr={lr:.6f}, params={param_count:,}")
+        self.logger.info("=====================")
+
+    def _get_base_learning_rate(self) -> float:
+        """
+        現在の基本学習率を取得.
+
+        Returns:
+            float: 基本学習率（層別学習率有効時は設定値、無効時は実際の学習率）
+        """
+        if self.enable_layer_wise_lr:
+            # 層別学習率有効時は設定ファイルの固定値を返す
+            return self.base_learning_rate
+        else:
+            # 通常時はスケジューラーによる動的な値を返す
+            if self.optimizer is not None:
+                return self.optimizer.param_groups[0]["lr"]
+            return 0.0
+
+    def is_layer_wise_lr_enabled(self) -> bool:
+        """
+        層別学習率が有効かどうかを判定.
+
+        Returns:
+            bool: 層別学習率が有効な場合True
+        """
+        return self.enable_layer_wise_lr
+
+    def get_layer_wise_learning_rates(self) -> Dict[str, float]:
+        """
+        各層の現在の学習率を取得.
+
+        Returns:
+            Dict[str, float]: 層名をキー、学習率を値とする辞書
+        """
+        layer_rates = {}
+        if self.enable_layer_wise_lr and self.optimizer:
+            for group in self.optimizer.param_groups:
+                layer_name = group.get("layer_name", "unknown")
+                layer_rates[layer_name] = group["lr"]
+        return layer_rates
