@@ -1,5 +1,7 @@
 """
 SchedulerValidatorのユニットテスト.
+
+新しいSchedulerValidator実装に対応したテスト.
 """
 
 import logging
@@ -21,23 +23,18 @@ class TestSchedulerValidator(unittest.TestCase):
         """scheduler=Noneでバリデーション成功."""
         config = {"scheduler": None}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertTrue(result)
-        self.mock_logger.info.assert_called_with("スケジューラー: なし（固定学習率）")
 
     def test_scheduler_missing_success(self):
         """schedulerキーなしでバリデーション成功."""
         config = {}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertTrue(result)
-        self.mock_logger.info.assert_called_with("スケジューラー: なし（固定学習率）")
 
     def test_unsupported_scheduler_failure(self):
         """未サポートスケジューラーでバリデーション失敗."""
-        config = {"scheduler": "UnsupportedLR"}
+        config = {"scheduler": "UnsupportedLR", "scheduler_params": {}}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -45,15 +42,6 @@ class TestSchedulerValidator(unittest.TestCase):
         """scheduler_params未設定でバリデーション失敗."""
         config = {"scheduler": "StepLR"}
         result = self.validator.validate(config, self.mock_logger)
-
-        self.assertFalse(result)
-        self.mock_logger.error.assert_called()
-
-    def test_scheduler_params_none_failure(self):
-        """scheduler_params=Noneでバリデーション失敗."""
-        config = {"scheduler": "StepLR", "scheduler_params": None}
-        result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -61,7 +49,6 @@ class TestSchedulerValidator(unittest.TestCase):
         """scheduler_paramsが辞書型でない場合バリデーション失敗."""
         config = {"scheduler": "StepLR", "scheduler_params": "invalid"}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -73,15 +60,12 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"step_size": 30, "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertTrue(result)
-        self.mock_logger.info.assert_any_call("スケジューラー: StepLR")
 
     def test_step_lr_missing_step_size_failure(self):
         """StepLRでstep_size未設定でバリデーション失敗."""
         config = {"scheduler": "StepLR", "scheduler_params": {"gamma": 0.1}}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -92,7 +76,6 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"step_size": "30", "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -103,18 +86,26 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"step_size": -5, "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
-    def test_step_lr_invalid_gamma_failure(self):
-        """StepLRでgammaが範囲外の場合バリデーション失敗."""
+    def test_step_lr_invalid_gamma_type_failure(self):
+        """StepLRでgammaが数値でない場合バリデーション失敗."""
         config = {
             "scheduler": "StepLR",
-            "scheduler_params": {"step_size": 30, "gamma": 1.5},
+            "scheduler_params": {"step_size": 30, "gamma": "0.1"},
         }
         result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
 
+    def test_step_lr_zero_gamma_failure(self):
+        """StepLRでgammaが0の場合バリデーション失敗."""
+        config = {
+            "scheduler": "StepLR",
+            "scheduler_params": {"step_size": 30, "gamma": 0},
+        }
+        result = self.validator.validate(config, self.mock_logger)
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -126,15 +117,12 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"milestones": [30, 60, 90], "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertTrue(result)
-        self.mock_logger.info.assert_any_call("スケジューラー: MultiStepLR")
 
     def test_multi_step_lr_missing_milestones_failure(self):
         """MultiStepLRでmilestones未設定でバリデーション失敗."""
         config = {"scheduler": "MultiStepLR", "scheduler_params": {"gamma": 0.1}}
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -145,7 +133,6 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"milestones": [], "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -156,18 +143,6 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"milestones": "30,60,90", "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
-
-        self.assertFalse(result)
-        self.mock_logger.error.assert_called()
-
-    def test_multi_step_lr_unsorted_milestones_failure(self):
-        """MultiStepLRでmilestonesが昇順でない場合バリデーション失敗."""
-        config = {
-            "scheduler": "MultiStepLR",
-            "scheduler_params": {"milestones": [60, 30, 90], "gamma": 0.1},
-        }
-        result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -178,7 +153,16 @@ class TestSchedulerValidator(unittest.TestCase):
             "scheduler_params": {"milestones": [-10, 30, 60], "gamma": 0.1},
         }
         result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
 
+    def test_multi_step_lr_zero_gamma_failure(self):
+        """MultiStepLRでgammaが0の場合バリデーション失敗."""
+        config = {
+            "scheduler": "MultiStepLR",
+            "scheduler_params": {"milestones": [30, 60], "gamma": 0},
+        }
+        result = self.validator.validate(config, self.mock_logger)
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -187,21 +171,18 @@ class TestSchedulerValidator(unittest.TestCase):
         """CosineAnnealingLRの有効なパラメータでバリデーション成功."""
         config = {
             "scheduler": "CosineAnnealingLR",
-            "scheduler_params": {"T_max": 100, "eta_min": 0.001},
+            "scheduler_params": {"T_max": 100},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertTrue(result)
-        self.mock_logger.info.assert_any_call("スケジューラー: CosineAnnealingLR")
 
     def test_cosine_annealing_lr_missing_t_max_failure(self):
         """CosineAnnealingLRでT_max未設定でバリデーション失敗."""
         config = {
             "scheduler": "CosineAnnealingLR",
-            "scheduler_params": {"eta_min": 0.001},
+            "scheduler_params": {},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -209,10 +190,9 @@ class TestSchedulerValidator(unittest.TestCase):
         """CosineAnnealingLRでT_maxが整数でない場合バリデーション失敗."""
         config = {
             "scheduler": "CosineAnnealingLR",
-            "scheduler_params": {"T_max": "100", "eta_min": 0.001},
+            "scheduler_params": {"T_max": "100"},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
@@ -220,21 +200,98 @@ class TestSchedulerValidator(unittest.TestCase):
         """CosineAnnealingLRでT_maxが負の値の場合バリデーション失敗."""
         config = {
             "scheduler": "CosineAnnealingLR",
-            "scheduler_params": {"T_max": -50, "eta_min": 0.001},
+            "scheduler_params": {"T_max": -50},
         }
         result = self.validator.validate(config, self.mock_logger)
-
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 
-    def test_cosine_annealing_lr_negative_eta_min_failure(self):
-        """CosineAnnealingLRでeta_minが負の値の場合バリデーション失敗."""
+    # ExponentialLRのテスト
+    def test_exponential_lr_valid_success(self):
+        """ExponentialLRの有効なパラメータでバリデーション成功."""
         config = {
-            "scheduler": "CosineAnnealingLR",
-            "scheduler_params": {"T_max": 100, "eta_min": -0.001},
+            "scheduler": "ExponentialLR",
+            "scheduler_params": {"gamma": 0.95},
         }
         result = self.validator.validate(config, self.mock_logger)
+        self.assertTrue(result)
 
+    def test_exponential_lr_missing_gamma_failure(self):
+        """ExponentialLRでgamma未設定でバリデーション失敗."""
+        config = {"scheduler": "ExponentialLR", "scheduler_params": {}}
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
+
+    def test_exponential_lr_invalid_gamma_type_failure(self):
+        """ExponentialLRでgammaが数値でない場合バリデーション失敗."""
+        config = {
+            "scheduler": "ExponentialLR",
+            "scheduler_params": {"gamma": "0.95"},
+        }
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
+
+    def test_exponential_lr_zero_gamma_failure(self):
+        """ExponentialLRでgammaが0の場合バリデーション失敗."""
+        config = {
+            "scheduler": "ExponentialLR",
+            "scheduler_params": {"gamma": 0},
+        }
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
+
+    # LinearLRのテスト
+    def test_linear_lr_valid_success(self):
+        """LinearLRの有効なパラメータでバリデーション成功."""
+        config = {
+            "scheduler": "LinearLR",
+            "scheduler_params": {
+                "start_factor": 1.0,
+                "end_factor": 0.1,
+                "total_iters": 50,
+            },
+        }
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertTrue(result)
+
+    def test_linear_lr_missing_total_iters_failure(self):
+        """LinearLRでtotal_iters未設定でバリデーション失敗."""
+        config = {
+            "scheduler": "LinearLR",
+            "scheduler_params": {"start_factor": 1.0, "end_factor": 0.1},
+        }
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
+
+    def test_linear_lr_invalid_total_iters_type_failure(self):
+        """LinearLRでtotal_itersが整数でない場合バリデーション失敗."""
+        config = {
+            "scheduler": "LinearLR",
+            "scheduler_params": {
+                "start_factor": 1.0,
+                "end_factor": 0.1,
+                "total_iters": "50",
+            },
+        }
+        result = self.validator.validate(config, self.mock_logger)
+        self.assertFalse(result)
+        self.mock_logger.error.assert_called()
+
+    def test_linear_lr_zero_total_iters_failure(self):
+        """LinearLRでtotal_itersが0の場合バリデーション失敗."""
+        config = {
+            "scheduler": "LinearLR",
+            "scheduler_params": {
+                "start_factor": 1.0,
+                "end_factor": 0.1,
+                "total_iters": 0,
+            },
+        }
+        result = self.validator.validate(config, self.mock_logger)
         self.assertFalse(result)
         self.mock_logger.error.assert_called()
 

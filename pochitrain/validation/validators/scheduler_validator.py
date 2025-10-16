@@ -1,4 +1,4 @@
-"""スケジューラー設定のバリデーションを行うモジュール."""
+"""スケジューラー設定バリデーター."""
 
 import logging
 from typing import Any, Dict
@@ -7,268 +7,186 @@ from ..base_validator import BaseValidator
 
 
 class SchedulerValidator(BaseValidator):
-    """
-    スケジューラー設定のバリデーションを行うクラス.
+    """スケジューラー設定の妥当性をチェック."""
 
-    サポートするスケジューラー（全パラメータ明示的設定必須）:
-    - 'StepLR': step_size (int), gamma (float) が必須
-    - 'MultiStepLR': milestones (List[int]), gamma (float) が必須
-    - 'CosineAnnealingLR': T_max (int), eta_min (float) が必須
-    - None: スケジューラーなし（固定学習率）
-    """
+    SUPPORTED_SCHEDULERS = {
+        "StepLR": ["step_size", "gamma"],
+        "MultiStepLR": ["milestones", "gamma"],
+        "CosineAnnealingLR": ["T_max"],
+        "ExponentialLR": ["gamma"],
+        "LinearLR": ["start_factor", "end_factor", "total_iters"],
+    }
 
-    def __init__(self) -> None:
-        """SchedulerValidatorを初期化."""
-        # サポートするスケジューラーの必須パラメータ定義（全パラメータ明示的設定必須）
-        self.supported_schedulers = {
-            "StepLR": ["step_size", "gamma"],
-            "MultiStepLR": ["milestones", "gamma"],
-            "CosineAnnealingLR": ["T_max", "eta_min"],
-        }
+    def __init__(self):
+        """初期化."""
+        pass
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
         """
-        スケジューラー設定をバリデーション.
+        スケジューラー設定の妥当性をチェック.
 
         Args:
             config (Dict[str, Any]): 設定辞書
             logger (logging.Logger): ロガーインスタンス
 
         Returns:
-            bool: バリデーション成功時True、失敗時False
+            bool: 検証成功時はTrue、失敗時はFalse
         """
-        scheduler = config.get("scheduler")
-        scheduler_params = config.get("scheduler_params")
+        scheduler_name = config.get("scheduler")
 
-        # scheduler設定の確認
-        if scheduler is None:
-            logger.info("スケジューラー: なし（固定学習率）")
+        if scheduler_name is None:
+            # スケジューラーが指定されていない場合はOK
             return True
 
-        # 未サポートスケジューラーのチェック
-        if scheduler not in self.supported_schedulers:
-            supported_list = list(self.supported_schedulers.keys()) + ["None"]
+        if not isinstance(scheduler_name, str):
             logger.error(
-                f"未サポートのスケジューラーです: {scheduler}. "
-                f"サポート対象: {supported_list}"
+                f"scheduler は文字列型である必要があります。"
+                f"実際の型: {type(scheduler_name)}"
             )
             return False
 
-        # scheduler_paramsの存在確認
+        # サポートされているスケジューラーかチェック
+        if scheduler_name not in self.SUPPORTED_SCHEDULERS:
+            logger.error(
+                f"サポートされていないスケジューラー: {scheduler_name}. "
+                f"サポートされているスケジューラー: "
+                f"{list(self.SUPPORTED_SCHEDULERS.keys())}"
+            )
+            return False
+
+        # scheduler_params の存在確認
+        scheduler_params = config.get("scheduler_params")
         if scheduler_params is None:
             logger.error(
-                f"スケジューラー '{scheduler}' を使用する場合、"
-                f"scheduler_paramsが必須です"
+                f"スケジューラー '{scheduler_name}' を使用する場合、"
+                f"scheduler_params は必須です。"
             )
             return False
 
         if not isinstance(scheduler_params, dict):
             logger.error(
-                f"scheduler_paramsは辞書型である必要があります。"
-                f"現在の型: {type(scheduler_params)}"
+                f"scheduler_params は辞書型である必要があります。"
+                f"実際の型: {type(scheduler_params)}"
             )
             return False
 
-        # 必須パラメータの確認
-        required_params = self.supported_schedulers[scheduler]
-        missing_params = []
-
+        # 必須パラメータの存在確認
+        required_params = self.SUPPORTED_SCHEDULERS[scheduler_name]
         for param in required_params:
             if param not in scheduler_params:
-                missing_params.append(param)
+                logger.error(
+                    f"スケジューラー '{scheduler_name}' に必須パラメータ "
+                    f"'{param}' が指定されていません。"
+                )
+                return False
 
-        if missing_params:
-            logger.error(
-                f"スケジューラー '{scheduler}' に必須パラメータが不足しています: "
-                f"{missing_params}"
-            )
+        # パラメータ値の妥当性チェック
+        if not self._validate_scheduler_params(
+            scheduler_name, scheduler_params, logger
+        ):
             return False
-
-        # パラメータ値の型・範囲検証
-        if not self._validate_scheduler_params(scheduler, scheduler_params, logger):
-            return False
-
-        # 成功時のログ出力
-        logger.info(f"スケジューラー: {scheduler}")
-        logger.info(f"スケジューラーパラメータ: {scheduler_params}")
 
         return True
 
     def _validate_scheduler_params(
-        self, scheduler: str, params: Dict[str, Any], logger: logging.Logger
+        self,
+        scheduler_name: str,
+        scheduler_params: Dict[str, Any],
+        logger: logging.Logger,
     ) -> bool:
         """
-        スケジューラー別のパラメータ詳細検証.
+        スケジューラーのパラメータ値を検証.
 
         Args:
-            scheduler (str): スケジューラー名
-            params (Dict[str, Any]): パラメータ辞書
+            scheduler_name (str): スケジューラー名
+            scheduler_params (Dict[str, Any]): スケジューラーパラメータ
             logger (logging.Logger): ロガーインスタンス
 
         Returns:
-            bool: 検証成功時True、失敗時False
+            bool: 検証成功時はTrue、失敗時はFalse
         """
-        if scheduler == "StepLR":
-            return self._validate_step_lr_params(params, logger)
-        elif scheduler == "MultiStepLR":
-            return self._validate_multi_step_lr_params(params, logger)
-        elif scheduler == "CosineAnnealingLR":
-            return self._validate_cosine_annealing_lr_params(params, logger)
-        else:
-            return True
+        if scheduler_name == "StepLR":
+            step_size = scheduler_params.get("step_size")
+            if not isinstance(step_size, int):
+                logger.error("StepLR の step_size は整数型である必要があります。")
+                return False
+            if step_size is not None and step_size <= 0:
+                logger.error("StepLR の step_size は正数である必要があります。")
+                return False
 
-    def _validate_step_lr_params(
-        self, params: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """StepLRのパラメータ検証."""
-        step_size = params.get("step_size")
+            gamma = scheduler_params.get("gamma")
+            if not isinstance(gamma, (int, float)):
+                logger.error("StepLR の gamma は数値型である必要があります。")
+                return False
+            if gamma is not None and gamma <= 0:
+                logger.error("StepLR の gamma は正数である必要があります。")
+                return False
 
-        if not isinstance(step_size, int):
-            logger.error(
-                f"StepLRのstep_sizeは整数である必要があります。"
-                f"現在の値: {step_size} (型: {type(step_size)})"
-            )
-            return False
-
-        if step_size <= 0:
-            logger.error(
-                f"StepLRのstep_sizeは正の整数である必要があります。"
-                f"現在の値: {step_size}"
-            )
-            return False
-
-        # gammaパラメータの検証（必須）
-        gamma = params.get("gamma")
-        if gamma is None:
-            logger.error(
-                "StepLRのgammaパラメータが必須です。"
-                "configs/pochi_config.pyで設定してください。"
-            )
-            return False
-
-        if not isinstance(gamma, (int, float)):
-            logger.error(
-                f"StepLRのgammaは数値である必要があります。"
-                f"現在の値: {gamma} (型: {type(gamma)})"
-            )
-            return False
-
-        if gamma <= 0 or gamma >= 1:
-            logger.error(
-                f"StepLRのgammaは0〜1の範囲である必要があります。" f"現在の値: {gamma}"
-            )
-            return False
-
-        return True
-
-    def _validate_multi_step_lr_params(
-        self, params: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """MultiStepLRのパラメータ検証."""
-        milestones = params.get("milestones")
-
-        if not isinstance(milestones, list):
-            logger.error(
-                f"MultiStepLRのmilestonesはリストである必要があります。"
-                f"現在の型: {type(milestones)}"
-            )
-            return False
-
-        if not milestones:
-            logger.error("MultiStepLRのmilestonesは空リストにできません")
-            return False
-
-        # 各要素の型確認
-        for i, milestone in enumerate(milestones):
-            if not isinstance(milestone, int):
+        elif scheduler_name == "MultiStepLR":
+            milestones = scheduler_params.get("milestones")
+            if not isinstance(milestones, list) or not milestones:
                 logger.error(
-                    f"MultiStepLRのmilestones[{i}]は整数である必要があります。"
-                    f"現在の値: {milestone} (型: {type(milestone)})"
+                    "MultiStepLR の milestones はリスト型である必要があります。"
+                )
+                return False
+            if not all(isinstance(m, int) and m > 0 for m in milestones):
+                logger.error(
+                    "MultiStepLR の milestones はすべて正の整数である必要があります。"
                 )
                 return False
 
-            if milestone <= 0:
-                logger.error(
-                    f"MultiStepLRのmilestones[{i}]は正の整数である必要があります。"
-                    f"現在の値: {milestone}"
-                )
+            gamma = scheduler_params.get("gamma")
+            if not isinstance(gamma, (int, float)):
+                logger.error("MultiStepLR の gamma は数値型である必要があります。")
+                return False
+            if gamma is not None and gamma <= 0:
+                logger.error("MultiStepLR の gamma は正数である必要があります。")
                 return False
 
-        # 昇順確認
-        sorted_milestones = sorted(milestones)
-        if milestones != sorted_milestones:
-            logger.error(
-                f"MultiStepLRのmilestonesは昇順である必要があります。"
-                f"現在: {milestones}, 期待: {sorted_milestones}"
-            )
-            return False
+        elif scheduler_name == "CosineAnnealingLR":
+            t_max = scheduler_params.get("T_max")
+            if not isinstance(t_max, int):
+                logger.error(
+                    "CosineAnnealingLR の T_max は整数型である必要があります。"
+                )
+                return False
+            if t_max is not None and t_max <= 0:
+                logger.error("CosineAnnealingLR の T_max は正数である必要があります。")
+                return False
 
-        # gammaパラメータの検証（必須）
-        gamma = params.get("gamma")
-        if gamma is None:
-            logger.error(
-                "MultiStepLRのgammaパラメータが必須です。"
-                "configs/pochi_config.pyで設定してください。"
-            )
-            return False
+        elif scheduler_name == "ExponentialLR":
+            gamma = scheduler_params.get("gamma")
+            if not isinstance(gamma, (int, float)):
+                logger.error("ExponentialLR の gamma は数値型である必要があります。")
+                return False
+            if gamma is not None and gamma <= 0:
+                logger.error("ExponentialLR の gamma は正数である必要があります。")
+                return False
 
-        if not isinstance(gamma, (int, float)):
-            logger.error(
-                f"MultiStepLRのgammaは数値である必要があります。"
-                f"現在の値: {gamma} (型: {type(gamma)})"
-            )
-            return False
+        elif scheduler_name == "LinearLR":
+            start_factor = scheduler_params.get("start_factor")
+            end_factor = scheduler_params.get("end_factor")
+            total_iters = scheduler_params.get("total_iters")
 
-        if gamma <= 0 or gamma >= 1:
-            logger.error(
-                f"MultiStepLRのgammaは0〜1の範囲である必要があります。"
-                f"現在の値: {gamma}"
-            )
-            return False
+            if not isinstance(start_factor, (int, float)):
+                logger.error("LinearLR の start_factor は数値型である必要があります。")
+                return False
+            if start_factor is not None and start_factor < 0:
+                logger.error("LinearLR の start_factor は非負数である必要があります。")
+                return False
 
-        return True
+            if not isinstance(end_factor, (int, float)):
+                logger.error("LinearLR の end_factor は数値型である必要があります。")
+                return False
+            if end_factor is not None and end_factor < 0:
+                logger.error("LinearLR の end_factor は非負数である必要があります。")
+                return False
 
-    def _validate_cosine_annealing_lr_params(
-        self, params: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """CosineAnnealingLRのパラメータ検証."""
-        T_max = params.get("T_max")
-
-        if not isinstance(T_max, int):
-            logger.error(
-                f"CosineAnnealingLRのT_maxは整数である必要があります。"
-                f"現在の値: {T_max} (型: {type(T_max)})"
-            )
-            return False
-
-        if T_max <= 0:
-            logger.error(
-                f"CosineAnnealingLRのT_maxは正の整数である必要があります。"
-                f"現在の値: {T_max}"
-            )
-            return False
-
-        # eta_minパラメータの検証（必須）
-        eta_min = params.get("eta_min")
-        if eta_min is None:
-            logger.error(
-                "CosineAnnealingLRのeta_minパラメータが必須です。"
-                "configs/pochi_config.pyで設定してください。"
-            )
-            return False
-
-        if not isinstance(eta_min, (int, float)):
-            logger.error(
-                f"CosineAnnealingLRのeta_minは数値である必要があります。"
-                f"現在の値: {eta_min} (型: {type(eta_min)})"
-            )
-            return False
-
-        if eta_min < 0:
-            logger.error(
-                f"CosineAnnealingLRのeta_minは非負の値である必要があります。"
-                f"現在の値: {eta_min}"
-            )
-            return False
+            if not isinstance(total_iters, int):
+                logger.error("LinearLR の total_iters は整数型である必要があります。")
+                return False
+            if total_iters is not None and total_iters <= 0:
+                logger.error("LinearLR の total_iters は正数である必要があります。")
+                return False
 
         return True
