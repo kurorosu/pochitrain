@@ -29,6 +29,7 @@ class TrainingMetricsExporter:
         output_dir: Path,
         enable_visualization: bool = True,
         logger: Optional[logging.Logger] = None,
+        layer_wise_lr_graph_config: Optional[Dict[str, Any]] = None,
     ):
         """TrainingMetricsExporterを初期化."""
         self.output_dir = Path(output_dir)
@@ -39,6 +40,12 @@ class TrainingMetricsExporter:
             self.logger = logging.getLogger(__name__)
         else:
             self.logger = logger
+
+        # 層別学習率グラフの設定
+        if layer_wise_lr_graph_config is None:
+            layer_wise_lr_graph_config = {}
+        self.layer_wise_lr_graph_config = layer_wise_lr_graph_config
+        self.use_log_scale = layer_wise_lr_graph_config.get("use_log_scale", True)
 
         # メトリクス履歴の初期化
         self.metrics_history: List[Dict[str, Any]] = []
@@ -371,7 +378,9 @@ class TrainingMetricsExporter:
         ax.set_title("Layer-wise Learning Rates", fontsize=14, fontweight="bold")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best", fontsize=10)
-        ax.set_yscale("log")  # 対数スケールで表示（学習率の差が大きい場合）
+        # 対数スケールの使用を設定から制御
+        if self.use_log_scale:
+            ax.set_yscale("log")
         plt.tight_layout()
 
         lr_path = self.output_dir / f"{base_filename}_layer_wise_lr.png"

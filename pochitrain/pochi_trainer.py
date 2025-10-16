@@ -127,7 +127,8 @@ class PochiTrainer:
             learning_rate (float): 学習率
             optimizer_name (str): 最適化器名 ('Adam', 'SGD')
             scheduler_name (str, optional): スケジューラー名
-                ('StepLR', 'MultiStepLR', 'CosineAnnealingLR')
+                ('StepLR', 'MultiStepLR', 'CosineAnnealingLR',
+                'ExponentialLR', 'LinearLR')
             scheduler_params (dict, optional): スケジューラーのパラメータ
             class_weights (List[float], optional): クラス毎の損失重み
             num_classes (int, optional): クラス数（重みのバリデーション用）
@@ -152,6 +153,9 @@ class PochiTrainer:
         # 層別学習率の設定を保存
         self.enable_layer_wise_lr = enable_layer_wise_lr
         self.layer_wise_lr_config = layer_wise_lr_config or {}
+        self.layer_wise_lr_graph_config = self.layer_wise_lr_config.get(
+            "graph_config", {}
+        )
         self.base_learning_rate = learning_rate  # 基本学習率を保存
 
         # 最適化器の設定（層別学習率対応）
@@ -192,6 +196,14 @@ class PochiTrainer:
                 )
             elif scheduler_name == "CosineAnnealingLR":
                 self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimizer, **scheduler_params
+                )
+            elif scheduler_name == "ExponentialLR":
+                self.scheduler = optim.lr_scheduler.ExponentialLR(
+                    self.optimizer, **scheduler_params
+                )
+            elif scheduler_name == "LinearLR":
+                self.scheduler = optim.lr_scheduler.LinearLR(
                     self.optimizer, **scheduler_params
                 )
             else:
@@ -496,6 +508,7 @@ class PochiTrainer:
                 output_dir=visualization_dir,
                 enable_visualization=True,
                 logger=self.logger,
+                layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
             self.logger.info("メトリクス記録機能を有効化しました")
 
