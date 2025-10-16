@@ -21,9 +21,26 @@ epochs = 50  # エポック数
 learning_rate = 0.001  # 学習率
 optimizer = "SGD"  # 最適化器
 
-# スケジューラー設定
-scheduler = "StepLR"  # スケジューラー名
-scheduler_params = {"step_size": 30, "gamma": 0.1}  # スケジューラーパラメータ
+# スケジューラー設定例:
+# StepLR: 指定されたステップでγ倍に減衰
+# scheduler = "StepLR"
+# scheduler_params = {"step_size": 30, "gamma": 0.1}
+
+# MultiStepLR: 複数のマイルストーンで減衰
+# scheduler = "MultiStepLR"
+# scheduler_params = {"milestones": [30, 60, 90], "gamma": 0.1}
+
+# CosineAnnealingLR: コサイン関数で減衰
+# scheduler = "CosineAnnealingLR"
+# scheduler_params = {"T_max": 50}
+
+# ExponentialLR: 毎エポック指数減衰（gamma倍）
+scheduler = "ExponentialLR"
+scheduler_params = {"gamma": 0.95}
+
+# LinearLR: 線形減衰
+# scheduler = "LinearLR"
+# scheduler_params = {"start_factor": 1.0, "end_factor": 0.1, "total_iters": 50}
 
 # 損失関数設定
 class_weights = None  # クラス毎の損失重み
@@ -45,7 +62,7 @@ gradient_tracking_config = {
 }
 
 # 層別学習率設定
-enable_layer_wise_lr = False
+enable_layer_wise_lr = True
 layer_wise_lr_config = {
     "layer_rates": {
         "conv1": 0.0001,
@@ -55,7 +72,10 @@ layer_wise_lr_config = {
         "layer3": 0.001,
         "layer4": 0.002,
         "fc": 0.01,
-    }
+    },
+    "graph_config": {
+        "use_log_scale": True,  # Trueで対数スケール、Falseで線形スケール
+    },
 }
 
 # データ変換設定
