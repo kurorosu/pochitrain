@@ -227,7 +227,9 @@ class_weights = [0.5, 1.0, 1.0, 1.0]
 
 ### 重要な注意点
 
-⚠️ **transformが未設定（None）の場合、デフォルトで224x224にリサイズされます**
+⚠️ **transformは必須です。未設定（None）の場合はエラーになります**
+
+transformを設定しない場合、PIL Imageがそのままの状態で返されるため、PyTorchのテンソルに変換されずに訓練時にエラーが発生します。最低限でも `transforms.ToTensor()` を含む変換を設定してください。
 
 ### 基本パラメータ
 
@@ -238,13 +240,15 @@ std = [0.229, 0.224, 0.225]   # ImageNet標準値
 
 ### 訓練用変換の例
 
-#### 最小限構成（リサイズなし）
+#### 最小限構成（必須設定）
 ```python
 train_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=mean, std=std),
+    transforms.ToTensor(),  # 必須：PIL Image → PyTorchテンソルに変換
+    transforms.Normalize(mean=mean, std=std),  # 推奨：正規化
 ])
 ```
+
+**重要**: `transforms.ToTensor()` は必須です。これがないとPIL ImageがPyTorchテンソルに変換されず、訓練時にエラーが発生します。
 
 #### データ拡張あり
 ```python
@@ -269,13 +273,15 @@ val_transform = transforms.Compose([
 ])
 ```
 
-#### リサイズなし
+#### リサイズなし（最小限構成）
 ```python
 val_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=mean, std=std),
+    transforms.ToTensor(),  # 必須：PIL Image → PyTorchテンソルに変換
+    transforms.Normalize(mean=mean, std=std),  # 推奨：正規化
 ])
 ```
+
+**注意**: 検証用変換でも `transforms.ToTensor()` は必須です。
 
 ## カスタム正規化
 
@@ -417,4 +423,4 @@ scheduler_params = {
 
 - **num_workers**: CPUコア数の1/2〜1倍に設定
 - **batch_size**: GPUメモリに応じて調整
-- **pin_memory**: GPU使用時は`True`に設定（現在は自動） 
+- **pin_memory**: GPU使用時は`True`に設定（現在は自動）
