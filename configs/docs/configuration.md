@@ -82,11 +82,115 @@ scheduler_params = {"T_max": 50}
 
 - `T_max`: 最大エポック数（コサイン周期の半分）
 
+#### ExponentialLR
+学習率を指数的に減衰
+
+```python
+scheduler = "ExponentialLR"
+scheduler_params = {"gamma": 0.95}
+```
+
+- `gamma`: 毎エポックの減衰率（0 < gamma < 1）
+- 例：`gamma=0.95` ならエポックごとに 0.95 倍
+
+#### LinearLR
+指定したイテレーション数で線形に減衰
+
+```python
+scheduler = "LinearLR"
+scheduler_params = {
+    "start_factor": 1.0,
+    "end_factor": 0.1,
+    "total_iters": 100,
+}
+```
+
+- `start_factor`: 減衰開始時の係数（通常 1.0）
+- `end_factor`: 減衰終了時の係数（終了時の学習率は `learning_rate * end_factor`）
+- `total_iters`: 線形減衰を行う総ステップ数（pochitrain ではエポック数想定）
+
 #### スケジューラーなし
 
 ```python
 scheduler = None
 scheduler_params = None
+```
+
+## 層別学習率（Layer-wise Learning Rates）
+
+### 概要
+層（パラメータグループ）ごとに異なる学習率を設定し、微調整や段階的な学習制御を可能にする機能です。事前学習済みモデルの前段を保守的に更新し、後段を積極的に学習させる **Discriminative Fine-tuning** などに有効です。
+
+### 基本設定
+```python
+enable_layer_wise_lr = True
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0001,
+        "bn1": 0.0001,
+        "layer1": 0.0002,
+        "layer2": 0.0005,
+        "layer3": 0.001,
+        "layer4": 0.002,
+        "fc": 0.01,
+    },
+    "graph_config": {
+        "use_log_scale": False,  # True で対数スケール
+    },
+}
+```
+
+### パラメータ
+- `enable_layer_wise_lr`: 層別学習率機能の有効/無効
+- `layer_rates`: 層名（正規表現対応）と学習率を保持する辞書。記述順にマッチングされるため、より具体的な層名を先に書く
+- `graph_config.use_log_scale`: 層別学習率グラフを対数スケールで表示するか
+
+### 動作
+- 層別学習率が有効でも、CSV の `learning_rate` カラムには設定した値が固定出力される
+- 実際の各層の学習率は `lr_<layer_name>` カラムとして CSV に記録され、専用グラフにも描画される
+- 正答率グラフには学習率を描画せず、層別学習率専用グラフが生成される
+
+### スケジューラーとの併用例
+```python
+learning_rate = 0.001
+enable_layer_wise_lr = True
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0001,
+        "layer1": 0.0005,
+        "layer2": 0.001,
+        "layer3": 0.002,
+        "layer4": 0.005,
+        "fc": 0.01,
+    },
+    "graph_config": {"use_log_scale": True},
+}
+
+scheduler = "ExponentialLR"
+scheduler_params = {"gamma": 0.95}
+```
+
+```python
+learning_rate = 0.001
+enable_layer_wise_lr = True
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0001,
+        "layer1": 0.0002,
+        "layer2": 0.0005,
+        "layer3": 0.001,
+        "layer4": 0.002,
+        "fc": 0.01,
+    },
+    "graph_config": {"use_log_scale": False},
+}
+
+scheduler = "LinearLR"
+scheduler_params = {
+    "start_factor": 1.0,
+    "end_factor": 0.1,
+    "total_iters": 100,
+}
 ```
 
 ## 損失関数設定
@@ -235,6 +339,50 @@ scheduler = "CosineAnnealingLR"
 scheduler_params = {"T_max": 50}
 ```
 
+### 層別学習率 + ExponentialLR
+```python
+learning_rate = 0.001
+enable_layer_wise_lr = True
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0001,
+        "layer1": 0.0003,
+        "layer2": 0.0005,
+        "layer3": 0.001,
+        "layer4": 0.003,
+        "fc": 0.01,
+    },
+    "graph_config": {"use_log_scale": True},
+}
+
+scheduler = "ExponentialLR"
+scheduler_params = {"gamma": 0.95}
+```
+
+### 層別学習率 + LinearLR
+```python
+learning_rate = 0.001
+enable_layer_wise_lr = True
+layer_wise_lr_config = {
+    "layer_rates": {
+        "conv1": 0.0002,
+        "layer1": 0.0004,
+        "layer2": 0.0006,
+        "layer3": 0.0008,
+        "layer4": 0.001,
+        "fc": 0.002,
+    },
+    "graph_config": {"use_log_scale": False},
+}
+
+scheduler = "LinearLR"
+scheduler_params = {
+    "start_factor": 1.0,
+    "end_factor": 0.1,
+    "total_iters": 50,
+}
+```
+
 ## トラブルシューティング
 
 ### よくあるエラー
@@ -249,10 +397,21 @@ scheduler_params = {"T_max": 50}
    ```
    ValueError: サポートされていないスケジューラー: CustomLR
    ```
-   → 対応スケジューラー（StepLR, MultiStepLR, CosineAnnealingLR）を使用
+   → 対応スケジューラー（StepLR, MultiStepLR, CosineAnnealingLR, ExponentialLR, LinearLR）を使用
 
 3. **Transform設定エラー**
    → `torchvision.transforms`のインポートを確認
+
+4. **層別学習率の設定エラー**
+   ```
+   ValueError: 層別学習率が有効ですが layer_rates が定義されていません
+   ```
+   → `layer_wise_lr_config["layer_rates"]` に層名と学習率を指定
+
+5. **層別学習率グラフが見づらい**
+   → `graph_config["use_log_scale"]` を調整
+     - 学習率差が大きい場合: `True`（対数）
+     - 学習率差が小さい場合: `False`（線形）
 
 ### パフォーマンス最適化
 
