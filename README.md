@@ -62,8 +62,14 @@ optimizer = 'Adam'            # 最適化器
 
 ### 3. 訓練実行
 
+統一 CLI エントリーポイント `pochi.py` を使用します。
+
 ```bash
-python pochi_train.py
+# 訓練
+python pochi.py train --config configs/pochi_train_config.py
+
+# カスタム設定ファイルを使用する場合
+python pochi.py train --config configs/my_custom_config.py
 ```
 
 これだけで訓練が開始されます！
@@ -74,6 +80,32 @@ python pochi_train.py
 
 - `best_model.pth`: 最高精度のモデル
 - `checkpoint_epoch_*.pth`: 各エポックのチェックポイント
+
+### 5. 推論の実行
+
+```bash
+# 基本的な推論
+python pochi.py infer \
+  --model-path work_dirs/20251018_001/models/best_epoch40.pth \
+  --data data/val \
+  --config-path work_dirs/20251018_001/config.py
+
+# 出力先を指定する場合
+python pochi.py infer \
+  --model-path work_dirs/20251018_001/models/best_epoch40.pth \
+  --data data/test \
+  --config-path work_dirs/20251018_001/config.py \
+  --output results/
+```
+
+### 6. 結果と出力
+
+訓練結果は `work_dirs/<timestamp>` に保存されます。
+
+- `models/best_epoch*.pth`: ベストモデル
+- `training_metrics_*.csv`: 学習率や精度を含むメトリクス
+- `training_metrics_*.png`: 損失/精度グラフ（層別学習率が有効な場合は別グラフ）
+- `visualization/`: 層別学習率グラフ、勾配トレースなど
 
 ## 📖 詳細な使用方法
 
@@ -142,7 +174,16 @@ predictions, confidences = trainer.predict(test_loader)
 
 ### スケジューラー
 - StepLR
+- MultiStepLR
 - CosineAnnealingLR
+- ExponentialLR
+- LinearLR
+
+### 高度な機能
+- **層別学習率（Layer-wise Learning Rates）**: 各層の学習率を個別設定し、専用グラフを出力
+- **メトリクス記録**: 学習率や損失を CSV/グラフに自動保存
+- **勾配トレース**: 層ごとの勾配推移を可視化
+- **クラス重み**: 不均衡データセットへ柔軟に対応
 
 ## 📋 要件
 
