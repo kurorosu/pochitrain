@@ -16,7 +16,7 @@ class OptimizerValidator(BaseValidator):
     def __init__(self) -> None:
         """OptimizerValidatorを初期化."""
         # サポートするオプティマイザー名
-        self.supported_optimizers = ["Adam", "SGD"]
+        self.supported_optimizers = ["Adam", "AdamW", "SGD"]
 
     def validate(self, config: Dict[str, Any], logger: logging.Logger) -> bool:
         """

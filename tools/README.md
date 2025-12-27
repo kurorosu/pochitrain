@@ -91,4 +91,3 @@ python tools/visualize_gradient_trace.py \
 - 勾配トレースは訓練時の計算コストが若干増加します
 - デフォルトでは無効化されています（`enable_gradient_tracking = False`）
 - 大規模なモデルでは層数が多いため、可視化に時間がかかる場合があります
-
