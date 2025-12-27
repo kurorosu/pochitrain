@@ -107,6 +107,20 @@ python pochi.py infer \
 - `training_metrics_*.png`: 損失/精度グラフ（層別学習率が有効な場合は別グラフ）
 - `visualization/`: 層別学習率グラフ、勾配トレースなど
 
+### 7. 勾配トレースの可視化
+
+訓練時に出力された勾配トレースCSVから詳細な可視化グラフを生成できます。
+
+```bash
+python tools/visualize_gradient_trace.py work_dirs/20251018_001/visualization/gradient_trace.csv
+```
+
+出力されるグラフ:
+- 時系列プロット（全層/前半層/後半層）
+- ヒートマップ
+- 統計情報（初期vs最終、安定性、最大値、最小値）
+- エポックスナップショット
+
 ## 📖 詳細な使用方法
 
 ### 個別に使用する場合
@@ -170,6 +184,7 @@ predictions, confidences = trainer.predict(test_loader)
 
 ### 最適化器
 - Adam
+- AdamW
 - SGD
 
 ### スケジューラー
@@ -184,13 +199,15 @@ predictions, confidences = trainer.predict(test_loader)
 - **メトリクス記録**: 学習率や損失を CSV/グラフに自動保存
 - **勾配トレース**: 層ごとの勾配推移を可視化
 - **クラス重み**: 不均衡データセットへ柔軟に対応
+- **ハイパーパラメータ最適化（β版）**: Optunaによる自動パラメータ探索
 
 ## 📋 要件
 
-- Python 3.10+
-- PyTorch 1.8+
-- torchvision 0.9+
-- PIL
+- Python 3.13+
+- PyTorch 2.6+ (CUDA 13.0)
+- torchvision 0.21+
+- pandas 2.0+ (勾配トレース可視化用)
+- Optuna 3.5+ (ハイパーパラメータ最適化用)
 
 ## 📦 インストール
 
@@ -200,22 +217,68 @@ predictions, confidences = trainer.predict(test_loader)
 # uv のインストール（未インストールの場合）
 pip install uv
 
-# 仮想環境の作成と依存関係のインストール
-uv venv
+# 依存関係のインストール
+uv sync
+
+# 仮想環境の有効化
 .venv\Scripts\activate   # Windows
 # source .venv/bin/activate  # Linux/Mac
 
-uv pip install -e .
-
 # 開発用依存関係も含める場合
-uv pip install -e ".[dev]"
+uv sync --group dev
 ```
 
-### pip を使用する場合
+## 🔬 ハイパーパラメータ最適化（β版）
+
+Optunaを使ったハイパーパラメータ自動探索機能です。
+
+### 基本的な使い方
 
 ```bash
-pip install -r requirements.txt
+# 最適化の実行
+python tools/optimize_hyperparams.py \
+    --config configs/pochi_train_config.py \
+    --optuna-config configs/optuna_config.py \
+    --output work_dirs/optuna_results
 ```
+
+### 出力ファイル
+
+- `best_params.json`: 最適なパラメータ
+- `trials_history.json`: 全試行の履歴
+- `optimized_config.py`: 最適化済み設定ファイル
+
+### 最適化後の訓練
+
+```bash
+# 最適化されたパラメータで本格訓練
+python pochi.py train --config work_dirs/optuna_results/optimized_config.py
+```
+
+### 探索空間のカスタマイズ
+
+`configs/optuna_config.py` で探索範囲を設定できます：
+
+```python
+search_space = {
+    "learning_rate": {
+        "type": "float",
+        "low": 1e-5,
+        "high": 1e-1,
+        "log": True,  # 対数スケール
+    },
+    "batch_size": {
+        "type": "categorical",
+        "choices": [16, 32, 64],
+    },
+    "optimizer": {
+        "type": "categorical",
+        "choices": ["SGD", "Adam", "AdamW"],
+    },
+}
+```
+
+> **Note**: この機能はβ版です。今後のリリースで改善予定です。
 
 ## 🔧 設定オプション
 
@@ -237,10 +300,6 @@ pip install -r requirements.txt
 - ImageNet用の正規化が適用されます
 - データ拡張は訓練時のみ適用されます
 - クラス数は自動で検出されます
-
-## 🤝 貢献
-
-プルリクエストやイシューを歓迎します！
 
 ## 📄 ライセンス
 
