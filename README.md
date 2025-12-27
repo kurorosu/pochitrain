@@ -187,12 +187,31 @@ predictions, confidences = trainer.predict(test_loader)
 
 ## 📋 要件
 
-- Python 3.7+
+- Python 3.10+
 - PyTorch 1.8+
 - torchvision 0.9+
 - PIL
 
 ## 📦 インストール
+
+### uv を使用する場合（推奨）
+
+```bash
+# uv のインストール（未インストールの場合）
+pip install uv
+
+# 仮想環境の作成と依存関係のインストール
+uv venv
+.venv\Scripts\activate   # Windows
+# source .venv/bin/activate  # Linux/Mac
+
+uv pip install -e .
+
+# 開発用依存関係も含める場合
+uv pip install -e ".[dev]"
+```
+
+### pip を使用する場合
 
 ```bash
 pip install -r requirements.txt

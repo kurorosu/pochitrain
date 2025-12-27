@@ -89,7 +89,8 @@ def test_optimizer_unsupported_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "サポートされていない最適化器です: RMSprop. " "サポート対象: ['Adam', 'SGD']"
+        "サポートされていない最適化器です: RMSprop. "
+        "サポート対象: ['Adam', 'AdamW', 'SGD']"
     )
 
 
