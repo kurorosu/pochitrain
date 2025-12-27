@@ -125,7 +125,7 @@ class PochiTrainer:
 
         Args:
             learning_rate (float): 学習率
-            optimizer_name (str): 最適化器名 ('Adam', 'SGD')
+            optimizer_name (str): 最適化器名 ('Adam', 'AdamW', 'SGD')
             scheduler_name (str, optional): スケジューラー名
                 ('StepLR', 'MultiStepLR', 'CosineAnnealingLR',
                 'ExponentialLR', 'LinearLR')
@@ -169,6 +169,8 @@ class PochiTrainer:
 
         if optimizer_name == "Adam":
             self.optimizer = optim.Adam(param_groups)
+        elif optimizer_name == "AdamW":
+            self.optimizer = optim.AdamW(param_groups, weight_decay=1e-2)
         elif optimizer_name == "SGD":
             self.optimizer = optim.SGD(
                 param_groups,
