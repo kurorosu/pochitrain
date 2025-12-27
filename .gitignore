@@ -1,13 +1,32 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
+.mypy_cache/
+.pytest_cache/
+
+# uv / Virtual Environment
+.venv/
+.coverage
+
+# IDE
+.vscode/
+.idea/
 .cursorrules
-.mypy_cache
+
+# Project specific
 tmp*.*
 outputs/
 PROGRESS.md
 data/*
 work_dirs/*
 test_inference_functionality.py
-.vscode
-.kiro
+
+# Planning / Documentation (local only)
+.kiro/
+issue.txt
+Plan.md
+
+# Environment
+.env
+*.local
