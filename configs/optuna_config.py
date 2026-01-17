@@ -14,7 +14,7 @@ r"""Optunaハイパーパラメータ最適化設定ファイル.
 # === Study設定 ===
 study_name = "pochitrain_optimization"
 direction = "maximize"  # "maximize"（精度最大化）or "minimize"（損失最小化）
-n_trials = 20  # 試行回数
+n_trials = 1  # 試行回数
 n_jobs = 1  # 並列ジョブ数（1 = 順次実行）
 
 # === サンプラー設定 ===
