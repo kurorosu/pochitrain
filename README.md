@@ -238,7 +238,6 @@ Optunaを使ったハイパーパラメータ自動探索機能です。
 # 最適化の実行
 python tools/optimize_hyperparams.py \
     --config configs/pochi_train_config.py \
-    --optuna-config configs/optuna_config.py \
     --output work_dirs/optuna_results
 ```
 
@@ -257,7 +256,7 @@ python pochi.py train --config work_dirs/optuna_results/optimized_config.py
 
 ### 探索空間のカスタマイズ
 
-`configs/optuna_config.py` で探索範囲を設定できます：
+`configs/pochi_train_config.py` の `search_space` で探索範囲を設定できます：
 
 ```python
 search_space = {
