@@ -236,10 +236,10 @@ Optunaを使ったハイパーパラメータ自動探索機能です。
 
 ```bash
 # 最適化の実行
-python tools/optimize_hyperparams.py \
-    --config configs/pochi_train_config.py \
-    --output work_dirs/optuna_results
+python pochi.py optimize --config configs/pochi_train_config.py
 ```
+
+出力ディレクトリ（`work_dirs/optuna_results`）が既に存在する場合、自動的に連番が付与されます（`optuna_results_001`、`optuna_results_002`...）。
 
 ### 出力ファイル
 
