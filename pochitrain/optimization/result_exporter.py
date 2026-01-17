@@ -72,36 +72,13 @@ class JsonResultExporter(IResultExporter):
             json.dump(trials_data, f, indent=2, ensure_ascii=False)
 
 
-class ConfigExporter(IResultExporter):
-    """Python設定ファイル形式で最適化結果をエクスポートする.
+class TransformSerializer:
+    """torchvision.transformsオブジェクトをPythonコード文字列に変換する.
 
-    最適パラメータをpochi_train_config.py形式で出力し,
-    そのまま本格訓練に使用可能.
+    SRP: Transform処理の単一責任を持つ.
     """
 
-    def __init__(self, base_config: dict[str, Any]) -> None:
-        """初期化.
-
-        Args:
-            base_config: ベース設定(最適化対象外のパラメータを含む)
-        """
-        self._base_config = base_config
-
-    def _format_dict(self, d: dict[str, Any]) -> str:
-        """辞書を整形された文字列に変換.
-
-        pprint.pformat()を使用してPython形式で整形.
-        開き括弧後の空白は独特だが, Python構文として正しく動作する.
-
-        Args:
-            d: フォーマットする辞書
-
-        Returns:
-            整形されたPythonコード文字列
-        """
-        return pprint.pformat(d, width=80)
-
-    def _serialize_transform(self, transform: Any) -> str:
+    def serialize(self, transform: Any) -> str:
         """transformオブジェクトをPythonコード文字列に変換.
 
         Args:
@@ -119,6 +96,61 @@ class ConfigExporter(IResultExporter):
                 + ",\n    ]\n)"
             )
         return f"transforms.{repr(transform)}"
+
+
+class DictFormatter:
+    """辞書をPython形式の文字列にフォーマットする.
+
+    SRP: 辞書フォーマットの単一責任を持つ.
+    """
+
+    def __init__(self, width: int = 80) -> None:
+        """初期化.
+
+        Args:
+            width: 出力幅（デフォルト80）
+        """
+        self._width = width
+
+    def format(self, d: dict[str, Any]) -> str:
+        """辞書を整形された文字列に変換.
+
+        pprint.pformat()を使用してPython形式で整形.
+
+        Args:
+            d: フォーマットする辞書
+
+        Returns:
+            整形されたPythonコード文字列
+        """
+        return pprint.pformat(d, width=self._width)
+
+
+class ConfigExporter(IResultExporter):
+    """Python設定ファイル形式で最適化結果をエクスポートする.
+
+    最適パラメータをpochi_train_config.py形式で出力し,
+    そのまま本格訓練に使用可能.
+
+    Compositionパターンを使用してTransformSerializerとDictFormatterに依存.
+    """
+
+    def __init__(
+        self,
+        base_config: dict[str, Any],
+        transform_serializer: TransformSerializer | None = None,
+        dict_formatter: DictFormatter | None = None,
+    ) -> None:
+        """初期化.
+
+        Args:
+            base_config: ベース設定(最適化対象外のパラメータを含む)
+            transform_serializer: Transformシリアライザー（デフォルトで生成）
+            dict_formatter: 辞書フォーマッター（デフォルトで生成）
+        """
+        self._base_config = base_config
+        self._transform_serializer = transform_serializer or TransformSerializer()
+        self._dict_formatter = dict_formatter or DictFormatter()
 
     def export(
         self,
@@ -171,7 +203,7 @@ class ConfigExporter(IResultExporter):
                 # transformは専用の処理で出力（明示的なキー名指定）
                 if key in ("train_transform", "val_transform"):
                     transform_lines.append(
-                        f"{key} = {self._serialize_transform(value)}"
+                        f"{key} = {self._transform_serializer.serialize(value)}"
                     )
                     continue
                 # callableは出力しない（transformチェック後に行う）
@@ -182,7 +214,7 @@ class ConfigExporter(IResultExporter):
                     continue
                 # 辞書型は整形して出力
                 if isinstance(value, dict):
-                    lines.append(f"{key} = {self._format_dict(value)}")
+                    lines.append(f"{key} = {self._dict_formatter.format(value)}")
                 else:
                     lines.append(f"{key} = {repr(value)}")
 
