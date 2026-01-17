@@ -21,6 +21,7 @@ dependencies = [
     "colorlog>=6.0.0",
     "rich>=13.0.0",
     "optuna>=3.5.0",
+    "plotly>=5.0.0",
     "matplotlib-fontja>=1.1.0",
 ]
 

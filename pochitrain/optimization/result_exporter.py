@@ -195,3 +195,219 @@ class ConfigExporter(IResultExporter):
         with open(config_file, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
             f.write("\n")
+
+
+class StatisticsExporter(IResultExporter):
+    """パラメータ重要度と試行統計をエクスポートする.
+
+    Optunaのget_param_importances()を使用してパラメータ重要度を計算し,
+    試行全体の統計情報（最良/最悪/平均/標準偏差）と共にJSON形式で出力.
+    """
+
+    def _calculate_trial_statistics(
+        self, study: optuna.Study
+    ) -> dict[str, float | int | None]:
+        """試行統計を計算する.
+
+        Args:
+            study: Optuna Studyオブジェクト
+
+        Returns:
+            統計情報の辞書（best, worst, mean, std, n_completed, n_pruned, n_failed）
+        """
+        import numpy as np
+
+        # 完了した試行のみ抽出
+        completed_trials = [
+            t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE
+        ]
+        values = [t.value for t in completed_trials if t.value is not None]
+
+        if not values:
+            return {
+                "best": None,
+                "worst": None,
+                "mean": None,
+                "std": None,
+                "n_completed": 0,
+                "n_pruned": len(
+                    [
+                        t
+                        for t in study.trials
+                        if t.state == optuna.trial.TrialState.PRUNED
+                    ]
+                ),
+                "n_failed": len(
+                    [t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]
+                ),
+            }
+
+        values_arr = np.array(values)
+        is_maximize = study.direction == optuna.study.StudyDirection.MAXIMIZE
+
+        return {
+            "best": float(np.max(values_arr) if is_maximize else np.min(values_arr)),
+            "worst": float(np.min(values_arr) if is_maximize else np.max(values_arr)),
+            "mean": float(np.mean(values_arr)),
+            "std": float(np.std(values_arr)),
+            "n_completed": len(completed_trials),
+            "n_pruned": len(
+                [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
+            ),
+            "n_failed": len(
+                [t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]
+            ),
+        }
+
+    def _calculate_param_importances(
+        self, study: optuna.Study
+    ) -> dict[str, float] | None:
+        """パラメータ重要度を計算する.
+
+        Args:
+            study: Optuna Studyオブジェクト
+
+        Returns:
+            パラメータ名と重要度の辞書, 計算できない場合はNone
+        """
+        try:
+            importances = optuna.importance.get_param_importances(study)
+            return {k: float(v) for k, v in importances.items()}
+        except Exception:
+            # 試行数が少ない場合やエラー時はNoneを返す
+            return None
+
+    def export(
+        self,
+        _best_params: dict[str, Any],
+        _best_value: float,
+        study: optuna.Study,
+        output_path: str,
+    ) -> None:
+        """パラメータ重要度と統計情報をJSONにエクスポートする.
+
+        Args:
+            _best_params: 最適なパラメータ（インターフェース準拠, 未使用）
+            _best_value: 最適な目的関数値（インターフェース準拠, 未使用）
+            study: Optuna Studyオブジェクト
+            output_path: 出力先パス
+        """
+        output_dir = Path(output_path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 統計情報を計算
+        statistics = self._calculate_trial_statistics(study)
+
+        # パラメータ重要度を計算
+        importances = self._calculate_param_importances(study)
+
+        result = {
+            "study_name": study.study_name,
+            "direction": study.direction.name,
+            "statistics": statistics,
+            "param_importances": importances,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        # JSON保存
+        output_file = output_dir / "study_statistics.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+
+class VisualizationExporter(IResultExporter):
+    """Plotlyを使用してインタラクティブなHTML可視化をエクスポートする.
+
+    最適化履歴とパラメータ重要度のグラフをHTML形式で出力.
+    """
+
+    def __init__(self) -> None:
+        """初期化."""
+        import logging
+
+        self._logger = logging.getLogger(__name__)
+
+    def _export_optimization_history(
+        self, study: optuna.Study, output_dir: Path
+    ) -> bool:
+        """最適化履歴グラフをHTMLにエクスポートする.
+
+        Args:
+            study: Optuna Studyオブジェクト
+            output_dir: 出力ディレクトリ
+
+        Returns:
+            成功した場合True
+        """
+        try:
+            fig = optuna.visualization.plot_optimization_history(study)
+            fig.write_html(str(output_dir / "optimization_history.html"))
+            return True
+        except Exception as e:
+            self._logger.warning(f"最適化履歴グラフの生成をスキップしました: {e}")
+            return False
+
+    def _export_param_importances(self, study: optuna.Study, output_dir: Path) -> bool:
+        """パラメータ重要度グラフをHTMLにエクスポートする.
+
+        Args:
+            study: Optuna Studyオブジェクト
+            output_dir: 出力ディレクトリ
+
+        Returns:
+            成功した場合True
+        """
+        try:
+            fig = optuna.visualization.plot_param_importances(study)
+            fig.write_html(str(output_dir / "param_importances.html"))
+            return True
+        except Exception as e:
+            self._logger.warning(f"パラメータ重要度グラフの生成をスキップしました: {e}")
+            return False
+
+    def _export_contour(self, study: optuna.Study, output_dir: Path) -> bool:
+        """パラメータ間の等高線プロットをHTMLにエクスポートする.
+
+        2つのパラメータ間の関係性を等高線で可視化する.
+
+        Args:
+            study: Optuna Studyオブジェクト
+            output_dir: 出力ディレクトリ
+
+        Returns:
+            成功した場合True
+        """
+        try:
+            fig = optuna.visualization.plot_contour(study)
+            fig.write_html(str(output_dir / "contour.html"))
+            return True
+        except Exception as e:
+            self._logger.warning(f"等高線プロットの生成をスキップしました: {e}")
+            return False
+
+    def export(
+        self,
+        _best_params: dict[str, Any],
+        _best_value: float,
+        study: optuna.Study,
+        output_path: str,
+    ) -> None:
+        """可視化グラフをHTMLにエクスポートする.
+
+        Args:
+            _best_params: 最適なパラメータ（インターフェース準拠, 未使用）
+            _best_value: 最適な目的関数値（インターフェース準拠, 未使用）
+            study: Optuna Studyオブジェクト
+            output_path: 出力先パス
+        """
+        output_dir = Path(output_path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 最適化履歴をエクスポート
+        self._export_optimization_history(study, output_dir)
+
+        # パラメータ重要度をエクスポート
+        self._export_param_importances(study, output_dir)
+
+        # 等高線プロットをエクスポート
+        self._export_contour(study, output_dir)

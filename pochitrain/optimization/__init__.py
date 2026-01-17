@@ -8,7 +8,11 @@ from pochitrain.optimization.interfaces import (
 )
 from pochitrain.optimization.objective import ClassificationObjective
 from pochitrain.optimization.param_suggestor import DefaultParamSuggestor
-from pochitrain.optimization.result_exporter import JsonResultExporter
+from pochitrain.optimization.result_exporter import (
+    JsonResultExporter,
+    StatisticsExporter,
+    VisualizationExporter,
+)
 from pochitrain.optimization.study_manager import OptunaStudyManager
 
 __all__ = [
@@ -22,4 +26,6 @@ __all__ = [
     "DefaultParamSuggestor",
     "JsonResultExporter",
     "OptunaStudyManager",
+    "StatisticsExporter",
+    "VisualizationExporter",
 ]

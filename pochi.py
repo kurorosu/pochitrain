@@ -465,6 +465,8 @@ def optimize_command(args: argparse.Namespace) -> None:
             DefaultParamSuggestor,
             JsonResultExporter,
             OptunaStudyManager,
+            StatisticsExporter,
+            VisualizationExporter,
         )
         from pochitrain.optimization.result_exporter import ConfigExporter
     except ImportError as e:
@@ -564,10 +566,21 @@ def optimize_command(args: argparse.Namespace) -> None:
     config_exporter = ConfigExporter(config)
     config_exporter.export(best_params, best_value, study, str(output_dir))
 
+    # 統計情報とパラメータ重要度をエクスポート
+    statistics_exporter = StatisticsExporter()
+    statistics_exporter.export(best_params, best_value, study, str(output_dir))
+
+    # 可視化グラフをエクスポート（Plotly HTML）
+    visualization_exporter = VisualizationExporter()
+    visualization_exporter.export(best_params, best_value, study, str(output_dir))
+
     logger.info("生成されたファイル:")
     logger.info(f"  - {output_dir}/best_params.json")
     logger.info(f"  - {output_dir}/trials_history.json")
     logger.info(f"  - {output_dir}/optimized_config.py")
+    logger.info(f"  - {output_dir}/study_statistics.json")
+    logger.info(f"  - {output_dir}/optimization_history.html")
+    logger.info(f"  - {output_dir}/param_importances.html")
     logger.info("最適化パラメータで訓練するには:")
     logger.info(f"  python pochi.py train --config {output_dir}/optimized_config.py")
 
