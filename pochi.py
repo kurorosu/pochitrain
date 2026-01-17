@@ -2,7 +2,7 @@
 """
 pochitrain 統一CLI エントリーポイント.
 
-訓練と推論を統合したコマンドライン インターフェース
+訓練・推論・ハイパーパラメータ最適化を統合したコマンドライン インターフェース
 """
 
 import argparse
@@ -281,6 +281,36 @@ def train_command(args: argparse.Namespace) -> None:
     logger.info(f"結果は {config['work_dir']} に保存されています。")
 
 
+def get_indexed_output_dir(base_dir: str) -> Path:
+    """インデックス付きの出力ディレクトリを取得する.
+
+    既存のディレクトリがある場合、連番を付与して新しいディレクトリ名を生成.
+    例: optuna_results, optuna_results_001, optuna_results_002, ...
+
+    Args:
+        base_dir: ベースとなる出力ディレクトリパス
+
+    Returns:
+        インデックス付きの出力ディレクトリパス
+    """
+    base_path = Path(base_dir)
+
+    # ベースディレクトリが存在しない場合はそのまま返す
+    if not base_path.exists():
+        return base_path
+
+    # 連番を探索
+    parent = base_path.parent
+    stem = base_path.name
+    index = 1
+
+    while True:
+        indexed_path = parent / f"{stem}_{index:03d}"
+        if not indexed_path.exists():
+            return indexed_path
+        index += 1
+
+
 def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
     logger = setup_logging()
@@ -415,16 +445,142 @@ def infer_command(args: argparse.Namespace) -> None:
         return
 
 
+def optimize_command(args: argparse.Namespace) -> None:
+    """最適化サブコマンドの実行."""
+    logger = setup_logging()
+    logger.info("=== pochitrain Optuna最適化モード ===")
+
+    # 設定ファイルの読み込み
+    try:
+        config = load_config(args.config)
+        logger.info(f"設定ファイルを読み込みました: {args.config}")
+    except FileNotFoundError:
+        logger.error(f"設定ファイルが見つかりません: {args.config}")
+        return
+
+    # Optuna関連のインポート（遅延インポート）
+    try:
+        from pochitrain.optimization import (
+            ClassificationObjective,
+            DefaultParamSuggestor,
+            JsonResultExporter,
+            OptunaStudyManager,
+        )
+        from pochitrain.optimization.result_exporter import ConfigExporter
+    except ImportError as e:
+        logger.error(f"Optunaモジュールのインポートに失敗しました: {e}")
+        logger.error(
+            "Optunaがインストールされているか確認してください: pip install optuna"
+        )
+        return
+
+    # 出力ディレクトリの決定（インデックス付き）
+    output_dir = get_indexed_output_dir(args.output)
+    logger.info(f"出力ディレクトリ: {output_dir}")
+
+    # データローダーの作成
+    logger.info("データローダーを作成しています...")
+    try:
+        train_loader, val_loader, classes = create_data_loaders(
+            train_root=config.get("train_data_root", "data/train"),
+            val_root=config.get("val_data_root", "data/val"),
+            batch_size=config.get("batch_size", 32),
+            num_workers=config.get("num_workers", 0),
+            train_transform=config.get("train_transform"),
+            val_transform=config.get("val_transform"),
+        )
+        config["num_classes"] = len(classes)
+        logger.info(f"クラス数: {len(classes)}")
+        logger.info(f"クラス名: {classes}")
+        logger.info(f"訓練サンプル数: {len(train_loader.dataset)}")
+        logger.info(f"検証サンプル数: {len(val_loader.dataset)}")
+    except Exception as e:
+        logger.error(f"データローダーの作成に失敗しました: {e}")
+        return
+
+    # パラメータサジェスターを作成
+    search_space = config.get("search_space", {})
+    if not search_space:
+        logger.error("search_spaceが設定されていません")
+        return
+    param_suggestor = DefaultParamSuggestor(search_space)
+    logger.info(f"探索空間: {list(search_space.keys())}")
+
+    # 目的関数を作成
+    objective = ClassificationObjective(
+        base_config=config,
+        param_suggestor=param_suggestor,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        optuna_epochs=config.get("optuna_epochs", 10),
+        device=config.get("device", "cuda"),
+    )
+
+    # Study管理を作成
+    storage = config.get("storage")
+    study_manager = OptunaStudyManager(storage=storage)
+
+    # Studyを作成
+    logger.info("Optuna Studyを作成しています...")
+    study = study_manager.create_study(
+        study_name=config.get("study_name", "pochitrain_optimization"),
+        direction=config.get("direction", "maximize"),
+        sampler=config.get("sampler", "TPESampler"),
+        pruner=config.get("pruner"),
+    )
+    logger.info(f"Study名: {study.study_name}")
+    logger.info(f"方向: {config.get('direction', 'maximize')}")
+    logger.info(f"サンプラー: {config.get('sampler', 'TPESampler')}")
+
+    # 最適化を実行
+    n_trials = config.get("n_trials", 20)
+    logger.info(f"最適化を開始します（{n_trials}試行）...")
+    study_manager.optimize(
+        objective=objective,
+        n_trials=n_trials,
+        n_jobs=config.get("n_jobs", 1),
+    )
+
+    # 結果を取得
+    best_params = study_manager.get_best_params()
+    best_value = study_manager.get_best_value()
+
+    logger.info("=" * 50)
+    logger.info("最適化完了！")
+    logger.info("=" * 50)
+    logger.info(f"最良スコア: {best_value:.4f}")
+    logger.info("最良パラメータ:")
+    for key, value in best_params.items():
+        logger.info(f"  {key}: {value}")
+
+    # 結果をエクスポート
+    logger.info(f"結果を出力しています: {output_dir}")
+
+    # JSON形式でエクスポート
+    json_exporter = JsonResultExporter()
+    json_exporter.export(best_params, best_value, study, str(output_dir))
+
+    # Python設定ファイル形式でエクスポート
+    config_exporter = ConfigExporter(config)
+    config_exporter.export(best_params, best_value, study, str(output_dir))
+
+    logger.info("生成されたファイル:")
+    logger.info(f"  - {output_dir}/best_params.json")
+    logger.info(f"  - {output_dir}/trials_history.json")
+    logger.info(f"  - {output_dir}/optimized_config.py")
+    logger.info("最適化パラメータで訓練するには:")
+    logger.info(f"  python pochi.py train --config {output_dir}/optimized_config.py")
+
+
 def main() -> None:
     """メイン関数."""
     parser = argparse.ArgumentParser(
-        description="pochitrain - 統合CLI（訓練・推論）",
+        description="pochitrain - 統合CLI（訓練・推論・最適化）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
   # 訓練
-  python pochi.py train
-    --config configs/pochi_train_config.py
+  python pochi.py train --config configs/pochi_train_config.py
 
   # 推論（基本）
   python pochi.py infer
@@ -438,6 +594,9 @@ def main() -> None:
     --data data/test
     --config-path work_dirs/20250813_003/config.py
     --output custom_results
+
+  # ハイパーパラメータ最適化
+  python pochi.py optimize --config configs/pochi_train_config.py
         """,
     )
 
@@ -469,12 +628,28 @@ def main() -> None:
         help="結果出力ディレクトリ（default: モデルと同じディレクトリ/inference_results）",
     )
 
+    # 最適化サブコマンド
+    optimize_parser = subparsers.add_parser("optimize", help="ハイパーパラメータ最適化")
+    optimize_parser.add_argument(
+        "--config",
+        default="configs/pochi_train_config.py",
+        help="設定ファイルパス (default: configs/pochi_train_config.py)",
+    )
+    optimize_parser.add_argument(
+        "--output",
+        "-o",
+        default="work_dirs/optuna_results",
+        help="結果出力ディレクトリ (default: work_dirs/optuna_results)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "train":
         train_command(args)
     elif args.command == "infer":
         infer_command(args)
+    elif args.command == "optimize":
+        optimize_command(args)
     else:
         parser.print_help()
         sys.exit(1)
