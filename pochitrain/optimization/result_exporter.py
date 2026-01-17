@@ -1,6 +1,7 @@
 """最適化結果エクスポーター実装（SRP: 単一責任原則）."""
 
 import json
+import pprint
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,20 @@ class ConfigExporter(IResultExporter):
         """
         self._base_config = base_config
 
+    def _format_dict(self, d: dict[str, Any]) -> str:
+        """辞書を整形された文字列に変換.
+
+        pprint.pformat()を使用してPython形式で整形.
+        開き括弧後の空白は独特だが, Python構文として正しく動作する.
+
+        Args:
+            d: フォーマットする辞書
+
+        Returns:
+            整形されたPythonコード文字列
+        """
+        return pprint.pformat(d, width=80)
+
     def _serialize_transform(self, transform: Any) -> str:
         """transformオブジェクトをPythonコード文字列に変換.
 
@@ -165,7 +180,11 @@ class ConfigExporter(IResultExporter):
                 # モジュールオブジェクトは出力しない
                 if isinstance(value, type(json)):
                     continue
-                lines.append(f"{key} = {repr(value)}")
+                # 辞書型は整形して出力
+                if isinstance(value, dict):
+                    lines.append(f"{key} = {self._format_dict(value)}")
+                else:
+                    lines.append(f"{key} = {repr(value)}")
 
         # transform設定を最後に追加
         if transform_lines:
