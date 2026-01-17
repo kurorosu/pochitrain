@@ -7,9 +7,12 @@ pochitrain 統一CLI エントリーポイント.
 
 import argparse
 import importlib.util
+import logging
 import signal
 import sys
 from pathlib import Path
+from types import FrameType
+from typing import Any, Dict, Optional
 
 from torch.utils.data import DataLoader
 
@@ -26,7 +29,7 @@ from pochitrain.validation import ConfigValidator
 training_interrupted = False
 
 
-def signal_handler(signum, frame):
+def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
     """Ctrl+Cのシグナルハンドラー."""
     global training_interrupted
     training_interrupted = True
@@ -37,7 +40,7 @@ def signal_handler(signum, frame):
     logger.warning("現在のエポックが完了次第、訓練を終了します。")
 
 
-def setup_logging(logger_name: str = "pochitrain"):
+def setup_logging(logger_name: str = "pochitrain") -> logging.Logger:
     """
     ログ設定の初期化.
 
@@ -51,7 +54,7 @@ def setup_logging(logger_name: str = "pochitrain"):
     return logger_manager.get_logger(logger_name)
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str) -> Dict[str, Any]:
     """
     設定ファイルを読み込む.
 
@@ -121,7 +124,7 @@ def find_best_model(work_dir: str) -> Path:
     return best_model
 
 
-def validate_config(config: dict, logger) -> bool:
+def validate_config(config: Dict[str, Any], logger: logging.Logger) -> bool:
     """
     設定のバリデーション.
 
@@ -136,7 +139,7 @@ def validate_config(config: dict, logger) -> bool:
     return validator.validate(config)
 
 
-def train_command(args):
+def train_command(args: argparse.Namespace) -> None:
     """訓練サブコマンドの実行."""
     # Ctrl+Cの安全な処理を設定
     signal.signal(signal.SIGINT, signal_handler)
@@ -278,7 +281,7 @@ def train_command(args):
     logger.info(f"結果は {config['work_dir']} に保存されています。")
 
 
-def infer_command(args):
+def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
     logger = setup_logging()
     logger.info("=== pochitrain 推論モード ===")
@@ -412,7 +415,7 @@ def infer_command(args):
         return
 
 
-def main():
+def main() -> None:
     """メイン関数."""
     parser = argparse.ArgumentParser(
         description="pochitrain - 統合CLI（訓練・推論）",

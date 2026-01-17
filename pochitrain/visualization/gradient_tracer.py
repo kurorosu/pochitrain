@@ -118,11 +118,11 @@ class GradientTracer:
             else:
                 return sorted_norms[n // 2]
         elif self.aggregation_method == "max":
-            return max(grad_norms)
+            return float(max(grad_norms))
         elif self.aggregation_method == "rms":
-            return (sum(x**2 for x in grad_norms) / len(grad_norms)) ** 0.5
+            return float((sum(x**2 for x in grad_norms) / len(grad_norms)) ** 0.5)
         else:
-            return sum(grad_norms) / len(grad_norms)  # fallback to mean
+            return float(sum(grad_norms) / len(grad_norms))  # fallback to mean
 
     def record_gradients(self, model: nn.Module, epoch: int) -> None:
         """

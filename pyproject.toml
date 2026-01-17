@@ -1,6 +1,6 @@
 [project]
 name = "pochitrain"
-version = "0.1.0"
+version = "1.0.0"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,16 +12,16 @@ authors = [
 dependencies = [
     "torch",
     "torchvision",
-    "numpy>=1.19.0",
+    "numpy>=2.4.1",
     "pandas>=2.0.0",
     "pillow>=8.0.0",
     "scikit-learn>=0.24.0",
     "matplotlib>=3.10.8",
-    "japanize-matplotlib>=1.1.0",
     "pyyaml>=5.4.0",
     "colorlog>=6.0.0",
     "rich>=13.0.0",
     "optuna>=3.5.0",
+    "matplotlib-fontja>=1.1.0",
 ]
 
 [[tool.uv.index]]
@@ -62,6 +62,11 @@ python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
 
 [tool.pydocstyle]
 convention = "google"

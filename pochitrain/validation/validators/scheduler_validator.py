@@ -17,7 +17,7 @@ class SchedulerValidator(BaseValidator):
         "LinearLR": ["start_factor", "end_factor", "total_iters"],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初期化."""
         pass
 

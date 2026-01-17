@@ -53,7 +53,8 @@ class PochiModel(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """順伝播."""
-        return self.model(x)
+        output: torch.Tensor = self.model(x)
+        return output
 
     def get_model_info(self) -> dict:
         """モデル情報を取得."""
