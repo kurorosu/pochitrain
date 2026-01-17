@@ -313,12 +313,9 @@ class PochiPredictor(PochiTrainer):
         Returns:
             Path: 保存されたファイルのパス
         """
-        import japanize_matplotlib
         import matplotlib.pyplot as plt
+        import matplotlib_fontja  # noqa: F401
         import numpy as np
-
-        # 日本語フォント設定を明示的に適用
-        japanize_matplotlib.japanize()
 
         # デフォルト設定
         default_config = {
@@ -351,7 +348,8 @@ class PochiPredictor(PochiTrainer):
         fig, ax = plt.subplots(figsize=config["figsize"])
 
         # ヒートマップを描画（設定からカラーマップを取得）
-        ax.imshow(cm, interpolation="nearest", cmap=config["cmap"])
+        cmap_value: str = str(config["cmap"])
+        ax.imshow(cm, interpolation="nearest", cmap=cmap_value)
 
         # ラベル設定
         ax.set_xticks(np.arange(len(class_names)))
@@ -360,9 +358,12 @@ class PochiPredictor(PochiTrainer):
         ax.set_yticklabels(class_names)
 
         # ラベルとタイトル（設定から取得）
-        ax.set_xlabel(config["xlabel"], fontsize=config["label_fontsize"])
-        ax.set_ylabel(config["ylabel"], fontsize=config["label_fontsize"])
-        ax.set_title(config["title"], fontsize=config["title_fontsize"])
+        xlabel: str = str(config["xlabel"])
+        ylabel: str = str(config["ylabel"])
+        title: str = str(config["title"])
+        ax.set_xlabel(xlabel, fontsize=config["label_fontsize"])
+        ax.set_ylabel(ylabel, fontsize=config["label_fontsize"])
+        ax.set_title(title, fontsize=config["title_fontsize"])
 
         # 各セルに数値を表示（設定からフォントサイズを取得）
         for i in range(len(class_names)):

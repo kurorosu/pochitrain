@@ -1,6 +1,6 @@
 """Optuna Study管理実装（SRP: 単一責任原則）."""
 
-from typing import Any
+from typing import Any, Dict
 
 import optuna
 
@@ -95,7 +95,8 @@ class OptunaStudyManager(IStudyManager):
             msg = "Study not created. Call create_study() first."
             raise RuntimeError(msg)
 
-        return self._study.best_params
+        best_params: Dict[str, Any] = self._study.best_params
+        return best_params
 
     def get_best_value(self) -> float:
         """最適な目的関数値を取得する.
@@ -110,7 +111,8 @@ class OptunaStudyManager(IStudyManager):
             msg = "Study not created. Call create_study() first."
             raise RuntimeError(msg)
 
-        return self._study.best_value
+        best_value: float = self._study.best_value
+        return best_value
 
     def get_study(self) -> optuna.Study | None:
         """Studyオブジェクトを取得する.
@@ -140,7 +142,8 @@ class OptunaStudyManager(IStudyManager):
             msg = f"Unknown sampler: {sampler_name}. Available: {list(samplers.keys())}"
             raise ValueError(msg)
 
-        return samplers[sampler_name]()
+        sampler: optuna.samplers.BaseSampler = samplers[sampler_name]()
+        return sampler
 
     def _create_pruner(self, pruner_name: str) -> optuna.pruners.BasePruner:
         """プルーナーを作成する.
@@ -163,4 +166,5 @@ class OptunaStudyManager(IStudyManager):
             msg = f"Unknown pruner: {pruner_name}. Available: {list(pruners.keys())}"
             raise ValueError(msg)
 
-        return pruners[pruner_name]()
+        pruner: optuna.pruners.BasePruner = pruners[pruner_name]()
+        return pruner

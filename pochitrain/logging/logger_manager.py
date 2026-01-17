@@ -48,7 +48,7 @@ class LoggerManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """LoggerManagerを初期化."""
         if hasattr(self, "_initialized"):
             return
@@ -129,6 +129,8 @@ class LoggerManager:
         Returns:
             logging.Handler: 作成されたハンドラー
         """
+        handler: logging.Handler
+        formatter: logging.Formatter
         if COLORLOG_AVAILABLE:
             handler = colorlog.StreamHandler()
             formatter = colorlog.ColoredFormatter(

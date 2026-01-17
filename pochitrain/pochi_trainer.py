@@ -88,7 +88,7 @@ class PochiTrainer:
 
         # 最適化器・損失関数は後で設定
         self.optimizer: Optional[optim.Optimizer] = None
-        self.scheduler: Optional[optim.lr_scheduler._LRScheduler] = None
+        self.scheduler: Optional[optim.lr_scheduler.LRScheduler] = None
         self.criterion: Optional[nn.Module] = None
 
         # メトリクスエクスポーター（訓練時のみ初期化）
@@ -485,10 +485,10 @@ class PochiTrainer:
 
     def train(
         self,
-        train_loader: DataLoader,
-        val_loader: Optional[DataLoader] = None,
+        train_loader: DataLoader[Any],
+        val_loader: Optional[DataLoader[Any]] = None,
         epochs: int = 10,
-        stop_flag_callback=None,
+        stop_flag_callback: Optional[Any] = None,
     ) -> None:
         """
         訓練の実行.
@@ -657,7 +657,9 @@ class PochiTrainer:
             gradient_csv_path = visualization_dir / f"gradient_trace_{timestamp}.csv"
             self.gradient_tracer.save_csv(gradient_csv_path)
 
-    def predict(self, data_loader: DataLoader) -> Tuple[torch.Tensor, torch.Tensor]:
+    def predict(
+        self, data_loader: DataLoader[Any]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         予測の実行.
 
@@ -668,8 +670,8 @@ class PochiTrainer:
             Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
         """
         self.model.eval()
-        predictions = []
-        confidences = []
+        predictions: List[Any] = []
+        confidences: List[Any] = []
 
         with torch.no_grad():
             for data, _ in data_loader:
@@ -852,7 +854,8 @@ class PochiTrainer:
         else:
             # 通常時はスケジューラーによる動的な値を返す
             if self.optimizer is not None:
-                return self.optimizer.param_groups[0]["lr"]
+                lr: float = self.optimizer.param_groups[0]["lr"]
+                return lr
             return 0.0
 
     def is_layer_wise_lr_enabled(self) -> bool:
