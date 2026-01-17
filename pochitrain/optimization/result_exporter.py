@@ -74,17 +74,36 @@ class JsonResultExporter(IResultExporter):
 class ConfigExporter(IResultExporter):
     """Python設定ファイル形式で最適化結果をエクスポートする.
 
-    最適パラメータをpochi_train_config.py形式で出力し、
-    そのまま本格訓練に使用可能。
+    最適パラメータをpochi_train_config.py形式で出力し,
+    そのまま本格訓練に使用可能.
     """
 
     def __init__(self, base_config: dict[str, Any]) -> None:
         """初期化.
 
         Args:
-            base_config: ベース設定（最適化対象外のパラメータを含む）
+            base_config: ベース設定(最適化対象外のパラメータを含む)
         """
         self._base_config = base_config
+
+    def _serialize_transform(self, transform: Any) -> str:
+        """transformオブジェクトをPythonコード文字列に変換.
+
+        Args:
+            transform: torchvision.transforms オブジェクト
+
+        Returns:
+            Pythonコードとして実行可能な文字列
+        """
+        # Composeオブジェクトかどうかを厳密にチェック
+        if hasattr(transform, "transforms") and isinstance(transform.transforms, list):
+            items = [f"transforms.{repr(t)}" for t in transform.transforms]
+            return (
+                "transforms.Compose(\n    [\n        "
+                + ",\n        ".join(items)
+                + ",\n    ]\n)"
+            )
+        return f"transforms.{repr(transform)}"
 
     def export(
         self,
@@ -128,15 +147,31 @@ class ConfigExporter(IResultExporter):
             lines.append(f"{key} = {repr(value)}")
 
         lines.append("")
-        lines.append("# === ベース設定（最適化対象外） ===")
+        lines.append("# === ベース設定(最適化対象外) ===")
 
         # ベース設定のうち、最適化対象外のものを出力
+        transform_lines = []
         for key, value in self._base_config.items():
             if key not in best_params:
-                # callableやtransformは文字列として出力しない
-                if callable(value) or "transform" in key.lower():
+                # transformは専用の処理で出力（明示的なキー名指定）
+                if key in ("train_transform", "val_transform"):
+                    transform_lines.append(
+                        f"{key} = {self._serialize_transform(value)}"
+                    )
+                    continue
+                # callableは出力しない（transformチェック後に行う）
+                if callable(value):
+                    continue
+                # モジュールオブジェクトは出力しない
+                if isinstance(value, type(json)):
                     continue
                 lines.append(f"{key} = {repr(value)}")
+
+        # transform設定を最後に追加
+        if transform_lines:
+            lines.append("")
+            lines.append("# === Transform設定 ===")
+            lines.extend(transform_lines)
 
         with open(config_file, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
