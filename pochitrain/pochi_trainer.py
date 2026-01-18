@@ -658,7 +658,8 @@ class PochiTrainer:
             self.gradient_tracer.save_csv(gradient_csv_path)
 
     def predict(
-        self, data_loader: DataLoader[Any]
+        self,
+        data_loader: DataLoader[Any],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         予測の実行.
@@ -669,21 +670,50 @@ class PochiTrainer:
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
         """
+        import time
+
         self.model.eval()
         predictions: List[Any] = []
         confidences: List[Any] = []
+        total_samples = 0
+        inference_time_ms = 0.0
+
+        use_cuda = self.device.type == "cuda"
 
         with torch.no_grad():
             for data, _ in data_loader:
                 data = data.to(self.device)
-                output = self.model(data)
+                batch_size = data.size(0)
 
-                # ソフトマックスで確率に変換
+                # 推論時間計測（モデル推論部分のみ）
+                if use_cuda:
+                    start_event = torch.cuda.Event(enable_timing=True)
+                    end_event = torch.cuda.Event(enable_timing=True)
+                    start_event.record()
+                    output = self.model(data)
+                    end_event.record()
+                    torch.cuda.synchronize()
+                    inference_time_ms += start_event.elapsed_time(end_event)
+                else:
+                    start_time = time.perf_counter()
+                    output = self.model(data)
+                    inference_time_ms += (time.perf_counter() - start_time) * 1000
+
+                # 後処理（計測対象外）
                 probabilities = torch.softmax(output, dim=1)
                 confidence, predicted = probabilities.max(1)
 
                 predictions.extend(predicted.cpu().numpy())
                 confidences.extend(confidence.cpu().numpy())
+                total_samples += batch_size
+
+        # 1枚あたりの平均推論時間を表示
+        if total_samples > 0:
+            avg_time_per_image = inference_time_ms / total_samples
+            self.logger.info(
+                f"平均推論時間: {avg_time_per_image:.2f} ms/image "
+                f"(総推論数: {total_samples}枚)"
+            )
 
         return torch.tensor(predictions), torch.tensor(confidences)
 

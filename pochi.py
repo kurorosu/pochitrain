@@ -364,6 +364,7 @@ def infer_command(args: argparse.Namespace) -> None:
             work_dir=output_dir,
         )
         logger.info("推論器の作成成功")
+
     except Exception as e:
         logger.error(f"推論器作成エラー: {e}")
         return

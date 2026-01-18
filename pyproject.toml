@@ -45,6 +45,11 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
 ]
+onnx = [
+    "onnx>=1.14.0",
+    "onnxscript>=0.1.0",
+    "onnxruntime-gpu>=1.16.0",
+]
 
 [build-system]
 requires = ["hatchling"]
