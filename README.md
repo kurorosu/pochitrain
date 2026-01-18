@@ -51,8 +51,7 @@ pretrained = True  # 事前学習済みモデルを使用
 # データ設定
 train_data_root = 'data/train'  # 訓練データのパス
 val_data_root = 'data/val'      # 検証データのパス
-image_size = 224               # 画像サイズ
-batch_size = 32               # バッチサイズ
+batch_size = 32                 # バッチサイズ
 
 # 訓練設定
 epochs = 50                   # エポック数
@@ -62,17 +61,19 @@ optimizer = 'Adam'            # 最適化器
 
 ### 3. 訓練実行
 
-統一 CLI エントリーポイント `pochi.py` を使用します。
+統一 CLI エントリーポイント `pochi.py` を使用します.
 
+訓練の実行 (デフォルト設定ファイルを使用):
 ```bash
-# 訓練
-python pochi.py train --config configs/pochi_train_config.py
+python pochi.py train
+```
 
-# カスタム設定ファイルを使用する場合
+カスタム設定ファイルを使用する場合:
+```bash
 python pochi.py train --config configs/my_custom_config.py
 ```
 
-これだけで訓練が開始されます！
+これだけで訓練が開始されます!
 
 ### 4. 結果の確認
 
@@ -83,14 +84,16 @@ python pochi.py train --config configs/my_custom_config.py
 
 ### 5. 推論の実行
 
+基本的な推論:
 ```bash
-# 基本的な推論
 python pochi.py infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/val \
   --config-path work_dirs/20251018_001/config.py
+```
 
-# 出力先を指定する場合
+出力先を指定する場合:
+```bash
 python pochi.py infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/test \
@@ -109,7 +112,7 @@ python pochi.py infer \
 
 ### 7. 勾配トレースの可視化
 
-訓練時に出力された勾配トレースCSVから詳細な可視化グラフを生成できます。
+訓練時に出力された勾配トレースCSVから詳細な可視化グラフを生成できます.
 
 ```bash
 python tools/visualize_gradient_trace.py work_dirs/20251018_001/visualization/gradient_trace.csv
@@ -132,8 +135,7 @@ from pochitrain import PochiTrainer, create_data_loaders
 train_loader, val_loader, classes = create_data_loaders(
     train_root='data/train',
     val_root='data/val',
-    batch_size=32,
-    image_size=224
+    batch_size=32
 )
 
 # トレーナーの作成
@@ -195,11 +197,11 @@ predictions, confidences = trainer.predict(test_loader)
 - LinearLR
 
 ### 高度な機能
-- **層別学習率（Layer-wise Learning Rates）**: 各層の学習率を個別設定し、専用グラフを出力
+- **層別学習率 (Layer-wise Learning Rates)**: 各層の学習率を個別設定し, 専用グラフを出力
 - **メトリクス記録**: 学習率や損失を CSV/グラフに自動保存
 - **勾配トレース**: 層ごとの勾配推移を可視化
 - **クラス重み**: 不均衡データセットへ柔軟に対応
-- **ハイパーパラメータ最適化（β版）**: Optunaによる自動パラメータ探索
+- **ハイパーパラメータ最適化**: Optunaによる自動パラメータ探索
 
 ## 📋 要件
 
@@ -211,52 +213,74 @@ predictions, confidences = trainer.predict(test_loader)
 
 ## 📦 インストール
 
-### uv を使用する場合（推奨）
+### uv を使用する場合 (推奨)
 
+uv のインストール (未インストールの場合):
 ```bash
-# uv のインストール（未インストールの場合）
 pip install uv
+```
 
-# 依存関係のインストール
+依存関係のインストール:
+```bash
 uv sync
+```
 
-# 仮想環境の有効化
+仮想環境の有効化:
+```bash
 .venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # Linux/Mac
+source .venv/bin/activate  # Linux/Mac
+```
 
-# 開発用依存関係も含める場合
+開発用依存関係も含める場合:
+```bash
 uv sync --group dev
 ```
 
-## 🔬 ハイパーパラメータ最適化（β版）
+## 🔬 ハイパーパラメータ最適化
 
-Optunaを使ったハイパーパラメータ自動探索機能です。
+Optunaを使ったハイパーパラメータ自動探索機能です.
 
 ### 基本的な使い方
 
+最適化の実行 (デフォルト設定ファイルを使用):
 ```bash
-# 最適化の実行
-python pochi.py optimize --config configs/pochi_train_config.py
+python pochi.py optimize
 ```
 
-出力ディレクトリ（`work_dirs/optuna_results`）が既に存在する場合、自動的に連番が付与されます（`optuna_results_001`、`optuna_results_002`...）。
+カスタム設定ファイルを使用する場合:
+```bash
+python pochi.py optimize --config configs/my_custom_config.py
+```
+
+出力先を変更する場合:
+```bash
+python pochi.py optimize --output work_dirs/custom_results
+```
+
+出力ディレクトリ (`work_dirs/optuna_results`) が既に存在する場合, 自動的に連番が付与されます (`optuna_results_001`, `optuna_results_002`...).
 
 ### 出力ファイル
 
-- `best_params.json`: 最適なパラメータ
-- `trials_history.json`: 全試行の履歴
-- `optimized_config.py`: 最適化済み設定ファイル
+| ファイル | 説明 |
+|----------|------|
+| `best_params.json` | 最適パラメータ |
+| `trials_history.json` | 全試行履歴 |
+| `optimized_config.py` | 最適パラメータを反映した設定ファイル |
+| `study_statistics.json` | 統計情報 + パラメータ重要度 |
+| `optimization_history.html` | 最適化履歴グラフ (Plotly) |
+| `param_importances.html` | パラメータ重要度グラフ (Plotly) |
+| `contour.html` | パラメータ間の等高線プロット (Plotly) |
 
 ### 最適化後の訓練
 
+最適化されたパラメータで本格訓練:
 ```bash
-# 最適化されたパラメータで本格訓練
 python pochi.py train --config work_dirs/optuna_results/optimized_config.py
 ```
 
 ### 探索空間のカスタマイズ
 
-`configs/pochi_train_config.py` の `search_space` で探索範囲を設定できます：
+`configs/pochi_train_config.py` の `search_space` で探索範囲を設定できます:
 
 ```python
 search_space = {
@@ -277,7 +301,7 @@ search_space = {
 }
 ```
 
-> **Note**: この機能はβ版です。今後のリリースで改善予定です。
+詳細は [設定ファイルガイド](configs/docs/configuration.md#optunaハイパーパラメータ最適化設定) を参照してください.
 
 ## 🔧 設定オプション
 
@@ -287,7 +311,6 @@ search_space = {
 |------|------|-----------|
 | `model_name` | モデル名 | 'resnet18' |
 | `pretrained` | 事前学習済みモデル使用 | True |
-| `image_size` | 画像サイズ | 224 |
 | `batch_size` | バッチサイズ | 32 |
 | `epochs` | エポック数 | 50 |
 | `learning_rate` | 学習率 | 0.001 |
@@ -295,9 +318,7 @@ search_space = {
 
 ## 📝 注意点
 
-- 画像は自動的にRGBに変換されます
-- ImageNet用の正規化が適用されます
-- データ拡張は訓練時のみ適用されます
+- グレースケールやRGBA画像は自動的にRGBに変換されます
 - クラス数は自動で検出されます
 
 ## 📄 ライセンス
