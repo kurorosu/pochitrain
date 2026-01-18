@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
+import numpy as np
+import onnx
+import onnxruntime as ort
 import torch
 
 
@@ -73,6 +76,63 @@ def export_to_onnx(
     )
 
     return output_path
+
+
+def verify_onnx_model(
+    onnx_path: Path,
+    pytorch_model: torch.nn.Module,
+    input_size: Tuple[int, int],
+    device: torch.device,
+    rtol: float = 1e-3,
+    atol: float = 1e-5,
+) -> bool:
+    """エクスポートしたONNXモデルを検証.
+
+    Args:
+        onnx_path: ONNXモデルのパス
+        pytorch_model: 元のPyTorchモデル
+        input_size: 入力サイズ (height, width)
+        device: PyTorchモデルのデバイス
+        rtol: 相対許容誤差
+        atol: 絶対許容誤差
+
+    Returns:
+        検証成功の場合True
+    """
+    # 1. ONNXモデルの構造検証
+    print("ONNXモデルの構造を検証中...")
+    onnx_model = onnx.load(str(onnx_path))
+    onnx.checker.check_model(onnx_model)
+    print("構造検証: OK")
+
+    # 2. PyTorchとONNXの出力比較
+    print("PyTorchとONNXの出力を比較中...")
+    dummy_input = torch.randn(1, 3, input_size[0], input_size[1], device=device)
+
+    pytorch_model.eval()
+    with torch.no_grad():
+        pytorch_output = pytorch_model(dummy_input).cpu().numpy()
+
+    # ONNXセッション作成
+    session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    onnx_output = session.run(None, {"input": dummy_input.cpu().numpy()})[0]
+
+    # 出力の比較
+    is_close: bool = bool(
+        np.allclose(pytorch_output, onnx_output, rtol=rtol, atol=atol)
+    )
+
+    if is_close:
+        print("出力比較: OK")
+        max_diff = np.max(np.abs(pytorch_output - onnx_output))
+        print(f"最大差分: {max_diff:.2e}")
+    else:
+        print("出力比較: NG")
+        max_diff = np.max(np.abs(pytorch_output - onnx_output))
+        mean_diff = np.mean(np.abs(pytorch_output - onnx_output))
+        print(f"最大差分: {max_diff:.2e}, 平均差分: {mean_diff:.2e}")
+
+    return is_close
 
 
 def main() -> None:
@@ -138,6 +198,11 @@ def main() -> None:
         "--device",
         default="cpu",
         help="使用デバイス (default: cpu)",
+    )
+    parser.add_argument(
+        "--skip-verify",
+        action="store_true",
+        help="エクスポート後の検証をスキップ",
     )
 
     args = parser.parse_args()
@@ -253,6 +318,27 @@ def main() -> None:
     except Exception as e:
         print(f"エラー: ONNX変換に失敗: {e}")
         sys.exit(1)
+
+    # ONNX検証
+    if not args.skip_verify:
+        print("\n--- ONNX検証 ---")
+        try:
+            is_valid = verify_onnx_model(
+                onnx_path=output_path,
+                pytorch_model=model,
+                input_size=input_size,
+                device=device,
+            )
+            if is_valid:
+                print("検証完了: ONNXモデルは正常です")
+            else:
+                print("警告: PyTorchとONNXの出力に差異があります")
+                sys.exit(1)
+        except Exception as e:
+            print(f"エラー: ONNX検証に失敗: {e}")
+            sys.exit(1)
+    else:
+        print("\n検証をスキップしました")
 
 
 if __name__ == "__main__":
