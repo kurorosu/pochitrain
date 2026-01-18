@@ -424,3 +424,126 @@ scheduler_params = {
 - **num_workers**: CPUコア数の1/2〜1倍に設定
 - **batch_size**: GPUメモリに応じて調整
 - **pin_memory**: GPU使用時は`True`に設定（現在は自動）
+
+## Optunaハイパーパラメータ最適化設定
+
+v1.1.0より, Optuna設定を`pochi_train_config.py`に統合しました. `pochi.py optimize`コマンドで使用されます.
+
+### 基本設定
+
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `study_name` | str | Study名 | `"pochitrain_optimization"` |
+| `direction` | str | 最適化方向 | `"maximize"` |
+| `n_trials` | int | 試行回数 | `20` |
+| `n_jobs` | int | 並列ジョブ数 | `1` |
+| `optuna_epochs` | int | 最適化時のエポック数 | `10` |
+
+```python
+study_name = "pochitrain_optimization"
+direction = "maximize"  # "maximize"(精度最大化) or "minimize"(損失最小化)
+n_trials = 20
+n_jobs = 1
+optuna_epochs = 10  # 本格訓練より短く設定して探索を高速化
+```
+
+### サンプラー設定
+
+| サンプラー | 説明 |
+|------------|------|
+| `TPESampler` | Tree-structured Parzen Estimator (デフォルト, 推奨) |
+| `RandomSampler` | ランダム探索 |
+| `CmaEsSampler` | CMA-ES (連続値パラメータ向け) |
+| `GridSampler` | グリッドサーチ |
+
+```python
+sampler = "TPESampler"
+```
+
+### プルーナー設定
+
+| プルーナー | 説明 |
+|------------|------|
+| `MedianPruner` | 中央値ベースの枝刈り (デフォルト) |
+| `PercentilePruner` | パーセンタイルベースの枝刈り |
+| `SuccessiveHalvingPruner` | Successive Halving |
+| `HyperbandPruner` | Hyperband |
+| `NopPruner` | 枝刈りなし |
+| `None` | プルーニングなし |
+
+```python
+pruner = "MedianPruner"
+```
+
+### Storage設定 (オプション)
+
+探索結果をDBに保存し, 中断・再開を可能にします.
+
+```python
+storage = None  # メモリ内のみ
+# storage = "sqlite:///optuna_study.db"  # SQLiteに保存
+```
+
+### 探索空間
+
+各パラメータの探索範囲を指定します.
+
+```python
+search_space = {
+    # 学習率 (対数スケール)
+    "learning_rate": {
+        "type": "float",
+        "low": 1e-5,
+        "high": 1e-1,
+        "log": True,
+    },
+    # バッチサイズ (カテゴリカル)
+    "batch_size": {
+        "type": "categorical",
+        "choices": [16, 32],
+    },
+    # オプティマイザー (カテゴリカル)
+    "optimizer": {
+        "type": "categorical",
+        "choices": ["SGD", "Adam", "AdamW"],
+    },
+}
+```
+
+#### 探索空間のパラメータ型
+
+| 型 | 必須フィールド | オプション | 説明 |
+|----|----------------|------------|------|
+| `float` | `low`, `high` | `log` | 浮動小数点数 |
+| `int` | `low`, `high` | `log` | 整数 |
+| `categorical` | `choices` | - | カテゴリカル値 |
+
+#### スケジューラーパラメータの探索例
+
+```python
+search_space = {
+    "learning_rate": {"type": "float", "low": 1e-5, "high": 1e-1, "log": True},
+    "scheduler_gamma": {"type": "float", "low": 0.85, "high": 0.99},
+    "scheduler_step_size": {"type": "int", "low": 5, "high": 30},
+}
+```
+
+### 最適化の実行
+
+```bash
+python pochi.py optimize --config configs/pochi_train_config.py
+```
+
+### 出力ファイル
+
+最適化完了後, `work_dirs/optuna_results/`に以下のファイルが生成されます:
+
+| ファイル | 説明 |
+|----------|------|
+| `best_params.json` | 最適パラメータ |
+| `trials_history.json` | 全試行履歴 |
+| `optimized_config.py` | 最適パラメータを反映した設定ファイル |
+| `study_statistics.json` | 統計情報 + パラメータ重要度 |
+| `optimization_history.html` | 最適化履歴グラフ (Plotly) |
+| `param_importances.html` | パラメータ重要度グラフ (Plotly) |
+| `contour.html` | パラメータ間の等高線プロット (Plotly) |
