@@ -5,12 +5,13 @@ pochitrain.pochi_dataset: Pochiデータセット.
 """
 
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+from torch import Tensor
+from torch.utils.data import DataLoader, Dataset, Subset
 
 
 class PochiImageDataset(Dataset):
@@ -81,13 +82,13 @@ class PochiImageDataset(Dataset):
         """データセットのサイズを返す."""
         return len(self.image_paths)
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+    def __getitem__(self, index: int) -> Tuple[Union[Tensor, Image.Image], int]:
         """指定されたインデックスのデータを返す."""
         image_path = self.image_paths[index]
         label = self.labels[index]
 
         # 画像の読み込み
-        image = Image.open(image_path).convert("RGB")
+        image: Union[Tensor, Image.Image] = Image.open(image_path).convert("RGB")
 
         if self.transform:
             image = self.transform(image)
@@ -164,9 +165,9 @@ def create_data_loaders(
     batch_size: int = 32,
     num_workers: int = 4,
     pin_memory: bool = True,
-    train_transform=None,
-    val_transform=None,
-) -> Tuple[DataLoader, DataLoader, List[str]]:
+    train_transform: Optional[Callable[..., Any]] = None,
+    val_transform: Optional[Callable[..., Any]] = None,
+) -> Tuple[DataLoader[Any], DataLoader[Any], List[str]]:
     """
     データローダーを作成.
 
@@ -254,7 +255,7 @@ def split_dataset(
         train_ratio (float): 訓練用の割合
 
     Returns:
-        Tuple[Dataset, Dataset]: (訓練用データセット, 検証用データセット)
+        Tuple[Subset[Any], Subset[Any]]: (訓練用データセット, 検証用データセット)
     """
     from torch.utils.data import random_split
 
@@ -262,4 +263,5 @@ def split_dataset(
     train_size = int(total_size * train_ratio)
     val_size = total_size - train_size
 
-    return random_split(dataset, [train_size, val_size])
+    splits: List[Subset[Any]] = random_split(dataset, [train_size, val_size])
+    return splits[0], splits[1]

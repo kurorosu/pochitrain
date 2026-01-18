@@ -198,14 +198,18 @@ class TrainingMetricsExporter:
 
         # 検証データがある場合のみ抽出
         has_val_data = any(m["val_loss"] != "" for m in self.metrics_history)
+        val_losses: List[float] = []
+        val_accuracies: List[float] = []
         if has_val_data:
             val_losses = [
-                m["val_loss"] if m["val_loss"] != "" else None
+                float(m["val_loss"])
                 for m in self.metrics_history
+                if m["val_loss"] != ""
             ]
             val_accuracies = [
-                m["val_accuracy"] if m["val_accuracy"] != "" else None
+                float(m["val_accuracy"])
                 for m in self.metrics_history
+                if m["val_accuracy"] != ""
             ]
 
         # ベースファイル名の生成
@@ -359,7 +363,7 @@ class TrainingMetricsExporter:
         fig, ax = plt.subplots(figsize=(12, 8))
 
         # 各層の学習率をプロット
-        colors = plt.cm.tab10(range(len(lr_columns)))
+        colors = plt.get_cmap("tab10")(range(len(lr_columns)))
         for i, lr_col in enumerate(lr_columns):
             layer_name = lr_col.replace("lr_", "")
             learning_rates = [m.get(lr_col, 0) for m in self.metrics_history]

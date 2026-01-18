@@ -421,7 +421,7 @@ def plot_snapshots(
         else np.array([0])
     )
 
-    colors = plt.cm.viridis(np.linspace(0, 1, len(snapshot_indices)))
+    colors = plt.get_cmap("viridis")(np.linspace(0, 1, len(snapshot_indices)))
 
     for i, epoch_idx in enumerate(snapshot_indices):
         grad_values = grad_matrix[:, epoch_idx]
@@ -490,7 +490,7 @@ def plot_snapshots(
     print(f"[10/10] スナップショット（線形）を保存: {output_path}")
 
 
-def main():
+def main() -> None:
     """メイン処理."""
     parser = argparse.ArgumentParser(
         description="勾配トレースCSVから可視化グラフを生成"
