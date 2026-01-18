@@ -101,6 +101,8 @@ python pochi.py infer \
   --output results/
 ```
 
+推論完了時に1枚あたりの平均推論時間 (ms/image) が表示されます. 実運用での1枚ずつの推論速度を計測したい場合は, configの`batch_size`を1に設定してください.
+
 ### 6. 結果と出力
 
 訓練結果は `work_dirs/<timestamp>` に保存されます。
