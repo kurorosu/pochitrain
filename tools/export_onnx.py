@@ -10,6 +10,7 @@ PyTorchモデル(.pth)をONNX形式に変換するスクリプト.
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import Tuple
@@ -19,7 +20,11 @@ import onnx
 import onnxruntime as ort
 import torch
 
+from pochitrain.logging import LoggerManager
 from pochitrain.utils import ConfigLoader
+
+# ロガーの取得
+logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 
 def export_to_onnx(
@@ -77,13 +82,13 @@ def verify_onnx_model(
         検証成功の場合True
     """
     # 1. ONNXモデルの構造検証
-    print("ONNXモデルの構造を検証中...")
+    logger.info("ONNXモデルの構造を検証中...")
     onnx_model = onnx.load(str(onnx_path))
     onnx.checker.check_model(onnx_model)
-    print("構造検証: OK")
+    logger.info("構造検証: OK")
 
     # 2. PyTorchとONNXの出力比較
-    print("PyTorchとONNXの出力を比較中...")
+    logger.info("PyTorchとONNXの出力を比較中...")
     dummy_input = torch.randn(1, 3, input_size[0], input_size[1], device=device)
 
     pytorch_model.eval()
@@ -100,14 +105,14 @@ def verify_onnx_model(
     )
 
     if is_close:
-        print("出力比較: OK")
+        logger.info("出力比較: OK")
         max_diff = np.max(np.abs(pytorch_output - onnx_output))
-        print(f"最大差分: {max_diff:.2e}")
+        logger.info(f"最大差分: {max_diff:.2e}")
     else:
-        print("出力比較: NG")
+        logger.warning("出力比較: NG")
         max_diff = np.max(np.abs(pytorch_output - onnx_output))
         mean_diff = np.mean(np.abs(pytorch_output - onnx_output))
-        print(f"最大差分: {max_diff:.2e}, 平均差分: {mean_diff:.2e}")
+        logger.warning(f"最大差分: {max_diff:.2e}, 平均差分: {mean_diff:.2e}")
 
     return is_close
 
@@ -187,7 +192,7 @@ def main() -> None:
     # モデルパスの確認
     model_path = Path(args.model_path)
     if not model_path.exists():
-        print(f"エラー: モデルファイルが見つかりません: {model_path}")
+        logger.error(f"モデルファイルが見つかりません: {model_path}")
         sys.exit(1)
 
     # 設定ファイルの探索
@@ -209,9 +214,9 @@ def main() -> None:
     if config_path and config_path.exists():
         try:
             config = ConfigLoader.load_config(str(config_path))
-            print(f"設定ファイルを読み込み: {config_path}")
+            logger.info(f"設定ファイルを読み込み: {config_path}")
         except Exception as e:
-            print(f"警告: 設定ファイルの読み込みに失敗: {e}")
+            logger.warning(f"設定ファイルの読み込みに失敗: {e}")
             config = None
 
     # モデル情報の取得
@@ -224,7 +229,7 @@ def main() -> None:
             num_classes = config.get("num_classes")
 
     if num_classes is None:
-        print("エラー: --num-classes を指定するか、設定ファイルを使用してください")
+        logger.error("--num-classes を指定するか、設定ファイルを使用してください")
         sys.exit(1)
 
     # 入力サイズの決定
@@ -243,11 +248,11 @@ def main() -> None:
     # デバイス設定
     device = torch.device(args.device)
 
-    print(f"モデル: {model_name}")
-    print(f"クラス数: {num_classes}")
-    print(f"入力サイズ: {input_size[0]}x{input_size[1]}")
-    print(f"デバイス: {device}")
-    print(f"出力先: {output_path}")
+    logger.info(f"モデル: {model_name}")
+    logger.info(f"クラス数: {num_classes}")
+    logger.info(f"入力サイズ: {input_size[0]}x{input_size[1]}")
+    logger.info(f"デバイス: {device}")
+    logger.info(f"出力先: {output_path}")
 
     # モデルの作成と重みの読み込み
     try:
@@ -263,22 +268,22 @@ def main() -> None:
         if "model_state_dict" in checkpoint:
             model.load_state_dict(checkpoint["model_state_dict"])
             if "best_accuracy" in checkpoint:
-                print(f"モデル精度: {checkpoint['best_accuracy']:.2f}%")
+                logger.info(f"モデル精度: {checkpoint['best_accuracy']:.2f}%")
             if "epoch" in checkpoint:
-                print(f"エポック: {checkpoint['epoch']}")
+                logger.info(f"エポック: {checkpoint['epoch']}")
         else:
             # state_dictが直接保存されている場合
             model.load_state_dict(checkpoint)
 
-        print("モデルの読み込み完了")
+        logger.info("モデルの読み込み完了")
 
     except Exception as e:
-        print(f"エラー: モデルの読み込みに失敗: {e}")
+        logger.error(f"モデルの読み込みに失敗: {e}")
         sys.exit(1)
 
     # ONNX変換
     try:
-        print("ONNX変換を実行中...")
+        logger.info("ONNX変換を実行中...")
         export_to_onnx(
             model=model,
             output_path=output_path,
@@ -286,19 +291,19 @@ def main() -> None:
             device=device,
             opset_version=args.opset_version,
         )
-        print(f"ONNX変換完了: {output_path}")
+        logger.info(f"ONNX変換完了: {output_path}")
 
         # ファイルサイズを表示
         file_size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"ファイルサイズ: {file_size_mb:.2f} MB")
+        logger.info(f"ファイルサイズ: {file_size_mb:.2f} MB")
 
     except Exception as e:
-        print(f"エラー: ONNX変換に失敗: {e}")
+        logger.error(f"ONNX変換に失敗: {e}")
         sys.exit(1)
 
     # ONNX検証
     if not args.skip_verify:
-        print("\n--- ONNX検証 ---")
+        logger.info("--- ONNX検証 ---")
         try:
             is_valid = verify_onnx_model(
                 onnx_path=output_path,
@@ -307,15 +312,15 @@ def main() -> None:
                 device=device,
             )
             if is_valid:
-                print("検証完了: ONNXモデルは正常です")
+                logger.info("検証完了: ONNXモデルは正常です")
             else:
-                print("警告: PyTorchとONNXの出力に差異があります")
+                logger.warning("PyTorchとONNXの出力に差異があります")
                 sys.exit(1)
         except Exception as e:
-            print(f"エラー: ONNX検証に失敗: {e}")
+            logger.error(f"ONNX検証に失敗: {e}")
             sys.exit(1)
     else:
-        print("\n検証をスキップしました")
+        logger.info("検証をスキップしました")
 
 
 if __name__ == "__main__":

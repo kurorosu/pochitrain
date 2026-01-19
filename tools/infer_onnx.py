@@ -8,22 +8,20 @@ ONNXモデルを使用した推論スクリプト.
 """
 
 import argparse
+import logging
 import sys
 import time
 from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
+import onnxruntime as ort
 
-# onnxruntimeの確認
-try:
-    import onnxruntime as ort
-except ImportError:
-    print("エラー: onnxruntimeパッケージがインストールされていません")
-    print("インストール: pip install onnxruntime または pip install onnxruntime-gpu")
-    sys.exit(1)
-
+from pochitrain.logging import LoggerManager
 from pochitrain.utils import ConfigLoader
+
+# ロガーの取得
+logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 
 def create_onnx_session(
@@ -121,13 +119,13 @@ def main() -> None:
     # モデルパスの確認
     model_path = Path(args.model_path)
     if not model_path.exists():
-        print(f"エラー: モデルファイルが見つかりません: {model_path}")
+        logger.error(f"モデルファイルが見つかりません: {model_path}")
         sys.exit(1)
 
     # データパスの確認
     data_path = Path(args.data)
     if not data_path.exists():
-        print(f"エラー: データディレクトリが見つかりません: {data_path}")
+        logger.error(f"データディレクトリが見つかりません: {data_path}")
         sys.exit(1)
 
     # 設定ファイルの読み込み
@@ -137,9 +135,9 @@ def main() -> None:
         if config_path.exists():
             try:
                 config = ConfigLoader.load_config(str(config_path))
-                print(f"設定ファイルを読み込み: {config_path}")
+                logger.info(f"設定ファイルを読み込み: {config_path}")
             except Exception as e:
-                print(f"警告: 設定ファイルの読み込みに失敗: {e}")
+                logger.warning(f"設定ファイルの読み込みに失敗: {e}")
 
     # 入力サイズの決定
     if args.input_size:
@@ -147,19 +145,19 @@ def main() -> None:
     elif config and "val_transform" in config:
         # transformからサイズを推測（Resizeがあれば）
         input_size = (224, 224)  # デフォルト
-        print("警告: 入力サイズを224x224と仮定しています")
+        logger.warning("入力サイズを224x224と仮定しています")
     else:
-        print("エラー: --input-size を指定するか、--config を使用してください")
+        logger.error("--input-size を指定するか、--config を使用してください")
         sys.exit(1)
 
     # バッチサイズ
     batch_size = args.batch_size
 
-    print(f"モデル: {model_path}")
-    print(f"データ: {data_path}")
-    print(f"入力サイズ: {input_size[0]}x{input_size[1]}")
-    print(f"バッチサイズ: {batch_size}")
-    print(f"GPU使用: {args.gpu}")
+    logger.info(f"モデル: {model_path}")
+    logger.info(f"データ: {data_path}")
+    logger.info(f"入力サイズ: {input_size[0]}x{input_size[1]}")
+    logger.info(f"バッチサイズ: {batch_size}")
+    logger.info(f"GPU使用: {args.gpu}")
 
     # pochitrainのデータセットを使用
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -169,19 +167,19 @@ def main() -> None:
     transform = get_basic_transforms(image_size=input_size[0], is_training=False)
     dataset = PochiImageDataset(str(data_path), transform=transform)
 
-    print(f"データセット: {len(dataset)}枚")
-    print(f"クラス: {dataset.get_classes()}")
+    logger.info(f"データセット: {len(dataset)}枚")
+    logger.info(f"クラス: {dataset.get_classes()}")
 
     # ONNXセッション作成
-    print("ONNXセッションを作成中...")
+    logger.info("ONNXセッションを作成中...")
     session = create_onnx_session(model_path, use_gpu=args.gpu)
 
     # 使用中のプロバイダーを表示
     providers = session.get_providers()
-    print(f"実行プロバイダー: {providers}")
+    logger.info(f"実行プロバイダー: {providers}")
 
     # 推論実行
-    print("推論を開始...")
+    logger.info("推論を開始...")
     all_predictions: List[int] = []
     all_confidences: List[float] = []
     all_true_labels: List[int] = []
@@ -225,10 +223,10 @@ def main() -> None:
         total_inference_time / total_samples if total_samples > 0 else 0
     )
 
-    print(f"\n推論完了")
-    print(f"精度: {correct}/{total_samples} ({accuracy:.2f}%)")
-    print(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
-    print(f"総推論時間: {total_inference_time:.2f} ms")
+    logger.info("推論完了")
+    logger.info(f"精度: {correct}/{total_samples} ({accuracy:.2f}%)")
+    logger.info(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
+    logger.info(f"総推論時間: {total_inference_time:.2f} ms")
 
     # 結果出力
     if args.output:
@@ -270,7 +268,7 @@ def main() -> None:
                     ]
                 )
 
-        print(f"結果を保存: {csv_path}")
+        logger.info(f"結果を保存: {csv_path}")
 
         # サマリー出力
         summary_path = output_dir / "onnx_inference_summary.txt"
@@ -282,7 +280,7 @@ def main() -> None:
             f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
             f.write(f"実行プロバイダー: {providers}\n")
 
-        print(f"サマリーを保存: {summary_path}")
+        logger.info(f"サマリーを保存: {summary_path}")
 
 
 if __name__ == "__main__":
