@@ -23,7 +23,7 @@ class TestConfigLoading:
 
     def test_basic_config_loading(self):
         """基本的な設定ファイル読み込みテスト"""
-        from pochi import load_config
+        from pochitrain.utils import ConfigLoader
 
         with tempfile.TemporaryDirectory() as temp_dir:
             config_content = """
@@ -44,7 +44,7 @@ device = "cpu"
             config_path = self.create_test_config(temp_dir, config_content)
 
             # 設定ファイルの読み込み
-            config = load_config(str(config_path))
+            config = ConfigLoader.load_config(str(config_path))
 
             # 設定値の確認
             assert config["model_name"] == "resnet18"
@@ -55,7 +55,7 @@ device = "cpu"
 
     def test_config_loading_with_scheduler(self):
         """スケジューラー設定を含む設定ファイルテスト"""
-        from pochi import load_config
+        from pochitrain.utils import ConfigLoader
 
         with tempfile.TemporaryDirectory() as temp_dir:
             config_content = """
@@ -66,7 +66,7 @@ scheduler_params = {"step_size": 30, "gamma": 0.1}
 """
             config_path = self.create_test_config(temp_dir, config_content)
 
-            config = load_config(str(config_path))
+            config = ConfigLoader.load_config(str(config_path))
 
             assert config["scheduler"] == "StepLR"
             assert config["scheduler_params"]["step_size"] == 30
@@ -74,10 +74,10 @@ scheduler_params = {"step_size": 30, "gamma": 0.1}
 
     def test_config_loading_missing_file(self):
         """存在しない設定ファイルのエラーテスト"""
-        from pochi import load_config
+        from pochitrain.utils import ConfigLoader
 
         with pytest.raises(FileNotFoundError):
-            load_config("/nonexistent/config.py")
+            ConfigLoader.load_config("/nonexistent/config.py")
 
 
 class TestMainWorkflow:
@@ -166,9 +166,9 @@ device = "cpu"
             config_path = self.create_test_config_file(temp_dir, train_root, val_root)
 
             # 設定の読み込み
-            from pochi import load_config
+            from pochitrain.utils import ConfigLoader
 
-            config = load_config(str(config_path))
+            config = ConfigLoader.load_config(str(config_path))
 
             # 必要なtransformを定義
             train_transform = transforms.Compose([transforms.ToTensor()])
