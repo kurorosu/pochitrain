@@ -24,6 +24,16 @@ from pochitrain.utils import ConfigLoader
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 
+def check_gpu_availability() -> bool:
+    """GPU(CUDAExecutionProvider)の利用可否をチェック.
+
+    Returns:
+        CUDAExecutionProviderが利用可能な場合True
+    """
+    available_providers = ort.get_available_providers()
+    return "CUDAExecutionProvider" in available_providers
+
+
 def create_onnx_session(
     model_path: Path,
     use_gpu: bool = False,
@@ -153,11 +163,21 @@ def main() -> None:
     # バッチサイズ
     batch_size = args.batch_size
 
+    # GPU利用可否のチェック
+    use_gpu = args.gpu
+    if use_gpu and not check_gpu_availability():
+        logger.warning("CUDAExecutionProviderが利用できません. CPUで実行します.")
+        logger.warning(
+            "GPUを使用するには onnxruntime-gpu をインストールしてください: "
+            "pip install onnxruntime-gpu"
+        )
+        use_gpu = False
+
     logger.info(f"モデル: {model_path}")
     logger.info(f"データ: {data_path}")
     logger.info(f"入力サイズ: {input_size[0]}x{input_size[1]}")
     logger.info(f"バッチサイズ: {batch_size}")
-    logger.info(f"GPU使用: {args.gpu}")
+    logger.info(f"GPU使用: {use_gpu}")
 
     # pochitrainのデータセットを使用
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -172,7 +192,7 @@ def main() -> None:
 
     # ONNXセッション作成
     logger.info("ONNXセッションを作成中...")
-    session = create_onnx_session(model_path, use_gpu=args.gpu)
+    session = create_onnx_session(model_path, use_gpu=use_gpu)
 
     # 使用中のプロバイダーを表示
     providers = session.get_providers()
