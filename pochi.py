@@ -6,7 +6,6 @@ pochitrain 統一CLI エントリーポイント.
 """
 
 import argparse
-import importlib.util
 import logging
 import signal
 import sys
@@ -23,6 +22,7 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
+from pochitrain.utils import ConfigLoader
 from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
@@ -52,44 +52,6 @@ def setup_logging(logger_name: str = "pochitrain") -> logging.Logger:
     """
     logger_manager = LoggerManager()
     return logger_manager.get_logger(logger_name)
-
-
-def load_config(config_path: str) -> Dict[str, Any]:
-    """
-    設定ファイルを読み込む.
-
-    Args:
-        config_path (str): 設定ファイルのパス
-
-    Returns:
-        dict: 設定辞書
-    """
-    config_path_obj = Path(config_path)
-
-    if not config_path_obj.exists():
-        raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
-
-    # モジュールとして読み込み
-    spec = importlib.util.spec_from_file_location("config", config_path_obj)
-    if spec is None:
-        raise RuntimeError(f"設定ファイルの読み込みに失敗しました: {config_path}")
-
-    config_module = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise RuntimeError(f"設定ファイルのローダーが見つかりません: {config_path}")
-
-    spec.loader.exec_module(config_module)
-
-    # 設定辞書を構築
-    config = {}
-    for key in dir(config_module):
-        if not key.startswith("_"):
-            value = getattr(config_module, key)
-            # 関数やメソッドは除外するが、transformsオブジェクトは含める
-            if not callable(value) or hasattr(value, "transforms"):
-                config[key] = value
-
-    return config
 
 
 def find_best_model(work_dir: str) -> Path:
@@ -152,7 +114,7 @@ def train_command(args: argparse.Namespace) -> None:
 
     # 設定ファイルの読み込み
     try:
-        config = load_config(args.config)
+        config = ConfigLoader.load_config(args.config)
         logger.info(f"設定ファイルを読み込みました: {args.config}")
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {args.config}")
@@ -319,7 +281,7 @@ def infer_command(args: argparse.Namespace) -> None:
     # 設定ファイル読み込み
     config_path = Path(args.config_path)
     try:
-        config = load_config(str(config_path))
+        config = ConfigLoader.load_config(str(config_path))
         logger.info(f"設定ファイルを読み込み: {config_path}")
     except Exception as e:
         logger.error(f"設定ファイル読み込みエラー: {e}")
@@ -453,7 +415,7 @@ def optimize_command(args: argparse.Namespace) -> None:
 
     # 設定ファイルの読み込み
     try:
-        config = load_config(args.config)
+        config = ConfigLoader.load_config(args.config)
         logger.info(f"設定ファイルを読み込みました: {args.config}")
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {args.config}")

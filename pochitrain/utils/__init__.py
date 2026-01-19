@@ -4,6 +4,7 @@ pochitrain.utils: ユーティリティモジュール.
 ワークスペース管理やタイムスタンプ処理などの汎用機能を提供
 """
 
+from .config_loader import ConfigLoader
 from .directory_manager import PochiWorkspaceManager
 from .timestamp_utils import (
     find_next_index,
@@ -13,6 +14,7 @@ from .timestamp_utils import (
 )
 
 __all__ = [
+    "ConfigLoader",
     "PochiWorkspaceManager",
     "generate_timestamp_dir",
     "find_next_index",

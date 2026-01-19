@@ -10,39 +10,16 @@ PyTorchモデル(.pth)をONNX形式に変換するスクリプト.
 """
 
 import argparse
-import importlib.util
 import sys
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
 import numpy as np
 import onnx
 import onnxruntime as ort
 import torch
 
-
-def load_config(config_path: str) -> Dict[str, Any]:
-    """設定ファイルを読み込む."""
-    config_path_obj = Path(config_path)
-
-    if not config_path_obj.exists():
-        raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
-
-    spec = importlib.util.spec_from_file_location("config", config_path_obj)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"設定ファイルの読み込みに失敗しました: {config_path}")
-
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-
-    config = {}
-    for key in dir(config_module):
-        if not key.startswith("_"):
-            value = getattr(config_module, key)
-            if not callable(value) or hasattr(value, "transforms"):
-                config[key] = value
-
-    return config
+from pochitrain.utils import ConfigLoader
 
 
 def export_to_onnx(
@@ -231,7 +208,7 @@ def main() -> None:
 
     if config_path and config_path.exists():
         try:
-            config = load_config(str(config_path))
+            config = ConfigLoader.load_config(str(config_path))
             print(f"設定ファイルを読み込み: {config_path}")
         except Exception as e:
             print(f"警告: 設定ファイルの読み込みに失敗: {e}")
