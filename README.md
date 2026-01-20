@@ -305,6 +305,74 @@ search_space = {
 
 詳細は [設定ファイルガイド](configs/docs/configuration.md#optunaハイパーパラメータ最適化設定) を参照してください.
 
+## 🔄 ONNXエクスポート・推論
+
+学習済みモデルをONNX形式にエクスポートし, ONNX Runtimeで高速推論を行う機能です.
+
+### ONNX依存関係のインストール
+
+```bash
+uv sync --group onnx
+```
+
+### モデルのエクスポート
+
+PyTorchチェックポイント (.pth) をONNX形式に変換:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth
+```
+
+入力サイズを指定する場合:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 224 224
+```
+
+出力先とopsetバージョンを指定:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
+  --output model.onnx \
+  --opset 17
+```
+
+### ONNX推論の実行
+
+エクスポートしたONNXモデルで推論:
+```bash
+uv run infer-onnx model.onnx --data data/val --input-size 224 224
+```
+
+GPU利用可否の確認:
+```bash
+uv run infer-onnx --check-gpu
+```
+
+`CUDAExecutionProvider`が表示されればGPU推論が可能です.
+
+### コマンドオプション
+
+**export-onnx:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--output` | 出力ONNXファイルパス | `<入力ファイル名>.onnx` |
+| `--input-size` | 入力画像サイズ (H W) | `224 224` |
+| `--opset` | ONNX opsetバージョン | `17` |
+| `--no-verify` | エクスポート後の検証をスキップ | - |
+
+**infer-onnx:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--data` | 推論データのパス | (必須) |
+| `--input-size` | 入力画像サイズ (H W) | (必須*) |
+| `--config` | 設定ファイルパス | - |
+| `--output` | 結果CSVの出力先 | `./onnx_results` |
+| `--batch-size` | バッチサイズ | `1` |
+| `--gpu` | GPUを使用 | - |
+| `--check-gpu` | GPU利用可否を確認して終了 | - |
+
+*`--config`に`input_size`を記載すれば`--input-size`は不要
+
 ## 🔧 設定オプション
 
 設定ファイル（`configs/pochi_train_config.py`）で以下の項目を調整できます：
