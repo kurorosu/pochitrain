@@ -52,6 +52,7 @@ onnx = [
 ]
 
 [project.scripts]
+pochi = "pochitrain.cli.pochi:main"
 export-onnx = "pochitrain.cli.export_onnx:main"
 infer-onnx = "pochitrain.cli.infer_onnx:main"
 
