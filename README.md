@@ -61,16 +61,16 @@ optimizer = 'Adam'            # 最適化器
 
 ### 3. 訓練実行
 
-統一 CLI エントリーポイント `pochi.py` を使用します.
+`uv run pochi` コマンドを使用します.
 
 訓練の実行 (デフォルト設定ファイルを使用):
 ```bash
-python pochi.py train
+uv run pochi train
 ```
 
 カスタム設定ファイルを使用する場合:
 ```bash
-python pochi.py train --config configs/my_custom_config.py
+uv run pochi train --config configs/my_custom_config.py
 ```
 
 これだけで訓練が開始されます!
@@ -86,7 +86,7 @@ python pochi.py train --config configs/my_custom_config.py
 
 基本的な推論:
 ```bash
-python pochi.py infer \
+uv run pochi infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/val \
   --config-path work_dirs/20251018_001/config.py
@@ -94,7 +94,7 @@ python pochi.py infer \
 
 出力先を指定する場合:
 ```bash
-python pochi.py infer \
+uv run pochi infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/test \
   --config-path work_dirs/20251018_001/config.py \
@@ -246,17 +246,17 @@ Optunaを使ったハイパーパラメータ自動探索機能です.
 
 最適化の実行 (デフォルト設定ファイルを使用):
 ```bash
-python pochi.py optimize
+uv run pochi optimize
 ```
 
 カスタム設定ファイルを使用する場合:
 ```bash
-python pochi.py optimize --config configs/my_custom_config.py
+uv run pochi optimize --config configs/my_custom_config.py
 ```
 
 出力先を変更する場合:
 ```bash
-python pochi.py optimize --output work_dirs/custom_results
+uv run pochi optimize --output work_dirs/custom_results
 ```
 
 出力ディレクトリ (`work_dirs/optuna_results`) が既に存在する場合, 自動的に連番が付与されます (`optuna_results_001`, `optuna_results_002`...).
@@ -277,7 +277,7 @@ python pochi.py optimize --output work_dirs/custom_results
 
 最適化されたパラメータで本格訓練:
 ```bash
-python pochi.py train --config work_dirs/optuna_results/optimized_config.py
+uv run pochi train --config work_dirs/optuna_results/optimized_config.py
 ```
 
 ### 探索空間のカスタマイズ
