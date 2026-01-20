@@ -51,6 +51,11 @@ onnx = [
     "onnxruntime-gpu>=1.16.0",
 ]
 
+[project.scripts]
+pochi = "pochitrain.cli.pochi:main"
+export-onnx = "pochitrain.cli.export_onnx:main"
+infer-onnx = "pochitrain.cli.infer_onnx:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
