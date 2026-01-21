@@ -117,7 +117,7 @@ uv run pochi infer \
 訓練時に出力された勾配トレースCSVから詳細な可視化グラフを生成できます.
 
 ```bash
-python tools/visualize_gradient_trace.py work_dirs/20251018_001/visualization/gradient_trace.csv
+uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
 ```
 
 出力されるグラフ:
