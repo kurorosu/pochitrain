@@ -1,4 +1,10 @@
-"""勾配トレースCSVから可視化を生成するスクリプト."""
+#!/usr/bin/env python3
+"""勾配トレースCSVから可視化を生成するCLI.
+
+使用例:
+    uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
+    uv run vis-grad gradient_trace.csv --output-dir output/
+"""
 
 import argparse
 import importlib.util
@@ -70,14 +76,13 @@ def get_method_labels(aggregation_method: str) -> Tuple[str, str]:
 def load_gradient_trace(
     csv_path: Path,
 ) -> Tuple[np.ndarray, List[str], np.ndarray, str]:
-    """
-    勾配トレースCSVを読み込み.
+    """勾配トレースCSVを読み込み.
 
     Args:
-        csv_path (Path): CSVファイルパス
+        csv_path: CSVファイルパス
 
     Returns:
-        tuple: (epochs, layer_names, grad_matrix, aggregation_method)
+        (epochs, layer_names, grad_matrix, aggregation_method) のタプル
     """
     df = pd.read_csv(csv_path)
 
@@ -116,15 +121,14 @@ def plot_timeline(
     output_dir: Path,
     aggregation_method: str = "median",
 ) -> None:
-    """
-    時系列プロットを生成（1グラフ1画像）.
+    """時系列プロットを生成（1グラフ1画像）.
 
     Args:
-        epochs (np.ndarray): エポック番号
-        layer_names (list): 層名リスト
-        grad_matrix (np.ndarray): 勾配ノルム行列
-        output_dir (Path): 出力ディレクトリ
-        aggregation_method (str): 集約方法
+        epochs: エポック番号
+        layer_names: 層名リスト
+        grad_matrix: 勾配ノルム行列
+        output_dir: 出力ディレクトリ
+        aggregation_method: 集約方法
     """
     _, inner_label = get_method_labels(aggregation_method)
 
@@ -203,15 +207,14 @@ def plot_heatmap(
     output_dir: Path,
     aggregation_method: str = "median",
 ) -> None:
-    """
-    ヒートマップを生成.
+    """ヒートマップを生成.
 
     Args:
-        epochs (np.ndarray): エポック番号
-        layer_names (list): 層名リスト
-        grad_matrix (np.ndarray): 勾配ノルム行列
-        output_dir (Path): 出力ディレクトリ
-        aggregation_method (str): 集約方法
+        epochs: エポック番号
+        layer_names: 層名リスト
+        grad_matrix: 勾配ノルム行列
+        output_dir: 出力ディレクトリ
+        aggregation_method: 集約方法
     """
     _, inner_label = get_method_labels(aggregation_method)
     fig, ax = plt.subplots(figsize=(14, max(6, len(layer_names) * 0.3)))
@@ -254,17 +257,16 @@ def plot_statistics(
     output_dir: Path,
     aggregation_method: str = "median",
 ) -> None:
-    """
-    統計情報グラフを生成（1グラフ1画像）.
+    """統計情報グラフを生成（1グラフ1画像）.
 
     Args:
-        epochs (np.ndarray): エポック番号
-        layer_names (list): 層名リスト
-        grad_matrix (np.ndarray): 勾配ノルム行列
-        output_dir (Path): 出力ディレクトリ
-        aggregation_method (str): 集約方法
+        epochs: エポック番号
+        layer_names: 層名リスト
+        grad_matrix: 勾配ノルム行列
+        output_dir: 出力ディレクトリ
+        aggregation_method: 集約方法
     """
-    method_label, inner_label = get_method_labels(aggregation_method)
+    _, inner_label = get_method_labels(aggregation_method)
     # (1) 初期 vs 最終エポック
     fig, ax = plt.subplots(figsize=(12, 6))
     initial_window = min(5, len(epochs) // 10) if len(epochs) > 10 else 1
@@ -399,15 +401,14 @@ def plot_snapshots(
     output_dir: Path,
     aggregation_method: str = "median",
 ) -> None:
-    """
-    エポックスナップショット（対数スケール）を生成.
+    """エポックスナップショット（対数スケール）を生成.
 
     Args:
-        epochs (np.ndarray): エポック番号
-        layer_names (list): 層名リスト
-        grad_matrix (np.ndarray): 勾配ノルム行列
-        output_dir (Path): 出力ディレクトリ
-        aggregation_method (str): 集約方法
+        epochs: エポック番号
+        layer_names: 層名リスト
+        grad_matrix: 勾配ノルム行列
+        output_dir: 出力ディレクトリ
+        aggregation_method: 集約方法
     """
     _, inner_label = get_method_labels(aggregation_method)
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -493,7 +494,16 @@ def plot_snapshots(
 def main() -> None:
     """メイン処理."""
     parser = argparse.ArgumentParser(
-        description="勾配トレースCSVから可視化グラフを生成"
+        description="勾配トレースCSVから可視化グラフを生成",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用例:
+  # 基本的な使用法
+  uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
+
+  # 出力ディレクトリを指定
+  uv run vis-grad gradient_trace.csv --output-dir output/
+        """,
     )
     parser.add_argument("csv_path", type=str, help="勾配トレースCSVファイルのパス")
     parser.add_argument(
