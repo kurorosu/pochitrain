@@ -1,5 +1,10 @@
 # pochitrain
 
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-ee4c2c.svg)](https://pytorch.org/)
+
 A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
 **シンプルで親しみやすいCNNパイプラインフレームワーク**
@@ -61,16 +66,16 @@ optimizer = 'Adam'            # 最適化器
 
 ### 3. 訓練実行
 
-統一 CLI エントリーポイント `pochi.py` を使用します.
+`uv run pochi` コマンドを使用します.
 
 訓練の実行 (デフォルト設定ファイルを使用):
 ```bash
-python pochi.py train
+uv run pochi train
 ```
 
 カスタム設定ファイルを使用する場合:
 ```bash
-python pochi.py train --config configs/my_custom_config.py
+uv run pochi train --config configs/my_custom_config.py
 ```
 
 これだけで訓練が開始されます!
@@ -86,7 +91,7 @@ python pochi.py train --config configs/my_custom_config.py
 
 基本的な推論:
 ```bash
-python pochi.py infer \
+uv run pochi infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/val \
   --config-path work_dirs/20251018_001/config.py
@@ -94,12 +99,14 @@ python pochi.py infer \
 
 出力先を指定する場合:
 ```bash
-python pochi.py infer \
+uv run pochi infer \
   --model-path work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/test \
   --config-path work_dirs/20251018_001/config.py \
   --output results/
 ```
+
+推論完了時に1枚あたりの平均推論時間 (ms/image) が表示されます. 実運用での1枚ずつの推論速度を計測したい場合は, configの`batch_size`を1に設定してください.
 
 ### 6. 結果と出力
 
@@ -115,7 +122,7 @@ python pochi.py infer \
 訓練時に出力された勾配トレースCSVから詳細な可視化グラフを生成できます.
 
 ```bash
-python tools/visualize_gradient_trace.py work_dirs/20251018_001/visualization/gradient_trace.csv
+uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
 ```
 
 出力されるグラフ:
@@ -244,17 +251,17 @@ Optunaを使ったハイパーパラメータ自動探索機能です.
 
 最適化の実行 (デフォルト設定ファイルを使用):
 ```bash
-python pochi.py optimize
+uv run pochi optimize
 ```
 
 カスタム設定ファイルを使用する場合:
 ```bash
-python pochi.py optimize --config configs/my_custom_config.py
+uv run pochi optimize --config configs/my_custom_config.py
 ```
 
 出力先を変更する場合:
 ```bash
-python pochi.py optimize --output work_dirs/custom_results
+uv run pochi optimize --output work_dirs/custom_results
 ```
 
 出力ディレクトリ (`work_dirs/optuna_results`) が既に存在する場合, 自動的に連番が付与されます (`optuna_results_001`, `optuna_results_002`...).
@@ -275,7 +282,7 @@ python pochi.py optimize --output work_dirs/custom_results
 
 最適化されたパラメータで本格訓練:
 ```bash
-python pochi.py train --config work_dirs/optuna_results/optimized_config.py
+uv run pochi train --config work_dirs/optuna_results/optimized_config.py
 ```
 
 ### 探索空間のカスタマイズ
@@ -302,6 +309,74 @@ search_space = {
 ```
 
 詳細は [設定ファイルガイド](configs/docs/configuration.md#optunaハイパーパラメータ最適化設定) を参照してください.
+
+## 🔄 ONNXエクスポート・推論
+
+学習済みモデルをONNX形式にエクスポートし, ONNX Runtimeで高速推論を行う機能です.
+
+### ONNX依存関係のインストール
+
+```bash
+uv sync --group onnx
+```
+
+### モデルのエクスポート
+
+PyTorchチェックポイント (.pth) をONNX形式に変換:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth
+```
+
+入力サイズを指定する場合:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 224 224
+```
+
+出力先とopsetバージョンを指定:
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
+  --output model.onnx \
+  --opset 17
+```
+
+### ONNX推論の実行
+
+エクスポートしたONNXモデルで推論:
+```bash
+uv run infer-onnx model.onnx --data data/val --input-size 224 224
+```
+
+GPU利用可否の確認:
+```bash
+uv run infer-onnx --check-gpu
+```
+
+`CUDAExecutionProvider`が表示されればGPU推論が可能です.
+
+### コマンドオプション
+
+**export-onnx:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--output` | 出力ONNXファイルパス | `<入力ファイル名>.onnx` |
+| `--input-size` | 入力画像サイズ (H W) | `224 224` |
+| `--opset` | ONNX opsetバージョン | `17` |
+| `--no-verify` | エクスポート後の検証をスキップ | - |
+
+**infer-onnx:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--data` | 推論データのパス | (必須) |
+| `--input-size` | 入力画像サイズ (H W) | (必須*) |
+| `--config` | 設定ファイルパス | - |
+| `--output` | 結果CSVの出力先 | `./onnx_results` |
+| `--batch-size` | バッチサイズ | `1` |
+| `--gpu` | GPUを使用 | - |
+| `--check-gpu` | GPU利用可否を確認して終了 | - |
+
+*`--config`に`input_size`を記載すれば`--input-size`は不要
 
 ## 🔧 設定オプション
 
