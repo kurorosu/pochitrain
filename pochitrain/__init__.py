@@ -28,7 +28,7 @@ from .pochi_trainer import PochiTrainer
 # ユーティリティ
 from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
