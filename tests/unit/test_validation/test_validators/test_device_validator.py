@@ -73,3 +73,73 @@ def test_device_missing_from_config(validator, mocker):
     # アサーション（device=Noneと同じ扱い）
     assert result is False
     assert mock_logger.error.call_count == 2
+
+
+class TestCudnnBenchmarkValidator:
+    """cudnn_benchmark設定のバリデーションテスト."""
+
+    def test_cudnn_benchmark_true_with_cuda(self, validator, mocker):
+        """cudnn_benchmark=TrueでCUDA使用時は成功することをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cuda", "cudnn_benchmark": True}
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is True
+        mock_logger.error.assert_not_called()
+
+    def test_cudnn_benchmark_false_with_cuda(self, validator, mocker):
+        """cudnn_benchmark=FalseでCUDA使用時は成功することをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cuda", "cudnn_benchmark": False}
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is True
+        mock_logger.error.assert_not_called()
+
+    def test_cudnn_benchmark_none_skipped(self, validator, mocker):
+        """cudnn_benchmark未設定の場合はスキップされることをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cuda"}  # cudnn_benchmarkなし
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is True
+        mock_logger.error.assert_not_called()
+
+    def test_cudnn_benchmark_invalid_type_fails(self, validator, mocker):
+        """cudnn_benchmarkがbool型以外の場合はエラーになることをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cuda", "cudnn_benchmark": "True"}  # 文字列
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is False
+        mock_logger.error.assert_called_once()
+        error_msg = mock_logger.error.call_args[0][0]
+        assert "cudnn_benchmark" in error_msg
+        assert "bool型" in error_msg
+
+    def test_cudnn_benchmark_int_type_fails(self, validator, mocker):
+        """cudnn_benchmarkがint型の場合はエラーになることをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cuda", "cudnn_benchmark": 1}  # int
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is False
+        mock_logger.error.assert_called_once()
+
+    def test_cudnn_benchmark_true_with_cpu_warns(self, validator, mocker):
+        """cudnn_benchmark=TrueでCPU使用時は警告が出ることをテスト."""
+        mock_logger = mocker.Mock()
+        config = {"device": "cpu", "cudnn_benchmark": True}
+
+        result = validator.validate(config, mock_logger)
+
+        assert result is True
+        # CPU使用の警告3回 + cudnn_benchmark警告1回 = 4回
+        assert mock_logger.warning.call_count == 4
+        warning_msgs = [call[0][0] for call in mock_logger.warning.call_args_list]
+        assert any("cudnn_benchmark=True" in msg for msg in warning_msgs)

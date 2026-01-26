@@ -193,6 +193,7 @@ def train_command(args: argparse.Namespace) -> None:
         device=config["device"],
         pretrained=config["pretrained"],
         work_dir=config["work_dir"],
+        cudnn_benchmark=config.get("cudnn_benchmark", False),
     )
 
     # 訓練設定

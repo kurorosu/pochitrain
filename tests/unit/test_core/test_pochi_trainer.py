@@ -27,6 +27,54 @@ def test_pochi_trainer_init():
         assert trainer.best_accuracy == 0.0
 
 
+def test_pochi_trainer_cudnn_benchmark_disabled_on_cpu():
+    """CPU環境ではcudnn_benchmarkが無効になることをテスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=10,
+            pretrained=False,
+            device="cpu",
+            work_dir=temp_dir,
+            cudnn_benchmark=True,  # TrueでもCPUでは無効
+        )
+
+        assert trainer.cudnn_benchmark is False
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_pochi_trainer_cudnn_benchmark_enabled_on_cuda():
+    """CUDA環境でcudnn_benchmark=Trueが有効になることをテスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=10,
+            pretrained=False,
+            device="cuda",
+            work_dir=temp_dir,
+            cudnn_benchmark=True,
+        )
+
+        assert trainer.cudnn_benchmark is True
+        assert torch.backends.cudnn.benchmark is True
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_pochi_trainer_cudnn_benchmark_disabled_on_cuda():
+    """CUDA環境でcudnn_benchmark=Falseが無効のままであることをテスト"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=10,
+            pretrained=False,
+            device="cuda",
+            work_dir=temp_dir,
+            cudnn_benchmark=False,
+        )
+
+        assert trainer.cudnn_benchmark is False
+
+
 def test_pochi_trainer_setup_training():
     """PochiTrainerの訓練設定テスト"""
     with tempfile.TemporaryDirectory() as temp_dir:

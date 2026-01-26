@@ -44,6 +44,7 @@ class PochiTrainer:
         pretrained: bool = True,
         work_dir: str = "work_dirs",
         create_workspace: bool = True,
+        cudnn_benchmark: bool = False,
     ):
         """PochiTrainerを初期化."""
         # モデル設定の保存
@@ -52,6 +53,13 @@ class PochiTrainer:
 
         # デバイスの設定（バリデーション済みの設定を使用）
         self.device = torch.device(device)
+
+        # cuDNN自動チューニングの設定
+        if self.device.type == "cuda" and cudnn_benchmark:
+            torch.backends.cudnn.benchmark = True
+            self.cudnn_benchmark = True
+        else:
+            self.cudnn_benchmark = False
 
         # ワークスペースマネージャーの初期化
         self.workspace_manager = PochiWorkspaceManager(work_dir)
@@ -65,6 +73,8 @@ class PochiTrainer:
         # ロガーの設定
         self.logger = self._setup_logger()
         self.logger.info(f"使用デバイス: {self.device}")
+        if self.cudnn_benchmark:
+            self.logger.info("cuDNN自動チューニング: 有効")
         self.logger.info(f"ワークスペース: {self.current_workspace}")
         self.logger.info(f"モデル保存先: {self.work_dir}")
 
@@ -676,7 +686,9 @@ class PochiTrainer:
         predictions: List[Any] = []
         confidences: List[Any] = []
         total_samples = 0
+        warmup_samples = 0
         inference_time_ms = 0.0
+        is_first_batch = True
 
         use_cuda = self.device.type == "cuda"
 
@@ -685,19 +697,30 @@ class PochiTrainer:
                 data = data.to(self.device)
                 batch_size = data.size(0)
 
-                # 推論時間計測（モデル推論部分のみ）
-                if use_cuda:
-                    start_event = torch.cuda.Event(enable_timing=True)
-                    end_event = torch.cuda.Event(enable_timing=True)
-                    start_event.record()
+                if is_first_batch:
+                    # ウォームアップ: 最初のバッチは計測対象外
+                    # CUDAカーネルのコンパイルやcuDNNアルゴリズム選択を事前に行う
                     output = self.model(data)
-                    end_event.record()
-                    torch.cuda.synchronize()
-                    inference_time_ms += start_event.elapsed_time(end_event)
+                    if use_cuda:
+                        torch.cuda.synchronize()
+                    warmup_samples = batch_size
+                    is_first_batch = False
                 else:
-                    start_time = time.perf_counter()
-                    output = self.model(data)
-                    inference_time_ms += (time.perf_counter() - start_time) * 1000
+                    # 推論時間計測（モデル推論部分のみ）
+                    if use_cuda:
+                        start_event = torch.cuda.Event(enable_timing=True)
+                        end_event = torch.cuda.Event(enable_timing=True)
+                        start_event.record()
+                        output = self.model(data)
+                        end_event.record()
+                        torch.cuda.synchronize()
+                        inference_time_ms += start_event.elapsed_time(end_event)
+                    else:
+                        start_time = time.perf_counter()
+                        output = self.model(data)
+                        inference_time_ms += (time.perf_counter() - start_time) * 1000
+
+                    total_samples += batch_size
 
                 # 後処理（計測対象外）
                 probabilities = torch.softmax(output, dim=1)
@@ -705,14 +728,13 @@ class PochiTrainer:
 
                 predictions.extend(predicted.cpu().numpy())
                 confidences.extend(confidence.cpu().numpy())
-                total_samples += batch_size
 
-        # 1枚あたりの平均推論時間を表示
+        # 1枚あたりの平均推論時間を表示（ウォームアップ分を除く）
         if total_samples > 0:
             avg_time_per_image = inference_time_ms / total_samples
             self.logger.info(
                 f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-                f"(総推論数: {total_samples}枚)"
+                f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
             )
 
         return torch.tensor(predictions), torch.tensor(confidences)
