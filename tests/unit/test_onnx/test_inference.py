@@ -8,6 +8,10 @@ import pytest
 import torch
 import torch.nn as nn
 
+# ONNXはオプション依存のためスキップ
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+
 from pochitrain.onnx.inference import OnnxInference, check_gpu_availability
 
 
