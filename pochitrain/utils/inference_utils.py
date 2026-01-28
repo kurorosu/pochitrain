@@ -1,0 +1,242 @@
+"""推論CLI共通ユーティリティ.
+
+PyTorch, ONNX, TensorRT推論CLIで共通して使用する処理を提供.
+"""
+
+import csv
+import logging
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from pochitrain.logging import LoggerManager
+from pochitrain.utils import ConfigLoader
+
+logger: logging.Logger = LoggerManager().get_logger(__name__)
+
+
+def auto_detect_config_path(model_path: Path) -> Path:
+    """モデルパスからconfig.pyを自動検出する.
+
+    モデルパスの親ディレクトリ（models/）の更に親ディレクトリ（work_dir/）にある
+    config.pyを検出する.
+
+    Args:
+        model_path: モデルファイルパス (例: work_dirs/20260126_001/models/model.pth)
+
+    Returns:
+        検出されたconfig.pyのパス (例: work_dirs/20260126_001/config.py)
+    """
+    # models フォルダ -> work_dir フォルダ -> config.py
+    work_dir = model_path.parent.parent
+    return work_dir / "config.py"
+
+
+def get_default_output_dir(model_path: Path) -> Path:
+    """モデルパスからデフォルト出力先を決定する.
+
+    モデルパスの親ディレクトリ（models/）と同階層のinference_results/を返す.
+
+    Args:
+        model_path: モデルファイルパス (例: work_dirs/20260126_001/models/model.pth)
+
+    Returns:
+        デフォルト出力先パス (例: work_dirs/20260126_001/inference_results/)
+    """
+    # models フォルダ -> work_dir フォルダ -> inference_results
+    work_dir = model_path.parent.parent
+    return work_dir / "inference_results"
+
+
+def validate_model_path(model_path: Path) -> None:
+    """モデルパスの存在を検証する.
+
+    Args:
+        model_path: モデルファイルパス
+
+    Raises:
+        SystemExit: モデルファイルが存在しない場合
+    """
+    if not model_path.exists():
+        logger.error(f"モデルファイルが見つかりません: {model_path}")
+        sys.exit(1)
+
+
+def validate_data_path(data_path: Path) -> None:
+    """データパスの存在を検証する.
+
+    Args:
+        data_path: データディレクトリパス
+
+    Raises:
+        SystemExit: データディレクトリが存在しない場合
+    """
+    if not data_path.exists():
+        logger.error(f"データディレクトリが見つかりません: {data_path}")
+        sys.exit(1)
+
+
+def load_config_auto(model_path: Path) -> Dict[str, Any]:
+    """モデルパスからconfigを自動検出して読み込む.
+
+    Args:
+        model_path: モデルファイルパス
+
+    Returns:
+        読み込んだconfig辞書
+
+    Raises:
+        SystemExit: configファイルが見つからない、または読み込めない場合
+    """
+    config_path = auto_detect_config_path(model_path)
+    if not config_path.exists():
+        logger.error(f"設定ファイルが見つかりません: {config_path}")
+        logger.error("モデルパスと同じwork_dir内にconfig.pyが必要です")
+        sys.exit(1)
+
+    try:
+        config = ConfigLoader.load_config(str(config_path))
+        logger.info(f"設定ファイルを読み込み: {config_path}")
+        return config
+    except Exception as e:
+        logger.error(f"設定ファイル読み込みエラー: {e}")
+        sys.exit(1)
+
+
+def write_inference_csv(
+    output_dir: Path,
+    image_paths: List[str],
+    predictions: List[int],
+    true_labels: List[int],
+    confidences: List[float],
+    class_names: List[str],
+    filename: str = "inference_results.csv",
+) -> Path:
+    """推論結果をCSVに出力する.
+
+    Args:
+        output_dir: 出力ディレクトリ
+        image_paths: 画像パスリスト
+        predictions: 予測ラベルリスト
+        true_labels: 正解ラベルリスト
+        confidences: 信頼度リスト
+        class_names: クラス名リスト
+        filename: 出力ファイル名
+
+    Returns:
+        出力したCSVファイルのパス
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = output_dir / filename
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "image_path",
+                "predicted",
+                "predicted_class",
+                "true",
+                "true_class",
+                "confidence",
+                "correct",
+            ]
+        )
+        for path, pred, true, conf in zip(
+            image_paths, predictions, true_labels, confidences
+        ):
+            writer.writerow(
+                [
+                    path,
+                    pred,
+                    class_names[pred],
+                    true,
+                    class_names[true],
+                    f"{conf:.4f}",
+                    pred == true,
+                ]
+            )
+
+    logger.info(f"結果を保存: {csv_path}")
+    return csv_path
+
+
+def write_inference_summary(
+    output_dir: Path,
+    model_path: Path,
+    data_path: Path,
+    num_samples: int,
+    accuracy: float,
+    avg_time_per_image: float,
+    total_samples: int,
+    warmup_samples: int,
+    filename: str = "inference_summary.txt",
+    extra_info: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """推論サマリーをファイルに出力する.
+
+    Args:
+        output_dir: 出力ディレクトリ
+        model_path: モデルファイルパス
+        data_path: データディレクトリパス
+        num_samples: 総サンプル数
+        accuracy: 精度 (%)
+        avg_time_per_image: 平均推論時間 (ms/image)
+        total_samples: 計測サンプル数
+        warmup_samples: ウォームアップ除外サンプル数
+        filename: 出力ファイル名
+        extra_info: 追加情報（任意）
+
+    Returns:
+        出力したサマリーファイルのパス
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / filename
+
+    throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
+
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write(f"モデル: {model_path}\n")
+        f.write(f"データ: {data_path}\n")
+        f.write(f"サンプル数: {num_samples}\n")
+        f.write(f"精度: {accuracy:.2f}%\n")
+        f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
+        f.write(f"スループット: {throughput:.1f} images/sec\n")
+        f.write(
+            f"計測サンプル数: {total_samples} (ウォームアップ除外: {warmup_samples})\n"
+        )
+
+        if extra_info:
+            for key, value in extra_info.items():
+                f.write(f"{key}: {value}\n")
+
+    logger.info(f"サマリーを保存: {summary_path}")
+    return summary_path
+
+
+def log_inference_result(
+    num_samples: int,
+    correct: int,
+    avg_time_per_image: float,
+    total_samples: int,
+    warmup_samples: int,
+) -> None:
+    """推論結果をログに出力する.
+
+    Args:
+        num_samples: 総サンプル数
+        correct: 正解数
+        avg_time_per_image: 平均推論時間 (ms/image)
+        total_samples: 計測サンプル数
+        warmup_samples: ウォームアップ除外サンプル数
+    """
+    accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
+    throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
+
+    logger.info("推論完了")
+    logger.info(f"精度: {correct}/{num_samples} ({accuracy:.2f}%)")
+    logger.info(
+        f"平均推論時間: {avg_time_per_image:.2f} ms/image "
+        f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
+    )
+    logger.info(f"スループット: {throughput:.1f} images/sec")

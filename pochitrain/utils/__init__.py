@@ -6,6 +6,16 @@ pochitrain.utils: ユーティリティモジュール.
 
 from .config_loader import ConfigLoader
 from .directory_manager import PochiWorkspaceManager
+from .inference_utils import (
+    auto_detect_config_path,
+    get_default_output_dir,
+    load_config_auto,
+    log_inference_result,
+    validate_data_path,
+    validate_model_path,
+    write_inference_csv,
+    write_inference_summary,
+)
 from .timestamp_utils import (
     find_next_index,
     generate_timestamp_dir,
@@ -20,4 +30,12 @@ __all__ = [
     "find_next_index",
     "parse_timestamp_dir",
     "get_current_timestamp",
+    "auto_detect_config_path",
+    "get_default_output_dir",
+    "validate_model_path",
+    "validate_data_path",
+    "load_config_auto",
+    "write_inference_csv",
+    "write_inference_summary",
+    "log_inference_result",
 ]
