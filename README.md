@@ -378,6 +378,68 @@ uv run infer-onnx --check-gpu
 
 *`--config`に`input_size`を記載すれば`--input-size`は不要
 
+## ⚡ TensorRT高速推論
+
+ONNXモデルをTensorRTエンジンに変換し、ネイティブTensorRTで高速推論を行う機能です。ONNX Runtimeと比較して約5倍高速な推論が可能です。
+
+### 前提条件
+
+TensorRT SDKのインストールが必要です。
+
+1. [NVIDIA TensorRT](https://developer.nvidia.com/tensorrt)からSDKをダウンロード
+2. SDKをインストール後、`trtexec`がPATHに通っていることを確認
+3. Python APIをインストール:
+```bash
+uv pip install <TensorRT_SDK_PATH>/python/tensorrt-10.x.x-cpXX-none-win_amd64.whl
+```
+
+### 使用フロー
+
+#### 1. ONNXモデルのエクスポート
+
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 512 512
+```
+
+#### 2. TensorRTエンジンのビルド
+
+```bash
+trtexec --onnx=best_epoch40.onnx --saveEngine=model.engine
+```
+
+#### 3. TensorRT推論の実行
+
+基本的な使い方（入力サイズはエンジンから自動取得）:
+```bash
+uv run infer-trt model.engine --data data/val
+```
+
+設定ファイルを使用（カスタムtransformが必要な場合）:
+```bash
+uv run infer-trt model.engine --data data/val --config work_dirs/20251018_001/config.py
+```
+
+結果を保存:
+```bash
+uv run infer-trt model.engine --data data/val -o results/
+```
+
+### コマンドオプション
+
+**infer-trt:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--data` | 推論データのパス | (必須) |
+| `--config` | 設定ファイルパス（val_transformを取得） | - |
+| `--input-size` | 入力画像サイズ (H W) | エンジンから自動取得 |
+| `--output` | 結果の出力先ディレクトリ | - |
+
+### 注意事項
+
+- TensorRTエンジンはGPUアーキテクチャ固有です（異なるGPUでは再ビルドが必要）
+- `uv sync`を実行するとTensorRTがアンインストールされます。その場合は再度`uv pip install`でインストールしてください
+
 ## 🔧 設定オプション
 
 設定ファイル（`configs/pochi_train_config.py`）で以下の項目を調整できます：

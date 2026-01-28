@@ -9,6 +9,9 @@ import pytest
 import torch
 import torch.nn as nn
 
+# ONNXはオプション依存のためスキップ
+pytest.importorskip("onnx")
+
 from pochitrain.onnx.exporter import OnnxExporter
 
 
