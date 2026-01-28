@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+import torch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.onnx import OnnxInference
@@ -135,15 +136,29 @@ def main() -> None:
     logger.info("ONNXセッションを作成中...")
     inference = OnnxInference(model_path, use_gpu=args.gpu)
 
+    # ウォームアップ（最初の1バッチで10回実行）
+    logger.info("ウォームアップ中...")
+    warmup_image, _ = dataset[0]
+    warmup_np = warmup_image.numpy()[np.newaxis, ...].astype(np.float32)
+    for _ in range(10):
+        inference.run(warmup_np)
+
     # 推論実行
     logger.info("推論を開始...")
     all_predictions: List[int] = []
     all_confidences: List[float] = []
     all_true_labels: List[int] = []
-    total_inference_time = 0.0
+    total_inference_time_ms = 0.0
     total_samples = 0
+    warmup_samples = 0
 
     num_batches = (len(dataset) + batch_size - 1) // batch_size
+    use_gpu = args.gpu
+
+    # GPU時間計測用のCUDA Event
+    if use_gpu:
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
 
     for batch_idx in range(num_batches):
         start_idx = batch_idx * batch_size
@@ -158,12 +173,25 @@ def main() -> None:
 
         images_np = np.stack(batch_images).astype(np.float32)
 
-        start_time = time.perf_counter()
-        predicted, confidence = inference.run(images_np)
-        inference_time = (time.perf_counter() - start_time) * 1000
+        if batch_idx == 0:
+            # 最初のバッチは計測対象外（ウォームアップ）
+            predicted, confidence = inference.run(images_np)
+            warmup_samples = len(batch_images)
+        else:
+            # 推論時間計測
+            if use_gpu:
+                start_event.record()
+                predicted, confidence = inference.run(images_np)
+                end_event.record()
+                torch.cuda.synchronize()
+                inference_time_ms = start_event.elapsed_time(end_event)
+            else:
+                start_time = time.perf_counter()
+                predicted, confidence = inference.run(images_np)
+                inference_time_ms = (time.perf_counter() - start_time) * 1000
 
-        total_inference_time += inference_time
-        total_samples += len(batch_images)
+            total_inference_time_ms += inference_time_ms
+            total_samples += len(batch_images)
 
         all_predictions.extend(predicted.tolist())
         all_confidences.extend(confidence.tolist())
@@ -171,15 +199,18 @@ def main() -> None:
 
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
-    accuracy = (correct / total_samples) * 100 if total_samples > 0 else 0.0
+    accuracy = (correct / len(dataset)) * 100 if len(dataset) > 0 else 0.0
     avg_time_per_image = (
-        total_inference_time / total_samples if total_samples > 0 else 0
+        total_inference_time_ms / total_samples if total_samples > 0 else 0
     )
 
     logger.info("推論完了")
-    logger.info(f"精度: {correct}/{total_samples} ({accuracy:.2f}%)")
-    logger.info(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
-    logger.info(f"総推論時間: {total_inference_time:.2f} ms")
+    logger.info(f"精度: {correct}/{len(dataset)} ({accuracy:.2f}%)")
+    logger.info(
+        f"平均推論時間: {avg_time_per_image:.2f} ms/image "
+        f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
+    )
+    logger.info(f"総推論時間: {total_inference_time_ms:.2f} ms")
 
     # 結果出力
     if args.output:
@@ -227,9 +258,12 @@ def main() -> None:
         with open(summary_path, "w", encoding="utf-8") as f:
             f.write(f"モデル: {model_path}\n")
             f.write(f"データ: {data_path}\n")
-            f.write(f"サンプル数: {total_samples}\n")
+            f.write(f"サンプル数: {len(dataset)}\n")
             f.write(f"精度: {accuracy:.2f}%\n")
             f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
+            f.write(
+                f"計測サンプル数: {total_samples} (ウォームアップ除外: {warmup_samples})\n"
+            )
             f.write(f"実行プロバイダー: {providers}\n")
 
         logger.info(f"サマリーを保存: {summary_path}")
