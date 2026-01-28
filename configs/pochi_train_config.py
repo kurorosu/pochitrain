@@ -48,7 +48,7 @@ class_weights = None  # クラス毎の損失重み
 # その他設定
 work_dir = "work_dirs"  # 作業ディレクトリ
 device = "cuda"  # デバイス
-cudnn_benchmark = True  # cuDNN自動チューニング（固定サイズ入力で高速化）
+cudnn_benchmark = False  # cuDNN自動チューニング（固定サイズ入力で高速化）
 
 # 訓練メトリクス可視化設定
 enable_metrics_export = True  # メトリクスのCSV出力とグラフ生成を有効化
