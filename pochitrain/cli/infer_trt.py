@@ -3,23 +3,30 @@
 
 使用例:
     uv run infer-trt model.engine --data data/val
-    uv run infer-trt model.engine --data data/val --config config.py
     uv run infer-trt model.engine --data data/val -o results/
 """
 
 import argparse
-import csv
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
 import numpy as np
 import torch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import PochiImageDataset, get_basic_transforms
-from pochitrain.utils import ConfigLoader
+from pochitrain.utils import (
+    get_default_output_base_dir,
+    load_config_auto,
+    log_inference_result,
+    validate_data_path,
+    validate_model_path,
+    write_inference_csv,
+    write_inference_summary,
+)
+from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -31,13 +38,10 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本（入力サイズはエンジンから自動取得）
+  # 基本（configはエンジンパスから自動検出、入力サイズはエンジンから取得）
   uv run infer-trt model.engine --data data/val
 
-  # 設定ファイルを使用（カスタムtransformが必要な場合）
-  uv run infer-trt model.engine --data data/val --config config.py
-
-  # 結果を保存
+  # 結果を保存（デフォルトはwork_dir/inference_results/）
   uv run infer-trt model.engine --data data/val -o results/
 
 前提条件:
@@ -53,21 +57,9 @@ def main() -> None:
         help="推論データディレクトリ",
     )
     parser.add_argument(
-        "--config",
-        "-c",
-        help="設定ファイルパス（transformを取得）",
-    )
-    parser.add_argument(
-        "--input-size",
-        nargs=2,
-        type=int,
-        metavar=("HEIGHT", "WIDTH"),
-        help="入力画像サイズ（省略時はエンジンから自動取得）",
-    )
-    parser.add_argument(
         "--output",
         "-o",
-        help="結果出力ディレクトリ",
+        help="結果出力ディレクトリ（省略時はエンジンパスから自動決定）",
     )
 
     args = parser.parse_args()
@@ -82,49 +74,34 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # エンジンパスの確認
+    # パス検証
     engine_path = Path(args.engine_path)
-    if not engine_path.exists():
-        logger.error(f"エンジンファイルが見つかりません: {engine_path}")
-        sys.exit(1)
+    validate_model_path(engine_path)
 
-    # データパスの確認
     data_path = Path(args.data)
-    if not data_path.exists():
-        logger.error(f"データディレクトリが見つかりません: {data_path}")
-        sys.exit(1)
+    validate_data_path(data_path)
 
     # TensorRT推論クラス作成（入力サイズ取得のため先に読み込む）
     logger.info("TensorRTエンジンを読み込み中...")
     inference = TensorRTInference(engine_path)
 
-    # 設定ファイルの読み込み
-    config: Optional[Dict[str, Any]] = None
-    if args.config:
-        config_path = Path(args.config)
-        if config_path.exists():
-            try:
-                config = ConfigLoader.load_config(str(config_path))
-                logger.info(f"設定ファイルを読み込み: {config_path}")
-            except Exception as e:
-                logger.warning(f"設定ファイルの読み込みに失敗: {e}")
-        else:
-            logger.warning(f"設定ファイルが見つかりません: {config_path}")
+    # config自動検出・読み込み
+    config = load_config_auto(engine_path)
 
-    # transformの決定
-    transform = None
-    input_size_str = ""
+    # 出力ディレクトリの決定
+    if args.output:
+        output_dir = Path(args.output)
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        base_dir = get_default_output_base_dir(engine_path)
+        manager = InferenceWorkspaceManager(str(base_dir))
+        output_dir = manager.create_workspace()
 
-    if config and "val_transform" in config:
-        # configからval_transformを使用
+    # transformの決定（configのval_transformを使用、なければエンジンから自動取得）
+    if "val_transform" in config:
         transform = config["val_transform"]
-        logger.info("val_transformを設定ファイルから取得")
         input_size_str = "config指定"
-    elif args.input_size:
-        # --input-sizeからtransformを生成
-        input_size = (args.input_size[0], args.input_size[1])
-        transform = get_basic_transforms(image_size=input_size[0], is_training=False)
-        input_size_str = f"{input_size[0]}x{input_size[1]}"
+        logger.info("val_transformを設定ファイルから取得")
     else:
         # エンジンから入力サイズを自動取得
         engine_input_shape = inference.get_input_shape()
@@ -138,6 +115,7 @@ def main() -> None:
     logger.info(f"エンジン: {engine_path}")
     logger.info(f"データ: {data_path}")
     logger.info(f"入力サイズ: {input_size_str}")
+    logger.info(f"出力先: {output_dir}")
 
     # データセット作成
     dataset = PochiImageDataset(str(data_path), transform=transform)
@@ -152,7 +130,7 @@ def main() -> None:
     for _ in range(10):
         inference.run(image_np)
 
-    # 推論実行
+    # 推論実行（バッチサイズ1固定）
     logger.info("推論を開始...")
     all_predictions: List[int] = []
     all_confidences: List[float] = []
@@ -162,7 +140,7 @@ def main() -> None:
     # CUDA Eventで正確な時間計測
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
-    inference_time_ms = 0.0
+    total_inference_time_ms = 0.0
     total_samples = 0
 
     for i in range(len(dataset)):
@@ -178,7 +156,7 @@ def main() -> None:
             predicted, confidence = inference.run(image_np)
             end_event.record()
             torch.cuda.synchronize()
-            inference_time_ms += start_event.elapsed_time(end_event)
+            total_inference_time_ms += start_event.elapsed_time(end_event)
             total_samples += 1
 
         all_predictions.append(int(predicted[0]))
@@ -187,69 +165,48 @@ def main() -> None:
 
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
-    accuracy = (correct / len(dataset)) * 100 if len(dataset) > 0 else 0.0
-    avg_time_per_image = inference_time_ms / total_samples if total_samples > 0 else 0
-
-    logger.info("推論完了")
-    logger.info(f"精度: {correct}/{len(dataset)} ({accuracy:.2f}%)")
-    logger.info(
-        f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-        f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
+    num_samples = len(dataset)
+    avg_time_per_image = (
+        total_inference_time_ms / total_samples if total_samples > 0 else 0
     )
-    logger.info(f"スループット: {1000 / avg_time_per_image:.1f} images/sec")
 
-    # 結果出力
-    if args.output:
-        output_dir = Path(args.output)
-        output_dir.mkdir(parents=True, exist_ok=True)
+    # 結果ログ出力
+    log_inference_result(
+        num_samples=num_samples,
+        correct=correct,
+        avg_time_per_image=avg_time_per_image,
+        total_samples=total_samples,
+        warmup_samples=warmup_samples,
+    )
 
-        # CSV出力
-        csv_path = output_dir / "tensorrt_inference_results.csv"
-        class_names = dataset.get_classes()
-        image_paths = dataset.get_file_paths()
+    # 結果ファイル出力
+    class_names = dataset.get_classes()
+    image_paths = dataset.get_file_paths()
 
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "image_path",
-                    "predicted",
-                    "predicted_class",
-                    "true",
-                    "true_class",
-                    "confidence",
-                    "correct",
-                ]
-            )
-            for path, pred, true, conf in zip(
-                image_paths, all_predictions, all_true_labels, all_confidences
-            ):
-                writer.writerow(
-                    [
-                        path,
-                        pred,
-                        class_names[pred],
-                        true,
-                        class_names[true],
-                        f"{conf:.4f}",
-                        pred == true,
-                    ]
-                )
+    write_inference_csv(
+        output_dir=output_dir,
+        image_paths=image_paths,
+        predictions=all_predictions,
+        true_labels=all_true_labels,
+        confidences=all_confidences,
+        class_names=class_names,
+        filename="tensorrt_inference_results.csv",
+    )
 
-        logger.info(f"結果を保存: {csv_path}")
+    accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
 
-        # サマリー出力
-        summary_path = output_dir / "tensorrt_inference_summary.txt"
-        with open(summary_path, "w", encoding="utf-8") as f:
-            f.write(f"エンジン: {engine_path}\n")
-            f.write(f"データ: {data_path}\n")
-            f.write(f"入力サイズ: {input_size_str}\n")
-            f.write(f"サンプル数: {len(dataset)}\n")
-            f.write(f"精度: {accuracy:.2f}%\n")
-            f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
-            f.write(f"スループット: {1000 / avg_time_per_image:.1f} images/sec\n")
-
-        logger.info(f"サマリーを保存: {summary_path}")
+    write_inference_summary(
+        output_dir=output_dir,
+        model_path=engine_path,
+        data_path=data_path,
+        num_samples=num_samples,
+        accuracy=accuracy,
+        avg_time_per_image=avg_time_per_image,
+        total_samples=total_samples,
+        warmup_samples=warmup_samples,
+        filename="tensorrt_inference_summary.txt",
+        extra_info={"入力サイズ": input_size_str},
+    )
 
 
 if __name__ == "__main__":

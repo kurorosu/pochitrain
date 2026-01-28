@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pochitrain.logging import LoggerManager
-from pochitrain.utils import ConfigLoader
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -32,16 +31,17 @@ def auto_detect_config_path(model_path: Path) -> Path:
     return work_dir / "config.py"
 
 
-def get_default_output_dir(model_path: Path) -> Path:
-    """モデルパスからデフォルト出力先を決定する.
+def get_default_output_base_dir(model_path: Path) -> Path:
+    """モデルパスからデフォルト出力先のベースディレクトリを返す.
 
     モデルパスの親ディレクトリ（models/）と同階層のinference_results/を返す.
+    ワークスペースの作成は行わない.
 
     Args:
         model_path: モデルファイルパス (例: work_dirs/20260126_001/models/model.pth)
 
     Returns:
-        デフォルト出力先パス (例: work_dirs/20260126_001/inference_results/)
+        ベースディレクトリパス (例: work_dirs/20260126_001/inference_results/)
     """
     # models フォルダ -> work_dir フォルダ -> inference_results
     work_dir = model_path.parent.parent
@@ -95,6 +95,8 @@ def load_config_auto(model_path: Path) -> Dict[str, Any]:
         sys.exit(1)
 
     try:
+        from pochitrain.utils.config_loader import ConfigLoader
+
         config = ConfigLoader.load_config(str(config_path))
         logger.info(f"設定ファイルを読み込み: {config_path}")
         return config

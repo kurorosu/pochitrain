@@ -8,7 +8,7 @@ from .config_loader import ConfigLoader
 from .directory_manager import PochiWorkspaceManager
 from .inference_utils import (
     auto_detect_config_path,
-    get_default_output_dir,
+    get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
     validate_data_path,
@@ -31,7 +31,7 @@ __all__ = [
     "parse_timestamp_dir",
     "get_current_timestamp",
     "auto_detect_config_path",
-    "get_default_output_dir",
+    "get_default_output_base_dir",
     "validate_model_path",
     "validate_data_path",
     "load_config_auto",

@@ -19,7 +19,7 @@ from pochitrain.logging import LoggerManager
 from pochitrain.onnx import OnnxInference
 from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.utils import (
-    get_default_output_dir,
+    get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
     validate_data_path,
@@ -27,6 +27,7 @@ from pochitrain.utils import (
     write_inference_csv,
     write_inference_summary,
 )
+from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -73,8 +74,11 @@ def main() -> None:
     # 出力ディレクトリの決定
     if args.output:
         output_dir = Path(args.output)
+        output_dir.mkdir(parents=True, exist_ok=True)
     else:
-        output_dir = get_default_output_dir(model_path)
+        base_dir = get_default_output_base_dir(model_path)
+        manager = InferenceWorkspaceManager(str(base_dir))
+        output_dir = manager.create_workspace()
 
     # configからパラメータ取得
     batch_size = config.get("batch_size", 1)
@@ -174,7 +178,6 @@ def main() -> None:
     )
 
     # 結果ファイル出力
-    output_dir.mkdir(parents=True, exist_ok=True)
     class_names = dataset.get_classes()
     image_paths = dataset.get_file_paths()
 

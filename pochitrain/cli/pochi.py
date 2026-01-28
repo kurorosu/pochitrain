@@ -24,8 +24,6 @@ from pochitrain import (
 )
 from pochitrain.utils import (
     ConfigLoader,
-    auto_detect_config_path,
-    get_default_output_dir,
     load_config_auto,
     validate_data_path,
     validate_model_path,
@@ -316,7 +314,10 @@ def infer_command(args: argparse.Namespace) -> None:
     if args.output:
         output_dir = args.output
     else:
-        output_dir = str(get_default_output_dir(model_path))
+        # modelsフォルダと同階層に出力
+        model_dir = model_path.parent  # models フォルダ
+        work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
+        output_dir = str(work_dir / "inference_results")
 
     logger.info(f"推論結果出力先: {output_dir}")
 
@@ -421,7 +422,9 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.info(f"処理画像数: {num_samples}枚")
         logger.info(f"正解数: {accuracy_info['correct_predictions']}")
         logger.info(f"精度: {accuracy_info['accuracy_percentage']:.2f}%")
-        logger.info(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
+        logger.info(
+            f"平均処理時間: {avg_time_per_image:.2f} ms/image（データ読み込み含む）"
+        )
         logger.info(f"スループット: {throughput:.1f} images/sec")
         logger.info(f"詳細結果: {results_csv}")
         logger.info(f"サマリー: {summary_csv}")
