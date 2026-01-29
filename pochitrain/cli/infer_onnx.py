@@ -23,6 +23,7 @@ from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
+    save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
     validate_model_path,
@@ -232,6 +233,18 @@ def main() -> None:
         logger.info(f"混同行列画像を生成しました: {cm_path}")
     except Exception as e:
         logger.warning(f"混同行列画像生成に失敗しました: {e}")
+
+    # クラス別精度レポートを生成
+    try:
+        report_path = save_classification_report(
+            predicted_labels=all_predictions,
+            true_labels=all_true_labels,
+            class_names=class_names,
+            output_dir=output_dir,
+        )
+        logger.info(f"クラス別精度レポートを生成しました: {report_path}")
+    except Exception as e:
+        logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 
 
 if __name__ == "__main__":
