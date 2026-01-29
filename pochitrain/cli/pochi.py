@@ -229,6 +229,19 @@ def train_command(args: argparse.Namespace) -> None:
     if trainer.enable_metrics_export:
         logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
+    # Early Stopping設定の適用
+    early_stopping_config = config.get("early_stopping")
+    if early_stopping_config and early_stopping_config.get("enabled", False):
+        trainer.early_stopping_config = early_stopping_config
+        logger.info(
+            f"Early Stopping: 有効 "
+            f"(patience={early_stopping_config.get('patience', 10)}, "
+            f"min_delta={early_stopping_config.get('min_delta', 0.0)}, "
+            f"monitor={early_stopping_config.get('monitor', 'val_accuracy')})"
+        )
+    else:
+        logger.info("Early Stopping: 無効")
+
     # 勾配トレース設定の適用
     trainer.enable_gradient_tracking = config.get("enable_gradient_tracking", False)
     if trainer.enable_gradient_tracking:

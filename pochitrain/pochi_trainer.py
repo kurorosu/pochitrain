@@ -112,6 +112,10 @@ class PochiTrainer:
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
 
+        # Early Stopping（訓練時のみ初期化）
+        self.early_stopping: Optional[Any] = None  # EarlyStopping
+        self.early_stopping_config: Optional[Dict[str, Any]] = None
+
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
         from pochitrain.logging import LoggerManager
@@ -524,6 +528,25 @@ class PochiTrainer:
             )
             self.logger.info("メトリクス記録機能を有効化しました")
 
+        # Early Stoppingの初期化
+        if self.early_stopping_config is not None:
+            es_config = self.early_stopping_config
+            if es_config.get("enabled", False):
+                from pochitrain.early_stopping import EarlyStopping
+
+                self.early_stopping = EarlyStopping(
+                    patience=es_config.get("patience", 10),
+                    min_delta=es_config.get("min_delta", 0.0),
+                    monitor=es_config.get("monitor", "val_accuracy"),
+                    logger=self.logger,
+                )
+                self.logger.info(
+                    f"Early Stopping: 有効 "
+                    f"(patience={self.early_stopping.patience}, "
+                    f"min_delta={self.early_stopping.min_delta}, "
+                    f"monitor={self.early_stopping.monitor})"
+                )
+
         # 勾配トレーサーの初期化
         if self.enable_gradient_tracking and self.current_workspace is not None:
             from pochitrain.visualization import GradientTracer
@@ -591,6 +614,15 @@ class PochiTrainer:
                     self.best_accuracy = val_metrics["val_accuracy"]
                     self.save_best_model(epoch)
 
+                # Early Stopping判定
+                if self.early_stopping is not None:
+                    monitor = self.early_stopping.monitor
+                    monitor_value = val_metrics.get(monitor)
+                    if monitor_value is not None:
+                        if self.early_stopping.step(monitor_value, epoch):
+                            self.save_last_model()
+                            break
+
             # ラストモデルの保存（毎エポック上書き）
             self.save_last_model()
 
@@ -630,7 +662,17 @@ class PochiTrainer:
                 )
                 break
 
-        self.logger.info("訓練が完了しました")
+        # Early Stoppingによる停止の場合、その旨をログ出力
+        if self.early_stopping is not None and self.early_stopping.should_stop:
+            self.logger.info(
+                f"Early Stoppingにより訓練を停止しました "
+                f"(最終エポック: {self.epoch}, "
+                f"ベスト{self.early_stopping.monitor}: "
+                f"{self.early_stopping.best_value:.4f}, "
+                f"ベストエポック: {self.early_stopping.best_epoch})"
+            )
+        else:
+            self.logger.info("訓練が完了しました")
         if val_loader:
             self.logger.info(f"最高精度: {self.best_accuracy:.2f}%")
 

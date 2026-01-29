@@ -62,6 +62,14 @@ gradient_tracking_config = {
     "aggregation_method": "median",  # 集約方法: "median", "mean", "max", "rms"
 }
 
+# Early Stopping設定
+early_stopping = {
+    "enabled": False,  # Early Stoppingを有効化
+    "patience": 30,  # 改善なしの許容エポック数
+    "min_delta": 3.0,  # この値以上の変化がないと改善と見なさない(0.0なら少しでも良くなれば改善扱い)
+    "monitor": "val_accuracy",  # 監視メトリクス ("val_accuracy" or "val_loss")
+}
+
 # 層別学習率設定
 enable_layer_wise_lr = True
 layer_wise_lr_config = {
