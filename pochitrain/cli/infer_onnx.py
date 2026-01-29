@@ -2,12 +2,13 @@
 """ONNXモデルを使用した推論CLI.
 
 使用例:
-    uv run infer-onnx model.onnx --data data/val
-    uv run infer-onnx model.onnx --data data/val -o results/
+    uv run infer-onnx work_dirs/20260118_001/models/model.onnx
+    uv run infer-onnx work_dirs/20260118_001/models/model.onnx --data other/val
 """
 
 import argparse
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import List
@@ -39,19 +40,21 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本（configはモデルパスから自動検出）
-  uv run infer-onnx model.onnx --data data/val
+  # 基本（config・データパスはモデルパスから自動検出）
+  uv run infer-onnx work_dirs/20260118_001/models/model.onnx
 
-  # 結果を保存（デフォルトはwork_dir/inference_results/）
-  uv run infer-onnx model.onnx --data data/val -o results/
+  # データパスを上書き
+  uv run infer-onnx work_dirs/20260118_001/models/model.onnx --data other/val
+
+  # 出力先を上書き
+  uv run infer-onnx work_dirs/20260118_001/models/model.onnx -o results/
         """,
     )
 
     parser.add_argument("model_path", help="ONNXモデルファイルパス")
     parser.add_argument(
         "--data",
-        required=True,
-        help="推論データディレクトリ",
+        help="推論データディレクトリ（省略時はconfigのval_data_rootを使用）",
     )
     parser.add_argument(
         "--output",
@@ -65,11 +68,19 @@ def main() -> None:
     model_path = Path(args.model_path)
     validate_model_path(model_path)
 
-    data_path = Path(args.data)
-    validate_data_path(data_path)
-
     # config自動検出・読み込み
     config = load_config_auto(model_path)
+
+    # データパスの決定（--data指定 or configのval_data_root）
+    if args.data:
+        data_path = Path(args.data)
+    elif "val_data_root" in config:
+        data_path = Path(config["val_data_root"])
+        logger.info(f"データパスをconfigから取得: {data_path}")
+    else:
+        logger.error("--data を指定するか、configにval_data_rootを設定してください")
+        sys.exit(1)
+    validate_data_path(data_path)
 
     # 出力ディレクトリの決定
     if args.output:

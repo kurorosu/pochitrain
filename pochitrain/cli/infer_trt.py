@@ -2,8 +2,8 @@
 """TensorRTエンジンを使用した推論CLI.
 
 使用例:
-    uv run infer-trt model.engine --data data/val
-    uv run infer-trt model.engine --data data/val -o results/
+    uv run infer-trt work_dirs/20260118_001/models/model.engine
+    uv run infer-trt work_dirs/20260118_001/models/model.engine --data other/val
 """
 
 import argparse
@@ -38,11 +38,14 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本（configはエンジンパスから自動検出、入力サイズはエンジンから取得）
-  uv run infer-trt model.engine --data data/val
+  # 基本（config・データパスはエンジンパスから自動検出）
+  uv run infer-trt work_dirs/20260118_001/models/model.engine
 
-  # 結果を保存（デフォルトはwork_dir/inference_results/）
-  uv run infer-trt model.engine --data data/val -o results/
+  # データパスを上書き
+  uv run infer-trt work_dirs/20260118_001/models/model.engine --data other/val
+
+  # 出力先を上書き
+  uv run infer-trt work_dirs/20260118_001/models/model.engine -o results/
 
 前提条件:
   - TensorRT SDKのインストールが必要
@@ -53,8 +56,7 @@ def main() -> None:
     parser.add_argument("engine_path", help="TensorRTエンジンファイルパス (.engine)")
     parser.add_argument(
         "--data",
-        required=True,
-        help="推論データディレクトリ",
+        help="推論データディレクトリ（省略時はconfigのval_data_rootを使用）",
     )
     parser.add_argument(
         "--output",
@@ -78,15 +80,23 @@ def main() -> None:
     engine_path = Path(args.engine_path)
     validate_model_path(engine_path)
 
-    data_path = Path(args.data)
-    validate_data_path(data_path)
-
     # TensorRT推論クラス作成（入力サイズ取得のため先に読み込む）
     logger.info("TensorRTエンジンを読み込み中...")
     inference = TensorRTInference(engine_path)
 
     # config自動検出・読み込み
     config = load_config_auto(engine_path)
+
+    # データパスの決定（--data指定 or configのval_data_root）
+    if args.data:
+        data_path = Path(args.data)
+    elif "val_data_root" in config:
+        data_path = Path(config["val_data_root"])
+        logger.info(f"データパスをconfigから取得: {data_path}")
+    else:
+        logger.error("--data を指定するか、configにval_data_rootを設定してください")
+        sys.exit(1)
+    validate_data_path(data_path)
 
     # 出力ディレクトリの決定
     if args.output:

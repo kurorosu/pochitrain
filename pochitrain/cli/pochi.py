@@ -293,11 +293,6 @@ def infer_command(args: argparse.Namespace) -> None:
     validate_model_path(model_path)
     logger.info(f"使用するモデル: {model_path}")
 
-    # データパス確認
-    data_path = Path(args.data)
-    validate_data_path(data_path)
-    logger.info(f"推論データ: {data_path}")
-
     # 設定ファイル読み込み（自動検出または指定）
     if args.config_path:
         config_path = Path(args.config_path)
@@ -309,6 +304,18 @@ def infer_command(args: argparse.Namespace) -> None:
             return
     else:
         config = load_config_auto(model_path)
+
+    # データパスの決定（--data指定 or configのval_data_root）
+    if args.data:
+        data_path = Path(args.data)
+    elif "val_data_root" in config:
+        data_path = Path(config["val_data_root"])
+        logger.info(f"データパスをconfigから取得: {data_path}")
+    else:
+        logger.error("--data を指定するか、configにval_data_rootを設定してください")
+        return
+    validate_data_path(data_path)
+    logger.info(f"推論データ: {data_path}")
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
@@ -620,10 +627,10 @@ def main() -> None:
 
     # 推論サブコマンド
     infer_parser = subparsers.add_parser("infer", help="モデル推論")
+    infer_parser.add_argument("model_path", help="モデルファイルパス")
     infer_parser.add_argument(
-        "--model-path", "-m", required=True, help="モデルファイルパス"
+        "--data", "-d", help="推論データパス（省略時はconfigのval_data_rootを使用）"
     )
-    infer_parser.add_argument("--data", "-d", required=True, help="推論データパス")
     infer_parser.add_argument(
         "--config-path",
         "-c",
