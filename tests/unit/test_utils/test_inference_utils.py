@@ -12,6 +12,7 @@ from pochitrain.utils.inference_utils import (
     compute_confusion_matrix,
     get_default_output_base_dir,
     log_inference_result,
+    save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
     validate_model_path,
@@ -466,6 +467,120 @@ class TestSaveConfusionMatrixImage:
     def test_returns_path(self, tmp_path):
         """戻り値がPath型."""
         result = save_confusion_matrix_image(
+            predicted_labels=[0],
+            true_labels=[0],
+            class_names=["a"],
+            output_dir=tmp_path,
+        )
+        assert isinstance(result, Path)
+
+
+class TestSaveClassificationReport:
+    """save_classification_report関数のテスト."""
+
+    def test_basic_report(self, tmp_path):
+        """基本的なレポート出力."""
+        csv_path = save_classification_report(
+            predicted_labels=[0, 1, 1, 0, 1],
+            true_labels=[0, 1, 0, 0, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+        )
+
+        assert csv_path.exists()
+        assert csv_path.name == "classification_report.csv"
+
+        with open(csv_path, encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+
+        # ヘッダー + クラス数(2) + macro avg + weighted avg = 5行
+        assert len(reader) == 5
+        assert reader[0] == ["class", "precision", "recall", "f1-score", "support"]
+        assert reader[1][0] == "cat"
+        assert reader[2][0] == "dog"
+        assert reader[3][0] == "macro avg"
+        assert reader[4][0] == "weighted avg"
+
+    def test_perfect_prediction(self, tmp_path):
+        """全問正解の場合, precision/recall/f1がすべて1.0."""
+        csv_path = save_classification_report(
+            predicted_labels=[0, 1, 2],
+            true_labels=[0, 1, 2],
+            class_names=["a", "b", "c"],
+            output_dir=tmp_path,
+        )
+
+        with open(csv_path, encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+
+        for row in reader[1:4]:  # 各クラス行
+            assert row[1] == "1.0000"  # precision
+            assert row[2] == "1.0000"  # recall
+            assert row[3] == "1.0000"  # f1-score
+
+    def test_all_wrong(self, tmp_path):
+        """全問不正解の場合, precision/recall/f1がすべて0."""
+        csv_path = save_classification_report(
+            predicted_labels=[1, 0],
+            true_labels=[0, 1],
+            class_names=["a", "b"],
+            output_dir=tmp_path,
+        )
+
+        with open(csv_path, encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+
+        for row in reader[1:3]:  # 各クラス行
+            assert row[1] == "0.0000"  # precision
+            assert row[2] == "0.0000"  # recall
+            assert row[3] == "0.0000"  # f1-score
+
+    def test_support_values(self, tmp_path):
+        """supportが正解ラベルのサンプル数と一致."""
+        csv_path = save_classification_report(
+            predicted_labels=[0, 0, 1, 1, 1],
+            true_labels=[0, 0, 0, 1, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+        )
+
+        with open(csv_path, encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+
+        assert reader[1][4] == "3"  # cat: 3サンプル
+        assert reader[2][4] == "2"  # dog: 2サンプル
+        assert reader[3][4] == "5"  # macro avg: total
+        assert reader[4][4] == "5"  # weighted avg: total
+
+    def test_custom_filename(self, tmp_path):
+        """カスタムファイル名を指定."""
+        csv_path = save_classification_report(
+            predicted_labels=[0],
+            true_labels=[0],
+            class_names=["a"],
+            output_dir=tmp_path,
+            filename="custom_report.csv",
+        )
+
+        assert csv_path.name == "custom_report.csv"
+        assert csv_path.exists()
+
+    def test_creates_output_dir(self, tmp_path):
+        """出力ディレクトリが存在しない場合に自動作成."""
+        output_dir = tmp_path / "nested" / "dir"
+
+        save_classification_report(
+            predicted_labels=[0],
+            true_labels=[0],
+            class_names=["a"],
+            output_dir=output_dir,
+        )
+
+        assert output_dir.exists()
+
+    def test_returns_path(self, tmp_path):
+        """戻り値がPath型."""
+        result = save_classification_report(
             predicted_labels=[0],
             true_labels=[0],
             class_names=["a"],
