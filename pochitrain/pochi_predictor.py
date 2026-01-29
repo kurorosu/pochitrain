@@ -313,81 +313,16 @@ class PochiPredictor(PochiTrainer):
         Returns:
             Path: 保存されたファイルのパス
         """
-        import matplotlib.pyplot as plt
-        import matplotlib_fontja  # noqa: F401
-        import numpy as np
-
-        # デフォルト設定
-        default_config = {
-            "title": "Confusion Matrix",
-            "xlabel": "Predicted Label",
-            "ylabel": "True Label",
-            "fontsize": 14,
-            "title_fontsize": 16,
-            "label_fontsize": 12,
-            "figsize": (8, 6),
-            "cmap": "Blues",
-        }
-
-        # 設定をマージ（cm_configが指定されていれば優先）
-        config = default_config.copy()
-        if cm_config:
-            config.update(cm_config)
-
-        # リストをPyTorchテンソルに変換
-        predicted = torch.tensor(predicted_labels, dtype=torch.long, device=self.device)
-        targets = torch.tensor(true_labels, dtype=torch.long, device=self.device)
-
-        # 継承した混同行列計算メソッドを使用
-        cm_tensor = self._compute_confusion_matrix_pytorch(
-            predicted, targets, len(class_names)
-        )
-        cm = cm_tensor.cpu().numpy()
-
-        # プロット作成（設定から図のサイズを取得）
-        fig, ax = plt.subplots(figsize=config["figsize"])
-
-        # ヒートマップを描画（設定からカラーマップを取得）
-        cmap_value: str = str(config["cmap"])
-        ax.imshow(cm, interpolation="nearest", cmap=cmap_value)
-
-        # ラベル設定
-        ax.set_xticks(np.arange(len(class_names)))
-        ax.set_yticks(np.arange(len(class_names)))
-        ax.set_xticklabels(class_names)
-        ax.set_yticklabels(class_names)
-
-        # ラベルとタイトル（設定から取得）
-        xlabel: str = str(config["xlabel"])
-        ylabel: str = str(config["ylabel"])
-        title: str = str(config["title"])
-        ax.set_xlabel(xlabel, fontsize=config["label_fontsize"])
-        ax.set_ylabel(ylabel, fontsize=config["label_fontsize"])
-        ax.set_title(title, fontsize=config["title_fontsize"])
-
-        # 各セルに数値を表示（設定からフォントサイズを取得）
-        for i in range(len(class_names)):
-            for j in range(len(class_names)):
-                ax.text(
-                    j,
-                    i,
-                    cm[i, j],
-                    ha="center",
-                    va="center",
-                    color="black",
-                    fontsize=config["fontsize"],
-                )
-
-        # レイアウト調整
-        plt.tight_layout()
+        from .utils.inference_utils import save_confusion_matrix_image
 
         # 推論ワークスペースを確保（遅延作成）
         inference_workspace = self._ensure_inference_workspace()
 
-        # ファイル保存
-        output_path = inference_workspace / filename
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-
-        self.logger.info(f"混同行列画像保存: {output_path}")
-        return output_path
+        return save_confusion_matrix_image(
+            predicted_labels=predicted_labels,
+            true_labels=true_labels,
+            class_names=class_names,
+            output_dir=inference_workspace,
+            filename=filename,
+            cm_config=cm_config,
+        )

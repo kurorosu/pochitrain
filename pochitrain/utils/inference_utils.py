@@ -9,9 +9,131 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from pochitrain.logging import LoggerManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
+
+
+def compute_confusion_matrix(
+    predicted_labels: List[int],
+    true_labels: List[int],
+    num_classes: int,
+) -> np.ndarray:
+    """NumPyベースの混同行列計算.
+
+    sklearn.metrics.confusion_matrixを使用せず,
+    基本的なNumPy操作のみで混同行列を計算します.
+
+    Args:
+        predicted_labels: 予測ラベルのリスト
+        true_labels: 正解ラベルのリスト
+        num_classes: クラス数
+
+    Returns:
+        混同行列 (shape: [num_classes, num_classes])
+        行が正解ラベル, 列が予測ラベルに対応.
+        confusion_matrix[i, j] = 正解がi, 予測がjの個数
+    """
+    cm = np.zeros((num_classes, num_classes), dtype=np.int64)
+    for t, p in zip(true_labels, predicted_labels):
+        cm[t, p] += 1
+    return cm
+
+
+def save_confusion_matrix_image(
+    predicted_labels: List[int],
+    true_labels: List[int],
+    class_names: List[str],
+    output_dir: Path,
+    filename: str = "confusion_matrix.png",
+    cm_config: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """混同行列の画像を保存.
+
+    Args:
+        predicted_labels: 予測ラベルのリスト
+        true_labels: 正解ラベルのリスト
+        class_names: クラス名のリスト
+        output_dir: 出力ディレクトリ
+        filename: 保存ファイル名
+        cm_config: 混同行列可視化設定
+
+    Returns:
+        保存されたファイルのパス
+    """
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import matplotlib_fontja  # noqa: F401
+
+    matplotlib.use("Agg")
+
+    # デフォルト設定
+    default_config: Dict[str, Any] = {
+        "title": "Confusion Matrix",
+        "xlabel": "Predicted Label",
+        "ylabel": "True Label",
+        "fontsize": 14,
+        "title_fontsize": 16,
+        "label_fontsize": 12,
+        "figsize": (8, 6),
+        "cmap": "Blues",
+    }
+
+    # 設定をマージ（cm_configが指定されていれば優先）
+    config = default_config.copy()
+    if cm_config:
+        config.update(cm_config)
+
+    # 混同行列を計算
+    cm = compute_confusion_matrix(predicted_labels, true_labels, len(class_names))
+
+    # プロット作成
+    fig, ax = plt.subplots(figsize=config["figsize"])
+
+    # ヒートマップを描画
+    cmap_value: str = str(config["cmap"])
+    ax.imshow(cm, interpolation="nearest", cmap=cmap_value)
+
+    # ラベル設定
+    ax.set_xticks(np.arange(len(class_names)))
+    ax.set_yticks(np.arange(len(class_names)))
+    ax.set_xticklabels(class_names)
+    ax.set_yticklabels(class_names)
+
+    # ラベルとタイトル
+    xlabel: str = str(config["xlabel"])
+    ylabel: str = str(config["ylabel"])
+    title: str = str(config["title"])
+    ax.set_xlabel(xlabel, fontsize=config["label_fontsize"])
+    ax.set_ylabel(ylabel, fontsize=config["label_fontsize"])
+    ax.set_title(title, fontsize=config["title_fontsize"])
+
+    # 各セルに数値を表示
+    for i in range(len(class_names)):
+        for j in range(len(class_names)):
+            ax.text(
+                j,
+                i,
+                cm[i, j],
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=config["fontsize"],
+            )
+
+    # レイアウト調整
+    plt.tight_layout()
+
+    # ファイル保存
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / filename
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    logger.info(f"混同行列画像保存: {output_path}")
+    return output_path
 
 
 def auto_detect_config_path(model_path: Path) -> Path:

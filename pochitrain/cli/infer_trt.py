@@ -21,6 +21,7 @@ from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
+    save_confusion_matrix_image,
     validate_data_path,
     validate_model_path,
     write_inference_csv,
@@ -217,6 +218,20 @@ def main() -> None:
         filename="tensorrt_inference_summary.txt",
         extra_info={"入力サイズ": input_size_str},
     )
+
+    # 混同行列画像を生成
+    cm_config = config.get("confusion_matrix_config", None)
+    try:
+        cm_path = save_confusion_matrix_image(
+            predicted_labels=all_predictions,
+            true_labels=all_true_labels,
+            class_names=class_names,
+            output_dir=output_dir,
+            cm_config=cm_config,
+        )
+        logger.info(f"混同行列画像を生成しました: {cm_path}")
+    except Exception as e:
+        logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
 
 if __name__ == "__main__":
