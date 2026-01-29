@@ -22,7 +22,12 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
-from pochitrain.utils import ConfigLoader
+from pochitrain.utils import (
+    ConfigLoader,
+    load_config_auto,
+    validate_data_path,
+    validate_model_path,
+)
 from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
@@ -276,34 +281,41 @@ def get_indexed_output_dir(base_dir: str) -> Path:
 
 def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
+    import time
+
+    import torch
+
     logger = setup_logging()
     logger.info("=== pochitrain 推論モード ===")
 
-    # 設定ファイル読み込み
-    config_path = Path(args.config_path)
-    try:
-        config = ConfigLoader.load_config(str(config_path))
-        logger.info(f"設定ファイルを読み込み: {config_path}")
-    except Exception as e:
-        logger.error(f"設定ファイル読み込みエラー: {e}")
-        logger.error(
-            f"設定ファイルが存在することを確認してください: {args.config_path}"
-        )
-        return
-
     # モデルパス確認
     model_path = Path(args.model_path)
-    if not model_path.exists():
-        logger.error(f"指定されたモデルファイルが見つかりません: {model_path}")
-        return
+    validate_model_path(model_path)
     logger.info(f"使用するモデル: {model_path}")
 
-    # データパス確認
-    data_root = args.data
-    if not Path(data_root).exists():
-        logger.error(f"データディレクトリが見つかりません: {data_root}")
+    # 設定ファイル読み込み（自動検出または指定）
+    if args.config_path:
+        config_path = Path(args.config_path)
+        try:
+            config = ConfigLoader.load_config(str(config_path))
+            logger.info(f"設定ファイルを読み込み: {config_path}")
+        except Exception as e:
+            logger.error(f"設定ファイル読み込みエラー: {e}")
+            return
+    else:
+        config = load_config_auto(model_path)
+
+    # データパスの決定（--data指定 or configのval_data_root）
+    if args.data:
+        data_path = Path(args.data)
+    elif "val_data_root" in config:
+        data_path = Path(config["val_data_root"])
+        logger.info(f"データパスをconfigから取得: {data_path}")
+    else:
+        logger.error("--data を指定するか、configにval_data_rootを設定してください")
         return
-    logger.info(f"推論データ: {data_root}")
+    validate_data_path(data_path)
+    logger.info(f"推論データ: {data_path}")
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
@@ -335,7 +347,9 @@ def infer_command(args: argparse.Namespace) -> None:
     # データローダー作成（訓練時と同じval_transformを使用）
     logger.info("データローダーを作成しています...")
     try:
-        val_dataset = PochiImageDataset(data_root, transform=config["val_transform"])
+        val_dataset = PochiImageDataset(
+            str(data_path), transform=config["val_transform"]
+        )
         val_loader = DataLoader(
             val_dataset,
             batch_size=config["batch_size"],
@@ -353,10 +367,25 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.error(f"データローダー作成エラー: {e}")
         return
 
-    # 推論実行
+    # 推論実行（時間計測付き）
     logger.info("推論を開始します...")
     try:
-        predictions, confidences = predictor.predict(val_loader)
+        use_gpu = config["device"] == "cuda" and torch.cuda.is_available()
+
+        if use_gpu:
+            # GPU時間計測: CUDA Eventを使用
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
+            predictions, confidences = predictor.predict(val_loader)
+            end_event.record()
+            torch.cuda.synchronize()
+            total_inference_time_ms = start_event.elapsed_time(end_event)
+        else:
+            # CPU時間計測
+            start_time = time.perf_counter()
+            predictions, confidences = predictor.predict(val_loader)
+            total_inference_time_ms = (time.perf_counter() - start_time) * 1000
 
         # 結果整理
         image_paths = val_dataset.get_file_paths()
@@ -390,11 +419,20 @@ def infer_command(args: argparse.Namespace) -> None:
 
         # 精度計算・表示
         accuracy_info = predictor.calculate_accuracy(predicted_labels, true_labels)
+        num_samples = accuracy_info["total_samples"]
+        avg_time_per_image = (
+            total_inference_time_ms / num_samples if num_samples > 0 else 0
+        )
+        throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
         logger.info("=== 推論結果 ===")
-        logger.info(f"処理画像数: {accuracy_info['total_samples']}枚")
+        logger.info(f"処理画像数: {num_samples}枚")
         logger.info(f"正解数: {accuracy_info['correct_predictions']}")
         logger.info(f"精度: {accuracy_info['accuracy_percentage']:.2f}%")
+        logger.info(
+            f"平均処理時間: {avg_time_per_image:.2f} ms/image（データ読み込み含む）"
+        )
+        logger.info(f"スループット: {throughput:.1f} images/sec")
         logger.info(f"詳細結果: {results_csv}")
         logger.info(f"サマリー: {summary_csv}")
 
@@ -589,15 +627,14 @@ def main() -> None:
 
     # 推論サブコマンド
     infer_parser = subparsers.add_parser("infer", help="モデル推論")
+    infer_parser.add_argument("model_path", help="モデルファイルパス")
     infer_parser.add_argument(
-        "--model-path", "-m", required=True, help="モデルファイルパス"
+        "--data", "-d", help="推論データパス（省略時はconfigのval_data_rootを使用）"
     )
-    infer_parser.add_argument("--data", "-d", required=True, help="推論データパス")
     infer_parser.add_argument(
         "--config-path",
         "-c",
-        required=True,
-        help="設定ファイルパス（work_dir/config.py）",
+        help="設定ファイルパス（省略時はモデルパスから自動検出）",
     )
     infer_parser.add_argument(
         "--output",
