@@ -273,6 +273,20 @@ class PochiPredictor(PochiTrainer):
         except Exception as e:
             self.logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
+        # クラス別精度レポートを自動生成
+        try:
+            from .utils.inference_utils import save_classification_report
+
+            report_path = save_classification_report(
+                predicted_labels=predicted_labels,
+                true_labels=true_labels,
+                class_names=class_names,
+                output_dir=inference_workspace,
+            )
+            self.logger.info(f"クラス別精度レポートも生成されました: {report_path}")
+        except Exception as e:
+            self.logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
+
         return results_csv, summary_csv
 
     def get_inference_workspace_info(self) -> Dict[str, Any]:

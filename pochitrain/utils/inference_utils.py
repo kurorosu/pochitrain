@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from sklearn.metrics import precision_recall_fscore_support
 
 from pochitrain.logging import LoggerManager
 
@@ -336,6 +337,87 @@ def write_inference_summary(
 
     logger.info(f"サマリーを保存: {summary_path}")
     return summary_path
+
+
+def save_classification_report(
+    predicted_labels: List[int],
+    true_labels: List[int],
+    class_names: List[str],
+    output_dir: Path,
+    filename: str = "classification_report.csv",
+) -> Path:
+    """クラス別精度レポートをCSVに保存.
+
+    混同行列からPrecision, Recall, F1-scoreをクラスごとに計算し,
+    macro avg, weighted avgとともにCSV出力する.
+
+    Args:
+        predicted_labels: 予測ラベルのリスト
+        true_labels: 正解ラベルのリスト
+        class_names: クラス名のリスト
+        output_dir: 出力ディレクトリ
+        filename: 出力ファイル名
+
+    Returns:
+        保存されたCSVファイルのパス
+    """
+    num_classes = len(class_names)
+    labels = list(range(num_classes))
+
+    # クラス別メトリクス
+    precision, recall, f1, support = precision_recall_fscore_support(
+        true_labels, predicted_labels, labels=labels, zero_division=0
+    )
+
+    precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
+        true_labels, predicted_labels, average="macro", zero_division=0
+    )
+    precision_weighted, recall_weighted, f1_weighted, _ = (
+        precision_recall_fscore_support(
+            true_labels, predicted_labels, average="weighted", zero_division=0
+        )
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = output_dir / filename
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["class", "precision", "recall", "f1-score", "support"])
+
+        for i, name in enumerate(class_names):
+            writer.writerow(
+                [
+                    name,
+                    f"{precision[i]:.4f}",
+                    f"{recall[i]:.4f}",
+                    f"{f1[i]:.4f}",
+                    int(support[i]),
+                ]
+            )
+
+        total_support = int(sum(support))
+        writer.writerow(
+            [
+                "macro avg",
+                f"{precision_macro:.4f}",
+                f"{recall_macro:.4f}",
+                f"{f1_macro:.4f}",
+                total_support,
+            ]
+        )
+        writer.writerow(
+            [
+                "weighted avg",
+                f"{precision_weighted:.4f}",
+                f"{recall_weighted:.4f}",
+                f"{f1_weighted:.4f}",
+                total_support,
+            ]
+        )
+
+    logger.info(f"クラス別精度レポート保存: {csv_path}")
+    return csv_path
 
 
 def log_inference_result(
