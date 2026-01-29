@@ -4,12 +4,15 @@ import csv
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from pochitrain.utils.inference_utils import (
     auto_detect_config_path,
+    compute_confusion_matrix,
     get_default_output_base_dir,
     log_inference_result,
+    save_confusion_matrix_image,
     validate_data_path,
     validate_model_path,
     write_inference_csv,
@@ -346,3 +349,126 @@ class TestLogInferenceResult:
             total_samples=10,
             warmup_samples=0,
         )
+
+
+class TestComputeConfusionMatrix:
+    """compute_confusion_matrix関数のテスト."""
+
+    def test_basic_case(self):
+        """基本的なケース."""
+        predicted = [0, 1, 2, 0, 1]
+        true_labels = [0, 1, 2, 0, 2]
+        cm = compute_confusion_matrix(predicted, true_labels, num_classes=3)
+
+        assert cm.shape == (3, 3)
+        # 正解: (0,0)=2, (1,1)=1, (2,2)=1, 誤り: (2,1)=1
+        assert cm[0, 0] == 2
+        assert cm[1, 1] == 1
+        assert cm[2, 2] == 1
+        assert cm[2, 1] == 1
+
+    def test_perfect_prediction(self):
+        """完全正解の場合, 対角成分のみに値がある."""
+        predicted = [0, 1, 2, 0, 1, 2]
+        true_labels = [0, 1, 2, 0, 1, 2]
+        cm = compute_confusion_matrix(predicted, true_labels, num_classes=3)
+
+        # 対角成分のみ非ゼロ
+        for i in range(3):
+            for j in range(3):
+                if i == j:
+                    assert cm[i, j] > 0
+                else:
+                    assert cm[i, j] == 0
+
+    def test_all_wrong(self):
+        """全て不正解の場合, 対角成分が0."""
+        predicted = [1, 2, 0]
+        true_labels = [0, 1, 2]
+        cm = compute_confusion_matrix(predicted, true_labels, num_classes=3)
+
+        for i in range(3):
+            assert cm[i, i] == 0
+
+    def test_empty_input(self):
+        """空入力の場合, 全てゼロの行列."""
+        cm = compute_confusion_matrix([], [], num_classes=3)
+        assert cm.shape == (3, 3)
+        assert np.all(cm == 0)
+
+    def test_returns_numpy_array(self):
+        """戻り値がnumpy配列."""
+        cm = compute_confusion_matrix([0], [0], num_classes=2)
+        assert isinstance(cm, np.ndarray)
+        assert cm.dtype == np.int64
+
+
+class TestSaveConfusionMatrixImage:
+    """save_confusion_matrix_image関数のテスト."""
+
+    def test_creates_image_file(self, tmp_path):
+        """画像ファイルが生成される."""
+        output_path = save_confusion_matrix_image(
+            predicted_labels=[0, 1, 0],
+            true_labels=[0, 1, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+        )
+
+        assert output_path.exists()
+        assert output_path.name == "confusion_matrix.png"
+        assert output_path.stat().st_size > 0
+
+    def test_custom_filename(self, tmp_path):
+        """カスタムファイル名で画像を保存."""
+        output_path = save_confusion_matrix_image(
+            predicted_labels=[0, 1],
+            true_labels=[0, 1],
+            class_names=["a", "b"],
+            output_dir=tmp_path,
+            filename="custom_cm.png",
+        )
+
+        assert output_path.name == "custom_cm.png"
+
+    def test_creates_output_dir(self, tmp_path):
+        """出力ディレクトリが自動作成される."""
+        output_dir = tmp_path / "nested" / "output"
+        assert not output_dir.exists()
+
+        save_confusion_matrix_image(
+            predicted_labels=[0],
+            true_labels=[0],
+            class_names=["a"],
+            output_dir=output_dir,
+        )
+
+        assert output_dir.exists()
+
+    def test_custom_config(self, tmp_path):
+        """カスタム設定で画像を保存."""
+        cm_config = {
+            "title": "Test Matrix",
+            "cmap": "Reds",
+            "figsize": (10, 8),
+        }
+
+        output_path = save_confusion_matrix_image(
+            predicted_labels=[0, 1, 0],
+            true_labels=[0, 1, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+            cm_config=cm_config,
+        )
+
+        assert output_path.exists()
+
+    def test_returns_path(self, tmp_path):
+        """戻り値がPath型."""
+        result = save_confusion_matrix_image(
+            predicted_labels=[0],
+            true_labels=[0],
+            class_names=["a"],
+            output_dir=tmp_path,
+        )
+        assert isinstance(result, Path)
