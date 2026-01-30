@@ -5,7 +5,6 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 """
 
 import logging
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -646,76 +645,6 @@ class PochiTrainer:
                         f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
                         f"(エポック {summary['best_val_accuracy_epoch']})"
                     )
-
-    def predict(
-        self,
-        data_loader: DataLoader[Any],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        予測の実行.
-
-        Args:
-            data_loader (DataLoader): 予測データローダー
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
-        """
-        self.model.eval()
-        predictions: List[Any] = []
-        confidences: List[Any] = []
-        total_samples = 0
-        warmup_samples = 0
-        inference_time_ms = 0.0
-        is_first_batch = True
-
-        use_cuda = self.device.type == "cuda"
-
-        with torch.no_grad():
-            for data, _ in data_loader:
-                data = data.to(self.device)
-                batch_size = data.size(0)
-
-                if is_first_batch:
-                    # ウォームアップ: 最初のバッチは計測対象外
-                    # CUDAカーネルのコンパイルやcuDNNアルゴリズム選択を事前に行う
-                    output = self.model(data)
-                    if use_cuda:
-                        torch.cuda.synchronize()
-                    warmup_samples = batch_size
-                    is_first_batch = False
-                else:
-                    # 推論時間計測（モデル推論部分のみ）
-                    if use_cuda:
-                        start_event = torch.cuda.Event(enable_timing=True)
-                        end_event = torch.cuda.Event(enable_timing=True)
-                        start_event.record()
-                        output = self.model(data)
-                        end_event.record()
-                        torch.cuda.synchronize()
-                        inference_time_ms += start_event.elapsed_time(end_event)
-                    else:
-                        start_time = time.perf_counter()
-                        output = self.model(data)
-                        inference_time_ms += (time.perf_counter() - start_time) * 1000
-
-                    total_samples += batch_size
-
-                # 後処理（計測対象外）
-                probabilities = torch.softmax(output, dim=1)
-                confidence, predicted = probabilities.max(1)
-
-                predictions.extend(predicted.cpu().numpy())
-                confidences.extend(confidence.cpu().numpy())
-
-        # 1枚あたりの平均推論時間を表示（ウォームアップ分を除く）
-        if total_samples > 0:
-            avg_time_per_image = inference_time_ms / total_samples
-            self.logger.info(
-                f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-                f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
-            )
-
-        return torch.tensor(predictions), torch.tensor(confidences)
 
     def get_workspace_info(self) -> dict:
         """

@@ -1,25 +1,29 @@
 """
 pochitrain.pochi_predictor: 推論機能のメインモジュール.
 
-学習済みモデルを読み込んで推論を実行する機能を提供します。
+学習済みモデルを読み込んで推論を実行する機能を提供します.
 """
 
+import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch.utils.data import DataLoader
 
+from .logging import LoggerManager
+from .models.pochi_models import create_model
 from .pochi_dataset import PochiImageDataset, get_basic_transforms
-from .pochi_trainer import PochiTrainer
 from .utils.directory_manager import InferenceWorkspaceManager
 
 
-class PochiPredictor(PochiTrainer):
+class PochiPredictor:
     """
-    推論専用のPochiトレーナー拡張クラス.
+    推論専用クラス.
 
-    PochiTrainerを継承し、推論に特化した機能を追加します。
+    学習済みモデルを読み込み, 推論に特化した機能を提供します.
+    PochiTrainer とは独立したクラスで, 必要な機能のみを保持します.
 
     Args:
         model_name (str): モデル名 ('resnet18', 'resnet34', 'resnet50')
@@ -38,20 +42,30 @@ class PochiPredictor(PochiTrainer):
         work_dir: str = "inference_results",
     ):
         """PochiPredictorを初期化."""
-        # 推論専用ワークスペースマネージャーを作成（遅延作成）
+        # モデル設定の保存
+        self.model_name = model_name
+        self.num_classes = num_classes
+
+        # デバイスの設定
+        self.device = torch.device(device)
+
+        # ロガーの設定
+        logger_manager = LoggerManager()
+        self.logger: logging.Logger = logger_manager.get_logger("pochitrain")
+
+        # モデルの作成（推論用のため事前学習済み重みは不要）
+        self.model = create_model(model_name, num_classes, pretrained=False)
+        self.model.to(self.device)
+
+        # 推論専用ワークスペースマネージャー（遅延作成）
         self.inference_workspace_manager = InferenceWorkspaceManager(work_dir)
-        self.inference_workspace: Optional[Path] = None  # 遅延作成のためNoneで初期化
+        self.inference_workspace: Optional[Path] = None
 
-        # 親クラスを初期化（推論モードではワークスペース作成をスキップ）
-        super().__init__(
-            model_name=model_name,
-            num_classes=num_classes,
-            device=device,
-            pretrained=False,
-            work_dir=work_dir,
-            create_workspace=False,  # 推論時はワークスペース作成をスキップ
-        )
+        # 訓練メタ情報（チェックポイントから復元される）
+        self.best_accuracy = 0.0
+        self.epoch = 0
 
+        # 学習済みモデルの読み込み
         self.model_path = Path(model_path)
         self._load_trained_model()
 
@@ -84,12 +98,82 @@ class PochiPredictor(PochiTrainer):
         except Exception as e:
             raise RuntimeError(f"モデルの読み込みに失敗しました: {e}")
 
+    def predict(
+        self,
+        data_loader: DataLoader[Any],
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        予測の実行.
+
+        Args:
+            data_loader (DataLoader): 予測データローダー
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
+        """
+        self.model.eval()
+        predictions: List[Any] = []
+        confidences: List[Any] = []
+        total_samples = 0
+        warmup_samples = 0
+        inference_time_ms = 0.0
+        is_first_batch = True
+
+        use_cuda = self.device.type == "cuda"
+
+        with torch.no_grad():
+            for data, _ in data_loader:
+                data = data.to(self.device)
+                batch_size = data.size(0)
+
+                if is_first_batch:
+                    # ウォームアップ: 最初のバッチは計測対象外
+                    # CUDAカーネルのコンパイルやcuDNNアルゴリズム選択を事前に行う
+                    output = self.model(data)
+                    if use_cuda:
+                        torch.cuda.synchronize()
+                    warmup_samples = batch_size
+                    is_first_batch = False
+                else:
+                    # 推論時間計測（モデル推論部分のみ）
+                    if use_cuda:
+                        start_event = torch.cuda.Event(enable_timing=True)
+                        end_event = torch.cuda.Event(enable_timing=True)
+                        start_event.record()
+                        output = self.model(data)
+                        end_event.record()
+                        torch.cuda.synchronize()
+                        inference_time_ms += start_event.elapsed_time(end_event)
+                    else:
+                        start_time = time.perf_counter()
+                        output = self.model(data)
+                        inference_time_ms += (time.perf_counter() - start_time) * 1000
+
+                    total_samples += batch_size
+
+                # 後処理（計測対象外）
+                probabilities = torch.softmax(output, dim=1)
+                confidence, predicted = probabilities.max(1)
+
+                predictions.extend(predicted.cpu().numpy())
+                confidences.extend(confidence.cpu().numpy())
+
+        # 1枚あたりの平均推論時間を表示（ウォームアップ分を除く）
+        if total_samples > 0:
+            avg_time_per_image = inference_time_ms / total_samples
+            self.logger.info(
+                f"平均推論時間: {avg_time_per_image:.2f} ms/image "
+                f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
+            )
+
+        return torch.tensor(predictions), torch.tensor(confidences)
+
     def _ensure_inference_workspace(self) -> Path:
         """
         必要時にワークスペースを作成.
 
-        遅延作成パターンにより、実際にワークスペースが必要になったタイミングで
-        InferenceWorkspaceManagerを使用してワークスペースを作成します。
+        遅延作成パターンにより, 実際にワークスペースが必要になったタイミングで
+        InferenceWorkspaceManagerを使用してワークスペースを作成します.
 
         Returns:
             Path: 作成されたワークスペースのパス
@@ -109,7 +193,7 @@ class PochiPredictor(PochiTrainer):
         image_size: int = 224,
     ) -> Tuple[List[str], List[int], List[int], List[float], List[str]]:
         """
-        バリデーションデータに対して推論を実行し、詳細な結果を返す.
+        バリデーションデータに対して推論を実行し, 詳細な結果を返す.
 
         Args:
             val_data_root (str): バリデーションデータのルートディレクトリ
@@ -194,8 +278,8 @@ class PochiPredictor(PochiTrainer):
             "num_classes": self.num_classes,
             "device": str(self.device),
             "model_path": str(self.model_path),
-            "best_accuracy": getattr(self, "best_accuracy", None),
-            "epoch": getattr(self, "epoch", None),
+            "best_accuracy": self.best_accuracy,
+            "epoch": self.epoch,
         }
 
     def export_results_to_workspace(
@@ -220,6 +304,7 @@ class PochiPredictor(PochiTrainer):
             class_names (List[str]): クラス名のリスト
             results_filename (str): 詳細結果CSVファイル名
             summary_filename (str): サマリーCSVファイル名
+            cm_config (Optional[Dict[str, Any]]): 混同行列可視化設定
 
         Returns:
             Tuple[Path, Path]: (詳細結果CSVパス, サマリーCSVパス)

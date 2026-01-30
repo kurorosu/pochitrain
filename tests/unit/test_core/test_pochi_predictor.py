@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 
 from pochitrain.models.pochi_models import PochiModel
 from pochitrain.pochi_predictor import PochiPredictor
+from pochitrain.pochi_trainer import PochiTrainer
 
 
 def _create_test_checkpoint(
@@ -129,6 +130,18 @@ class TestPochiPredictorInit:
                 model_path=str(tmp_path / "nonexistent.pth"),
                 work_dir=str(tmp_path / "inference_results"),
             )
+
+    def test_not_instance_of_trainer(self, tmp_path):
+        """PochiPredictorはPochiTrainerのインスタンスではない."""
+        checkpoint_path = _create_test_checkpoint(tmp_path)
+        predictor = PochiPredictor(
+            model_name="resnet18",
+            num_classes=3,
+            device="cpu",
+            model_path=str(checkpoint_path),
+            work_dir=str(tmp_path / "inference_results"),
+        )
+        assert not isinstance(predictor, PochiTrainer)
 
     def test_inference_workspace_not_created_on_init(self, tmp_path):
         """初期化時に推論ワークスペースが作成されない（遅延作成）."""
