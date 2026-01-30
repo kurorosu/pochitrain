@@ -97,7 +97,7 @@ class OnnxExporter:
 
         torch.onnx.export(
             self.model,
-            dummy_input,
+            (dummy_input,),
             str(output_path),
             export_params=True,
             opset_version=opset_version,

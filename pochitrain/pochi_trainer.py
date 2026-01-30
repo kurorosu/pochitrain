@@ -5,6 +5,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,6 +14,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .training.checkpoint_store import CheckpointStore
 from .training.early_stopping import EarlyStopping
@@ -120,8 +122,6 @@ class PochiTrainer:
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
-        from pochitrain.logging import LoggerManager
-
         logger_manager = LoggerManager()
         return logger_manager.get_logger("pochitrain")
 
@@ -660,8 +660,6 @@ class PochiTrainer:
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
         """
-        import time
-
         self.model.eval()
         predictions: List[Any] = []
         confidences: List[Any] = []

@@ -11,7 +11,7 @@ import signal
 import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sized, cast
 
 from torch.utils.data import DataLoader
 
@@ -509,8 +509,8 @@ def optimize_command(args: argparse.Namespace) -> None:
         config["num_classes"] = len(classes)
         logger.info(f"クラス数: {len(classes)}")
         logger.info(f"クラス名: {classes}")
-        logger.info(f"訓練サンプル数: {len(train_loader.dataset)}")
-        logger.info(f"検証サンプル数: {len(val_loader.dataset)}")
+        logger.info(f"訓練サンプル数: {len(cast(Sized, train_loader.dataset))}")
+        logger.info(f"検証サンプル数: {len(cast(Sized, val_loader.dataset))}")
     except Exception as e:
         logger.error(f"データローダーの作成に失敗しました: {e}")
         return

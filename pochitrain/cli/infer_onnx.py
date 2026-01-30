@@ -117,6 +117,7 @@ def main() -> None:
     # ウォームアップ（最初の1バッチで10回実行）
     logger.info("ウォームアップ中...")
     warmup_image, _ = dataset[0]
+    assert isinstance(warmup_image, torch.Tensor)
     warmup_np = warmup_image.numpy()[np.newaxis, ...].astype(np.float32)
     for _ in range(10):
         inference.run(warmup_np)
@@ -145,6 +146,7 @@ def main() -> None:
         batch_labels = []
         for i in range(start_idx, end_idx):
             image, label = dataset[i]
+            assert isinstance(image, torch.Tensor)
             batch_images.append(image.numpy())
             batch_labels.append(label)
 
