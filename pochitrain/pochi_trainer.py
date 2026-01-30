@@ -532,7 +532,7 @@ class PochiTrainer:
         if self.early_stopping_config is not None:
             es_config = self.early_stopping_config
             if es_config.get("enabled", False):
-                from pochitrain.early_stopping import EarlyStopping
+                from pochitrain.training.early_stopping import EarlyStopping
 
                 self.early_stopping = EarlyStopping(
                     patience=es_config.get("patience", 10),
