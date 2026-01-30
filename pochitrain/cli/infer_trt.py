@@ -138,6 +138,7 @@ def main() -> None:
     # ウォームアップ（最初の1枚で10回実行）
     logger.info("ウォームアップ中...")
     image, _ = dataset[0]
+    assert isinstance(image, torch.Tensor)
     image_np = image.numpy()[np.newaxis, ...].astype(np.float32)
     for _ in range(10):
         inference.run(image_np)
@@ -157,6 +158,7 @@ def main() -> None:
 
     for i in range(len(dataset)):
         image, label = dataset[i]
+        assert isinstance(image, torch.Tensor)
         image_np = image.numpy()[np.newaxis, ...].astype(np.float32)
 
         if i == 0:

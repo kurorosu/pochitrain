@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from pochitrain.early_stopping import EarlyStopping
+from pochitrain.training.early_stopping import EarlyStopping
 
 
 class TestEarlyStoppingInit:

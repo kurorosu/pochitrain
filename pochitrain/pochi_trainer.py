@@ -5,6 +5,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 """
 
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,7 +14,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from .logging import LoggerManager
 from .models.pochi_models import create_model
+from .training.checkpoint_store import CheckpointStore
+from .training.early_stopping import EarlyStopping
+from .training.metrics_tracker import MetricsTracker
 from .utils.directory_manager import PochiWorkspaceManager
 
 
@@ -78,6 +83,9 @@ class PochiTrainer:
         self.logger.info(f"ワークスペース: {self.current_workspace}")
         self.logger.info(f"モデル保存先: {self.work_dir}")
 
+        # チェックポイントストアの初期化
+        self.checkpoint_store = CheckpointStore(self.work_dir, self.logger)
+
         # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
         self.model.to(self.device)
@@ -101,12 +109,8 @@ class PochiTrainer:
         self.scheduler: Optional[optim.lr_scheduler.LRScheduler] = None
         self.criterion: Optional[nn.Module] = None
 
-        # メトリクスエクスポーター（訓練時のみ初期化）
-        self.metrics_exporter: Optional[Any] = None  # TrainingMetricsExporter
+        # メトリクス・勾配の設定（CLIから設定される）
         self.enable_metrics_export = True  # デフォルトで有効
-
-        # 勾配トレーサー（訓練時のみ初期化）
-        self.gradient_tracer: Optional[Any] = None  # GradientTracer
         self.enable_gradient_tracking = False  # デフォルトでOFF（計算コスト考慮）
         self.gradient_tracking_config: Dict[str, Any] = {
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
@@ -118,8 +122,6 @@ class PochiTrainer:
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
-        from pochitrain.logging import LoggerManager
-
         logger_manager = LoggerManager()
         return logger_manager.get_logger("pochitrain")
 
@@ -433,21 +435,14 @@ class PochiTrainer:
         self, filename: str = "checkpoint.pth", is_best: bool = False
     ) -> None:
         """チェックポイントの保存."""
-        checkpoint = {
-            "epoch": self.epoch,
-            "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": (
-                self.optimizer.state_dict() if self.optimizer is not None else None
-            ),
-            "best_accuracy": self.best_accuracy,
-        }
-
-        if self.scheduler is not None:
-            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-
-        # チェックポイントの保存
-        checkpoint_path = self.work_dir / filename
-        torch.save(checkpoint, checkpoint_path)
+        self.checkpoint_store.save_checkpoint(
+            filename=filename,
+            epoch=self.epoch,
+            model=self.model,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            best_accuracy=self.best_accuracy,
+        )
 
     def save_best_model(self, epoch: int) -> None:
         """
@@ -456,46 +451,35 @@ class PochiTrainer:
         Args:
             epoch (int): 現在のエポック数
         """
-        # 既存のベストモデルファイルを削除
-        for existing_file in self.work_dir.glob("best_epoch*.pth"):
-            existing_file.unlink()
-            self.logger.info(f"既存のベストモデルを削除: {existing_file}")
-
-        # 新しいベストモデルを保存
-        best_filename = f"best_epoch{epoch}.pth"
-        self.save_checkpoint(best_filename)
-        self.logger.info(f"ベストモデルを保存: {self.work_dir / best_filename}")
+        self.checkpoint_store.save_best_model(
+            epoch=epoch,
+            model=self.model,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            best_accuracy=self.best_accuracy,
+        )
 
     def save_last_model(self) -> None:
         """ラストモデルの保存（上書き）."""
-        last_filename = "last_model.pth"
-        self.save_checkpoint(last_filename)
+        self.checkpoint_store.save_last_model(
+            epoch=self.epoch,
+            model=self.model,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            best_accuracy=self.best_accuracy,
+        )
 
     def load_checkpoint(self, filename: str = "checkpoint.pth") -> None:
         """チェックポイントの読み込み."""
-        checkpoint_path = self.work_dir / filename
-
-        if not checkpoint_path.exists():
-            raise FileNotFoundError(
-                f"チェックポイントが見つかりません: {checkpoint_path}"
-            )
-
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
-
-        self.epoch = checkpoint["epoch"]
-        self.best_accuracy = checkpoint["best_accuracy"]
-
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        if (
-            self.optimizer is not None
-            and checkpoint["optimizer_state_dict"] is not None
-        ):
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        self.logger.info(f"チェックポイントを読み込み: {checkpoint_path}")
+        result = self.checkpoint_store.load_checkpoint(
+            filename=filename,
+            model=self.model,
+            device=self.device,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+        )
+        self.epoch = result["epoch"]
+        self.best_accuracy = result["best_accuracy"]
 
     def train(
         self,
@@ -515,25 +499,23 @@ class PochiTrainer:
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
-        # メトリクスエクスポーターの初期化
-        if self.enable_metrics_export and self.current_workspace is not None:
-            from pochitrain.visualization import TrainingMetricsExporter
-
-            visualization_dir = self.workspace_manager.get_visualization_dir()
-            self.metrics_exporter = TrainingMetricsExporter(
-                output_dir=visualization_dir,
-                enable_visualization=True,
+        # MetricsTrackerの初期化（ワークスペースがある場合のみ）
+        tracker = None
+        if self.current_workspace is not None:
+            tracker = MetricsTracker(
                 logger=self.logger,
+                visualization_dir=self.workspace_manager.get_visualization_dir(),
+                enable_metrics_export=self.enable_metrics_export,
+                enable_gradient_tracking=self.enable_gradient_tracking,
+                gradient_tracking_config=self.gradient_tracking_config,
                 layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
-            self.logger.info("メトリクス記録機能を有効化しました")
+            tracker.initialize()
 
         # Early Stoppingの初期化
         if self.early_stopping_config is not None:
             es_config = self.early_stopping_config
             if es_config.get("enabled", False):
-                from pochitrain.early_stopping import EarlyStopping
-
                 self.early_stopping = EarlyStopping(
                     patience=es_config.get("patience", 10),
                     min_delta=es_config.get("min_delta", 0.0),
@@ -546,30 +528,6 @@ class PochiTrainer:
                     f"min_delta={self.early_stopping.min_delta}, "
                     f"monitor={self.early_stopping.monitor})"
                 )
-
-        # 勾配トレーサーの初期化
-        if self.enable_gradient_tracking and self.current_workspace is not None:
-            from pochitrain.visualization import GradientTracer
-
-            # 設定を取得
-            exclude_patterns = self.gradient_tracking_config.get(
-                "exclude_patterns", ["fc\\.", "\\.bias"]
-            )
-            group_by_block = self.gradient_tracking_config.get("group_by_block", True)
-            aggregation_method = self.gradient_tracking_config.get(
-                "aggregation_method", "median"
-            )
-
-            self.gradient_tracer = GradientTracer(
-                logger=self.logger,
-                exclude_patterns=exclude_patterns,
-                group_by_block=group_by_block,
-                aggregation_method=aggregation_method,
-            )
-            self.logger.info(
-                f"勾配トレース機能を有効化しました "
-                f"(集約: {aggregation_method}, ブロック化: {group_by_block})"
-            )
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
@@ -626,34 +584,23 @@ class PochiTrainer:
             # ラストモデルの保存（毎エポック上書き）
             self.save_last_model()
 
-            # メトリクスの記録
-            if self.metrics_exporter is not None:
-                # 現在の学習率を取得（層別学習率対応）
-                current_lr = self._get_base_learning_rate()
-
-                # 層別学習率が有効な場合、各層の学習率も記録
+            # メトリクスと勾配の記録
+            if tracker is not None:
                 layer_wise_rates = {}
                 if self.is_layer_wise_lr_enabled():
                     layer_rates = self.get_layer_wise_learning_rates()
                     for layer_name, lr in layer_rates.items():
                         layer_wise_rates[f"lr_{layer_name}"] = lr
 
-                self.metrics_exporter.record_epoch(
+                tracker.record_epoch(
                     epoch=epoch,
-                    learning_rate=current_lr,
-                    train_loss=train_metrics["loss"],
-                    train_accuracy=train_metrics["accuracy"],
-                    val_loss=val_metrics.get("val_loss"),
-                    val_accuracy=val_metrics.get("val_accuracy"),
+                    train_metrics=train_metrics,
+                    val_metrics=val_metrics,
+                    model=self.model,
+                    learning_rate=self._get_base_learning_rate(),
                     layer_wise_lr_enabled=self.is_layer_wise_lr_enabled(),
-                    **layer_wise_rates,
+                    layer_wise_rates=layer_wise_rates,
                 )
-
-            # 勾配ノルムの記録
-            if self.gradient_tracer is not None:
-                record_freq = self.gradient_tracking_config.get("record_frequency", 1)
-                if epoch % record_freq == 0:
-                    self.gradient_tracer.record_gradients(self.model, epoch)
 
             # 停止フラグのチェック（エポック完了後）
             if stop_flag_callback and stop_flag_callback():
@@ -676,9 +623,9 @@ class PochiTrainer:
         if val_loader:
             self.logger.info(f"最高精度: {self.best_accuracy:.2f}%")
 
-        # 訓練完了後にメトリクスをエクスポート
-        if self.metrics_exporter is not None:
-            csv_path, graph_paths = self.metrics_exporter.export_all()
+        # 訓練完了後のエクスポート処理
+        if tracker is not None:
+            csv_path, graph_paths = tracker.finalize()
             if csv_path:
                 self.logger.info(f"メトリクスCSVを出力: {csv_path}")
             if graph_paths:
@@ -686,7 +633,7 @@ class PochiTrainer:
                     self.logger.info(f"メトリクスグラフを出力: {graph_path}")
 
             # サマリー情報の表示
-            summary = self.metrics_exporter.get_summary()
+            summary = tracker.get_summary()
             if summary:
                 self.logger.info("=== 訓練サマリー ===")
                 self.logger.info(f"総エポック数: {summary['total_epochs']}")
@@ -699,15 +646,6 @@ class PochiTrainer:
                         f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
                         f"(エポック {summary['best_val_accuracy_epoch']})"
                     )
-
-        # 勾配トレースをCSVに保存
-        if self.gradient_tracer is not None:
-            from pochitrain.utils.timestamp_utils import get_current_timestamp
-
-            visualization_dir = self.workspace_manager.get_visualization_dir()
-            timestamp = get_current_timestamp()
-            gradient_csv_path = visualization_dir / f"gradient_trace_{timestamp}.csv"
-            self.gradient_tracer.save_csv(gradient_csv_path)
 
     def predict(
         self,
@@ -722,8 +660,6 @@ class PochiTrainer:
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
         """
-        import time
-
         self.model.eval()
         predictions: List[Any] = []
         confidences: List[Any] = []
