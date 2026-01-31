@@ -56,115 +56,43 @@ class EarlyStoppingValidator(BaseValidator):
             return True
 
         # patience チェック
-        if not self._validate_patience(es_config, logger):
+        patience = es_config.get("patience", 10)
+        if not self._validate_required_type(
+            patience, "early_stopping.patience", int, logger, exclude_bool=True
+        ):
+            return False
+        if not self._validate_positive(patience, "early_stopping.patience", logger):
             return False
 
         # min_delta チェック
-        if not self._validate_min_delta(es_config, logger):
-            return False
-
-        # monitor チェック
-        if not self._validate_monitor(es_config, logger):
-            return False
-
-        logger.info(
-            f"Early Stopping: 有効 "
-            f"(patience={es_config.get('patience', 10)}, "
-            f"min_delta={es_config.get('min_delta', 0.0)}, "
-            f"monitor={es_config.get('monitor', 'val_accuracy')})"
-        )
-
-        return True
-
-    def _validate_patience(
-        self, es_config: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """
-        patienceパラメータのバリデーション.
-
-        Args:
-            es_config (Dict[str, Any]): early_stopping設定辞書
-            logger (logging.Logger): ロガーインスタンス
-
-        Returns:
-            bool: バリデーション成功時True、失敗時False
-        """
-        patience = es_config.get("patience", 10)
-
-        if not isinstance(patience, int) or isinstance(patience, bool):
-            logger.error(
-                f"early_stopping.patience は整数である必要があります。"
-                f"現在の型: {type(patience).__name__}, 現在の値: {patience}"
-            )
-            return False
-
-        if patience <= 0:
-            logger.error(
-                f"early_stopping.patience は正の整数である必要があります。"
-                f"現在の値: {patience}"
-            )
-            return False
-
-        return True
-
-    def _validate_min_delta(
-        self, es_config: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """
-        min_deltaパラメータのバリデーション.
-
-        Args:
-            es_config (Dict[str, Any]): early_stopping設定辞書
-            logger (logging.Logger): ロガーインスタンス
-
-        Returns:
-            bool: バリデーション成功時True、失敗時False
-        """
         min_delta = es_config.get("min_delta", 0.0)
-
         if not isinstance(min_delta, (int, float)) or isinstance(min_delta, bool):
             logger.error(
                 f"early_stopping.min_delta は数値である必要があります。"
                 f"現在の型: {type(min_delta).__name__}, 現在の値: {min_delta}"
             )
             return False
-
-        if min_delta < 0:
-            logger.error(
-                f"early_stopping.min_delta は0以上である必要があります。"
-                f"現在の値: {min_delta}"
-            )
+        if not self._validate_range(
+            min_delta, "early_stopping.min_delta", logger, ge=0
+        ):
             return False
 
-        return True
-
-    def _validate_monitor(
-        self, es_config: Dict[str, Any], logger: logging.Logger
-    ) -> bool:
-        """
-        monitorパラメータのバリデーション.
-
-        Args:
-            es_config (Dict[str, Any]): early_stopping設定辞書
-            logger (logging.Logger): ロガーインスタンス
-
-        Returns:
-            bool: バリデーション成功時True、失敗時False
-        """
+        # monitor チェック
         monitor = es_config.get("monitor", "val_accuracy")
-
-        if not isinstance(monitor, str):
-            logger.error(
-                f"early_stopping.monitor は文字列である必要があります。"
-                f"現在の型: {type(monitor).__name__}, 現在の値: {monitor}"
-            )
+        if not self._validate_required_type(
+            monitor, "early_stopping.monitor", str, logger
+        ):
+            return False
+        if not self._validate_choice(
+            monitor, "monitor値", self.SUPPORTED_MONITORS, logger
+        ):
             return False
 
-        if monitor not in self.SUPPORTED_MONITORS:
-            logger.error(
-                f"サポートされていないmonitor値です: {monitor}. "
-                f"サポート対象: {self.SUPPORTED_MONITORS}"
-            )
-            return False
+        logger.info(
+            f"Early Stopping: 有効 "
+            f"(patience={patience}, "
+            f"min_delta={min_delta}, "
+            f"monitor={monitor})"
+        )
 
         return True

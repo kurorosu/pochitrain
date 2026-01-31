@@ -28,18 +28,11 @@ class ClassWeightsValidator(BaseValidator):
         num_classes = config.get("num_classes")
 
         # num_classesの必須チェック
-        if num_classes is None:
-            logger.error(
-                "num_classes が設定されていません。configs/pochi_train_config.py で "
-                "クラス数を設定してください。"
-            )
+        if not self._validate_required_type(
+            num_classes, "num_classes", int, logger, exclude_bool=True
+        ):
             return False
-
-        # num_classesの型と値チェック
-        if not isinstance(num_classes, int) or num_classes <= 0:
-            logger.error(
-                f"num_classes は正の整数である必要があります。現在の値: {num_classes}"
-            )
+        if not self._validate_positive(num_classes, "num_classes", logger):
             return False
 
         # class_weightsがNoneの場合は正常（クラス重みなし）
