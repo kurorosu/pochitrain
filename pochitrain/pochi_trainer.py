@@ -123,9 +123,8 @@ class PochiTrainer:
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
 
-        # Early Stopping（訓練時のみ初期化）
-        self.early_stopping: Optional[Any] = None  # EarlyStopping
-        self.early_stopping_config: Optional[Dict[str, Any]] = None
+        # Early Stopping（setup_training()で初期化）
+        self.early_stopping: Optional[EarlyStopping] = None
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
@@ -142,6 +141,7 @@ class PochiTrainer:
         num_classes: Optional[int] = None,
         enable_layer_wise_lr: bool = False,
         layer_wise_lr_config: Optional[Dict[str, Any]] = None,
+        early_stopping_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         訓練の設定.
@@ -157,6 +157,7 @@ class PochiTrainer:
             num_classes (int, optional): クラス数（重みのバリデーション用）
             enable_layer_wise_lr (bool): 層別学習率を有効にするか
             layer_wise_lr_config (Dict[str, Any], optional): 層別学習率の設定
+            early_stopping_config (Dict[str, Any], optional): Early Stopping設定
         """
         components = self.training_configurator.configure(
             model=self.model,
@@ -182,6 +183,23 @@ class PochiTrainer:
         if num_classes:
             self.num_classes_for_cm = num_classes
             self.logger.info(f"混同行列計算を有効化しました (クラス数: {num_classes})")
+
+        # Early Stoppingの初期化
+        if early_stopping_config is not None and early_stopping_config.get(
+            "enabled", False
+        ):
+            self.early_stopping = EarlyStopping(
+                patience=early_stopping_config.get("patience", 10),
+                min_delta=early_stopping_config.get("min_delta", 0.0),
+                monitor=early_stopping_config.get("monitor", "val_accuracy"),
+                logger=self.logger,
+            )
+            self.logger.info(
+                f"Early Stopping: 有効 "
+                f"(patience={self.early_stopping.patience}, "
+                f"min_delta={self.early_stopping.min_delta}, "
+                f"monitor={self.early_stopping.monitor})"
+            )
 
     def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
         """1エポックの訓練."""
@@ -271,23 +289,6 @@ class PochiTrainer:
                 layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
             tracker.initialize()
-
-        # Early Stoppingの初期化
-        if self.early_stopping_config is not None:
-            es_config = self.early_stopping_config
-            if es_config.get("enabled", False):
-                self.early_stopping = EarlyStopping(
-                    patience=es_config.get("patience", 10),
-                    min_delta=es_config.get("min_delta", 0.0),
-                    monitor=es_config.get("monitor", "val_accuracy"),
-                    logger=self.logger,
-                )
-                self.logger.info(
-                    f"Early Stopping: 有効 "
-                    f"(patience={self.early_stopping.patience}, "
-                    f"min_delta={self.early_stopping.min_delta}, "
-                    f"monitor={self.early_stopping.monitor})"
-                )
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch

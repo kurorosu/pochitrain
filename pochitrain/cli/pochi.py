@@ -213,6 +213,7 @@ def train_command(args: argparse.Namespace) -> None:
         num_classes=len(classes),
         enable_layer_wise_lr=config.get("enable_layer_wise_lr", False),
         layer_wise_lr_config=config.get("layer_wise_lr_config"),
+        early_stopping_config=config.get("early_stopping"),
     )
 
     # データセットパスの保存
@@ -245,17 +246,9 @@ def train_command(args: argparse.Namespace) -> None:
     if trainer.enable_metrics_export:
         logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
-    # Early Stopping設定の適用
+    # Early Stopping設定のログ出力（初期化はsetup_training()で完了済み）
     early_stopping_config = config.get("early_stopping")
-    if early_stopping_config and early_stopping_config.get("enabled", False):
-        trainer.early_stopping_config = early_stopping_config
-        logger.info(
-            f"Early Stopping: 有効 "
-            f"(patience={early_stopping_config.get('patience', 10)}, "
-            f"min_delta={early_stopping_config.get('min_delta', 0.0)}, "
-            f"monitor={early_stopping_config.get('monitor', 'val_accuracy')})"
-        )
-    else:
+    if not (early_stopping_config and early_stopping_config.get("enabled", False)):
         logger.info("Early Stopping: 無効")
 
     # 勾配トレース設定の適用
