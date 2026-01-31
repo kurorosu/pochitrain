@@ -12,6 +12,7 @@ from pochitrain.utils.inference_utils import (
     compute_confusion_matrix,
     get_default_output_base_dir,
     log_inference_result,
+    post_process_logits,
     save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
@@ -587,3 +588,90 @@ class TestSaveClassificationReport:
             output_dir=tmp_path,
         )
         assert isinstance(result, Path)
+
+
+class TestPostProcessLogits:
+    """post_process_logits関数のテスト."""
+
+    def test_basic_case(self):
+        """基本的なケース: 正しいshapeと値の範囲."""
+        logits = np.array([[2.0, 1.0, 0.1], [0.5, 3.0, 0.2]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert predicted.shape == (2,)
+        assert confidence.shape == (2,)
+        assert predicted[0] == 0  # 最大値はindex 0
+        assert predicted[1] == 1  # 最大値はindex 1
+
+    def test_confidence_range(self):
+        """信頼度が0-1の範囲内."""
+        logits = np.array([[1.0, 2.0, 3.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert 0.0 <= confidence[0] <= 1.0
+
+    def test_softmax_probabilities_sum_to_one(self):
+        """softmax適用後の確率の合計が1になることを間接的に確認."""
+        logits = np.array([[1.0, 2.0, 3.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        # 3クラスで最大logitが3.0の場合, confidence > 1/3
+        assert confidence[0] > 1.0 / 3.0
+
+    def test_single_class(self):
+        """1クラスの場合, confidenceが1.0."""
+        logits = np.array([[5.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert predicted[0] == 0
+        assert np.isclose(confidence[0], 1.0)
+
+    def test_equal_logits(self):
+        """全て同じlogitの場合, confidenceが均等."""
+        logits = np.array([[1.0, 1.0, 1.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert np.isclose(confidence[0], 1.0 / 3.0)
+
+    def test_large_logits_numerical_stability(self):
+        """大きなlogit値でも数値的に安定."""
+        logits = np.array([[1000.0, 999.0, 998.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert predicted[0] == 0
+        assert 0.0 <= confidence[0] <= 1.0
+        assert not np.isnan(confidence[0])
+        assert not np.isinf(confidence[0])
+
+    def test_negative_logits(self):
+        """負のlogitでも正しく動作."""
+        logits = np.array([[-1.0, -2.0, -0.5]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert predicted[0] == 2  # -0.5が最大
+        assert 0.0 <= confidence[0] <= 1.0
+
+    def test_batch_processing(self):
+        """バッチ処理が正しく動作."""
+        logits = np.array(
+            [
+                [5.0, 1.0],
+                [1.0, 5.0],
+                [3.0, 3.0],
+            ]
+        )
+        predicted, confidence = post_process_logits(logits)
+
+        assert predicted.shape == (3,)
+        assert predicted[0] == 0
+        assert predicted[1] == 1
+        # 3番目は同値なのでどちらでもOK
+        assert predicted[2] in [0, 1]
+
+    def test_returns_numpy_arrays(self):
+        """戻り値がnumpy配列."""
+        logits = np.array([[1.0, 2.0]])
+        predicted, confidence = post_process_logits(logits)
+
+        assert isinstance(predicted, np.ndarray)
+        assert isinstance(confidence, np.ndarray)

@@ -8,6 +8,7 @@ import numpy as np
 import onnxruntime as ort
 
 from pochitrain.logging import LoggerManager
+from pochitrain.utils.inference_utils import post_process_logits
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -81,14 +82,7 @@ class OnnxInference:
         outputs = self.session.run([output_name], {input_name: images})
         logits = outputs[0]
 
-        # softmaxで確率に変換
-        exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-        probabilities = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
-
-        predicted = np.argmax(probabilities, axis=1)
-        confidence = np.max(probabilities, axis=1)
-
-        return predicted, confidence
+        return post_process_logits(logits)
 
     def get_providers(self) -> List[str]:
         """使用中のプロバイダーを取得.

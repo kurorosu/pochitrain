@@ -7,7 +7,7 @@ import csv
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support
@@ -15,6 +15,32 @@ from sklearn.metrics import precision_recall_fscore_support
 from pochitrain.logging import LoggerManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
+
+
+def post_process_logits(
+    logits: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """ロジットからsoftmax + argmax + confidence抽出を行う共通後処理.
+
+    NumPy配列のロジットを受け取り, softmaxで確率に変換後,
+    予測クラスと信頼度を返す.
+
+    Args:
+        logits: モデル出力のロジット (batch_size, num_classes)
+
+    Returns:
+        (predicted, confidence) のタプル.
+        predicted: 予測クラスインデックス (batch_size,)
+        confidence: 最大確率値 (batch_size,)
+    """
+    # 数値安定性のためmax減算してからsoftmax
+    exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
+    probabilities = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+
+    predicted = np.argmax(probabilities, axis=1)
+    confidence = np.max(probabilities, axis=1)
+
+    return predicted, confidence
 
 
 def compute_confusion_matrix(

@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from .logging import LoggerManager
 from .models.pochi_models import create_model
+from .utils.inference_utils import post_process_logits
 
 
 class PochiPredictor:
@@ -144,11 +145,11 @@ class PochiPredictor:
                     total_samples += batch_size
 
                 # 後処理（計測対象外）
-                probabilities = torch.softmax(output, dim=1)
-                confidence, predicted = probabilities.max(1)
+                logits = output.cpu().numpy()
+                predicted, confidence = post_process_logits(logits)
 
-                predictions.extend(predicted.cpu().numpy())
-                confidences.extend(confidence.cpu().numpy())
+                predictions.extend(predicted)
+                confidences.extend(confidence)
 
         # 1枚あたりの平均推論時間を表示（ウォームアップ分を除く）
         if total_samples > 0:
