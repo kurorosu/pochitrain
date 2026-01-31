@@ -3,7 +3,6 @@
 実際のモデルとチェックポイントを使用した古典的テスト.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -39,34 +38,6 @@ def _create_test_checkpoint(
     return checkpoint_path
 
 
-def _create_test_dataset(
-    tmp_path: Path, num_classes: int = 3, images_per_class: int = 2
-) -> Path:
-    """テスト用データセットを作成.
-
-    Args:
-        tmp_path: 一時ディレクトリ
-        num_classes: クラス数
-        images_per_class: クラスあたりの画像数
-
-    Returns:
-        データセットのルートパス
-    """
-    from PIL import Image
-
-    data_root = tmp_path / "val_data"
-    class_names = [f"class_{i}" for i in range(num_classes)]
-
-    for class_name in class_names:
-        class_dir = data_root / class_name
-        class_dir.mkdir(parents=True, exist_ok=True)
-        for j in range(images_per_class):
-            img = Image.new("RGB", (32, 32), color=(j * 50, j * 30, j * 20))
-            img.save(class_dir / f"img_{j}.jpg")
-
-    return data_root
-
-
 class TestPochiPredictorInit:
     """PochiPredictor初期化のテスト."""
 
@@ -78,7 +49,6 @@ class TestPochiPredictorInit:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         assert predictor.model is not None
         assert predictor.model_path == checkpoint_path
@@ -91,7 +61,6 @@ class TestPochiPredictorInit:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         assert not predictor.model.training
 
@@ -103,7 +72,6 @@ class TestPochiPredictorInit:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         assert predictor.best_accuracy == 85.0
 
@@ -115,7 +83,6 @@ class TestPochiPredictorInit:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         assert predictor.epoch == 5
 
@@ -127,7 +94,6 @@ class TestPochiPredictorInit:
                 num_classes=3,
                 device="cpu",
                 model_path=str(tmp_path / "nonexistent.pth"),
-                work_dir=str(tmp_path / "inference_results"),
             )
 
     def test_not_instance_of_trainer(self, tmp_path):
@@ -138,21 +104,8 @@ class TestPochiPredictorInit:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         assert not isinstance(predictor, PochiTrainer)
-
-    def test_inference_workspace_not_created_on_init(self, tmp_path):
-        """初期化時に推論ワークスペースが作成されない（遅延作成）."""
-        checkpoint_path = _create_test_checkpoint(tmp_path)
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-        assert predictor.inference_workspace is None
 
 
 class TestPochiPredictorGetModelInfo:
@@ -166,7 +119,6 @@ class TestPochiPredictorGetModelInfo:
             num_classes=3,
             device="cpu",
             model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
         )
         info = predictor.get_model_info()
 
@@ -176,115 +128,3 @@ class TestPochiPredictorGetModelInfo:
         assert info["model_path"] == str(checkpoint_path)
         assert info["best_accuracy"] == 85.0
         assert info["epoch"] == 5
-
-
-class TestPochiPredictorGetInferenceWorkspaceInfo:
-    """get_inference_workspace_infoメソッドのテスト."""
-
-    def test_no_workspace_created(self, tmp_path):
-        """ワークスペース未作成時の情報."""
-        checkpoint_path = _create_test_checkpoint(tmp_path)
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-        info = predictor.get_inference_workspace_info()
-        assert info["workspace_path"] is None
-        assert info["exists"] is False
-
-
-class TestPochiPredictorEnsureWorkspace:
-    """_ensure_inference_workspaceメソッドのテスト."""
-
-    def test_creates_workspace_on_first_call(self, tmp_path):
-        """初回呼び出しでワークスペースが作成される."""
-        checkpoint_path = _create_test_checkpoint(tmp_path)
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-        assert predictor.inference_workspace is None
-
-        workspace = predictor._ensure_inference_workspace()
-        assert workspace is not None
-        assert workspace.exists()
-        assert predictor.inference_workspace == workspace
-
-    def test_returns_same_workspace_on_subsequent_calls(self, tmp_path):
-        """2回目以降は同じワークスペースを返す."""
-        checkpoint_path = _create_test_checkpoint(tmp_path)
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-        workspace1 = predictor._ensure_inference_workspace()
-        workspace2 = predictor._ensure_inference_workspace()
-        assert workspace1 == workspace2
-
-
-class TestPochiPredictorPredictWithPaths:
-    """predict_with_pathsメソッドのテスト."""
-
-    def test_predict_returns_correct_structure(self, tmp_path):
-        """predict_with_pathsが正しい構造のタプルを返す."""
-        checkpoint_path = _create_test_checkpoint(tmp_path, num_classes=3)
-        data_root = _create_test_dataset(tmp_path, num_classes=3, images_per_class=2)
-
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-
-        image_paths, predicted_labels, true_labels, confidence_scores, class_names = (
-            predictor.predict_with_paths(
-                val_data_root=str(data_root),
-                batch_size=2,
-                num_workers=0,
-                image_size=32,
-            )
-        )
-
-        total_images = 3 * 2  # 3 classes * 2 images
-        assert len(image_paths) == total_images
-        assert len(predicted_labels) == total_images
-        assert len(true_labels) == total_images
-        assert len(confidence_scores) == total_images
-        assert len(class_names) == 3
-
-    def test_predicted_labels_in_range(self, tmp_path):
-        """予測ラベルが有効な範囲内."""
-        checkpoint_path = _create_test_checkpoint(tmp_path, num_classes=3)
-        data_root = _create_test_dataset(tmp_path, num_classes=3, images_per_class=1)
-
-        predictor = PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-
-        _, predicted_labels, _, confidence_scores, _ = predictor.predict_with_paths(
-            val_data_root=str(data_root),
-            batch_size=1,
-            num_workers=0,
-            image_size=32,
-        )
-
-        for label in predicted_labels:
-            assert 0 <= label < 3
-
-        for conf in confidence_scores:
-            assert 0.0 <= conf <= 1.0

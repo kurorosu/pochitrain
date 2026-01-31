@@ -365,7 +365,6 @@ def infer_command(args: argparse.Namespace) -> None:
             num_classes=config["num_classes"],
             device=config["device"],
             model_path=str(model_path),
-            work_dir=output_dir,
         )
         logger.info("推論器の作成成功")
 
@@ -432,15 +431,24 @@ def infer_command(args: argparse.Namespace) -> None:
     # CSV出力
     logger.info("結果をCSVに出力しています...")
     try:
+        from pochitrain.inference import InferenceResultExporter
+        from pochitrain.utils.directory_manager import InferenceWorkspaceManager
+
         # 混同行列設定を取得（設定ファイルにあれば使用）
         cm_config = config.get("confusion_matrix_config", None)
 
-        results_csv, summary_csv = predictor.export_results_to_workspace(
+        # InferenceResultExporter 経由で結果を出力
+        exporter = InferenceResultExporter(
+            workspace_manager=InferenceWorkspaceManager(output_dir),
+            logger=logger,
+        )
+        results_csv, summary_csv = exporter.export(
             image_paths=image_paths,
             predicted_labels=predicted_labels,
             true_labels=true_labels,
             confidence_scores=confidence_scores,
             class_names=class_names,
+            model_info=predictor.get_model_info(),
             results_filename="inference_results.csv",
             summary_filename="inference_summary.csv",
             cm_config=cm_config,
@@ -467,7 +475,7 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.info(f"サマリー: {summary_csv}")
 
         # ワークスペース情報
-        workspace_info = predictor.get_inference_workspace_info()
+        workspace_info = exporter.get_workspace_info()
         logger.info(f"ワークスペース: {workspace_info['workspace_name']}")
 
         logger.info("推論が完了しました！")
