@@ -22,6 +22,7 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
+from pochitrain.training import Evaluator
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
@@ -216,12 +217,27 @@ def train_command(args: argparse.Namespace) -> None:
 
     # データセットパスの保存
     logger.info("データセットパスを保存しています...")
-    trainer.save_dataset_paths(train_loader, val_loader)
+    train_paths = []
+    if hasattr(train_loader.dataset, "get_file_paths"):
+        train_paths = train_loader.dataset.get_file_paths()
+    else:
+        logger.warning("訓練データセットにget_file_pathsメソッドがありません")
+    val_paths = None
+    if hasattr(val_loader.dataset, "get_file_paths"):
+        val_paths = val_loader.dataset.get_file_paths()
+    else:
+        logger.warning("検証データセットにget_file_pathsメソッドがありません")
+    train_file, val_file = trainer.workspace_manager.save_dataset_paths(
+        train_paths, val_paths
+    )
+    logger.info(f"訓練データパスを保存: {train_file}")
+    if val_file is not None:
+        logger.info(f"検証データパスを保存: {val_file}")
 
     # 設定ファイルの保存
     logger.info("設定ファイルを保存しています...")
     config_path_obj = Path(args.config)
-    saved_config_path = trainer.save_training_config(config_path_obj)
+    saved_config_path = trainer.workspace_manager.save_config(config_path_obj)
     logger.info(f"設定ファイルを保存しました: {saved_config_path}")
 
     # メトリクスエクスポート設定の適用
@@ -349,7 +365,6 @@ def infer_command(args: argparse.Namespace) -> None:
             num_classes=config["num_classes"],
             device=config["device"],
             model_path=str(model_path),
-            work_dir=output_dir,
         )
         logger.info("推論器の作成成功")
 
@@ -416,22 +431,32 @@ def infer_command(args: argparse.Namespace) -> None:
     # CSV出力
     logger.info("結果をCSVに出力しています...")
     try:
+        from pochitrain.inference import InferenceResultExporter
+        from pochitrain.utils.directory_manager import InferenceWorkspaceManager
+
         # 混同行列設定を取得（設定ファイルにあれば使用）
         cm_config = config.get("confusion_matrix_config", None)
 
-        results_csv, summary_csv = predictor.export_results_to_workspace(
+        # InferenceResultExporter 経由で結果を出力
+        exporter = InferenceResultExporter(
+            workspace_manager=InferenceWorkspaceManager(output_dir),
+            logger=logger,
+        )
+        results_csv, summary_csv = exporter.export(
             image_paths=image_paths,
             predicted_labels=predicted_labels,
             true_labels=true_labels,
             confidence_scores=confidence_scores,
             class_names=class_names,
+            model_info=predictor.get_model_info(),
             results_filename="inference_results.csv",
             summary_filename="inference_summary.csv",
             cm_config=cm_config,
         )
 
         # 精度計算・表示
-        accuracy_info = predictor.calculate_accuracy(predicted_labels, true_labels)
+        evaluator = Evaluator(device=torch.device(config["device"]), logger=logger)
+        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
         num_samples = accuracy_info["total_samples"]
         avg_time_per_image = (
             total_inference_time_ms / num_samples if num_samples > 0 else 0
@@ -450,7 +475,7 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.info(f"サマリー: {summary_csv}")
 
         # ワークスペース情報
-        workspace_info = predictor.get_inference_workspace_info()
+        workspace_info = exporter.get_workspace_info()
         logger.info(f"ワークスペース: {workspace_info['workspace_name']}")
 
         logger.info("推論が完了しました！")
