@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 import torch
-import torchvision.transforms as transforms
 
 from pochitrain.models.pochi_models import PochiModel
 from pochitrain.pochi_predictor import PochiPredictor
@@ -154,49 +153,6 @@ class TestPochiPredictorInit:
             work_dir=str(tmp_path / "inference_results"),
         )
         assert predictor.inference_workspace is None
-
-
-class TestPochiPredictorCalculateAccuracy:
-    """calculate_accuracyメソッドのテスト."""
-
-    def _create_predictor(self, tmp_path):
-        checkpoint_path = _create_test_checkpoint(tmp_path)
-        return PochiPredictor(
-            model_name="resnet18",
-            num_classes=3,
-            device="cpu",
-            model_path=str(checkpoint_path),
-            work_dir=str(tmp_path / "inference_results"),
-        )
-
-    def test_perfect_accuracy(self, tmp_path):
-        """全問正解で100%."""
-        predictor = self._create_predictor(tmp_path)
-        result = predictor.calculate_accuracy([0, 1, 2], [0, 1, 2])
-        assert result["accuracy_percentage"] == 100.0
-        assert result["correct_predictions"] == 3
-        assert result["total_samples"] == 3
-
-    def test_zero_accuracy(self, tmp_path):
-        """全問不正解で0%."""
-        predictor = self._create_predictor(tmp_path)
-        result = predictor.calculate_accuracy([1, 2, 0], [0, 1, 2])
-        assert result["accuracy_percentage"] == 0.0
-        assert result["correct_predictions"] == 0
-
-    def test_partial_accuracy(self, tmp_path):
-        """部分正解."""
-        predictor = self._create_predictor(tmp_path)
-        result = predictor.calculate_accuracy([0, 1, 0, 1], [0, 0, 0, 1])
-        assert result["accuracy_percentage"] == 75.0
-        assert result["correct_predictions"] == 3
-
-    def test_empty_lists(self, tmp_path):
-        """空のリストで0%."""
-        predictor = self._create_predictor(tmp_path)
-        result = predictor.calculate_accuracy([], [])
-        assert result["accuracy_percentage"] == 0.0
-        assert result["total_samples"] == 0
 
 
 class TestPochiPredictorGetModelInfo:

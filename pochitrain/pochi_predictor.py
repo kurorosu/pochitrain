@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .pochi_dataset import PochiImageDataset, get_basic_transforms
+from .training.evaluator import Evaluator
 from .utils.directory_manager import InferenceWorkspaceManager
 
 
@@ -239,33 +240,6 @@ class PochiPredictor:
             class_names,
         )
 
-    def calculate_accuracy(
-        self, predicted_labels: List[int], true_labels: List[int]
-    ) -> Dict[str, float]:
-        """
-        推論結果の精度を計算.
-
-        Args:
-            predicted_labels (List[int]): 推論ラベル
-            true_labels (List[int]): 正解ラベル
-
-        Returns:
-            Dict[str, float]: 精度情報
-        """
-        total = len(predicted_labels)
-        correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
-        accuracy = (correct / total) * 100 if total > 0 else 0.0
-
-        accuracy_info = {
-            "total_samples": total,
-            "correct_predictions": correct,
-            "accuracy_percentage": accuracy,
-        }
-
-        self.logger.info(f"推論精度: {correct}/{total} ({accuracy:.2f}%)")
-
-        return accuracy_info
-
     def get_model_info(self) -> Dict[str, Any]:
         """
         モデル情報を取得.
@@ -322,8 +296,9 @@ class PochiPredictor:
         # モデル情報の取得
         model_info = self.get_model_info()
 
-        # 精度計算
-        accuracy_info = self.calculate_accuracy(predicted_labels, true_labels)
+        # 精度計算 (Evaluator 経由)
+        evaluator = Evaluator(device=self.device, logger=self.logger)
+        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
 
         # 詳細結果のCSV出力
         results_csv = csv_exporter.export_results(

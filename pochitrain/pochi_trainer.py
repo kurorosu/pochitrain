@@ -17,6 +17,7 @@ from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .training.checkpoint_store import CheckpointStore
 from .training.early_stopping import EarlyStopping
+from .training.evaluator import Evaluator
 from .training.metrics_tracker import MetricsTracker
 from .utils.directory_manager import PochiWorkspaceManager
 
@@ -84,6 +85,9 @@ class PochiTrainer:
 
         # チェックポイントストアの初期化
         self.checkpoint_store = CheckpointStore(self.work_dir, self.logger)
+
+        # 検証器の初期化
+        self.evaluator = Evaluator(self.device, self.logger)
 
         # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
@@ -282,153 +286,18 @@ class PochiTrainer:
 
         return {"loss": avg_loss, "accuracy": accuracy}
 
-    def validate(self, val_loader: DataLoader) -> Dict[str, float]:
-        """検証."""
-        self.model.eval()
-        total_loss = 0.0
-        correct = 0
-        total = 0
-
-        # 混同行列計算のためのリスト
-        all_predicted = []
-        all_targets = []
-
-        with torch.no_grad():
-            for data, target in val_loader:
-                data, target = data.to(self.device), target.to(self.device)
-
-                output = self.model(data)
-                if self.criterion is not None:
-                    loss = self.criterion(output, target)
-                else:
-                    raise RuntimeError("criterion is not set")
-
-                total_loss += loss.item()
-                _, predicted = output.max(1)
-                total += target.size(0)
-                correct += predicted.eq(target).sum().item()
-
-                # 混同行列用にデータを保存
-                all_predicted.append(predicted)
-                all_targets.append(target)
-
-        avg_loss = total_loss / len(val_loader)
-        accuracy = 100.0 * correct / total
-
-        # 混同行列の計算と出力（Fortranエラー回避のため純粋PyTorch実装）
-        if self.num_classes_for_cm is not None and all_predicted and all_targets:
-            # バッチごとに収集した予測値と正解値を連結
-            # 各バッチのテンソルを1つの大きなテンソルにまとめる
-            all_predicted_tensor = torch.cat(all_predicted, dim=0)
-            all_targets_tensor = torch.cat(all_targets, dim=0)
-
-            # 混同行列を計算（sklearn/torchmetrics不使用）
-            # 基本的なPyTorchテンソル操作のみを使用してFortranエラーを回避
-            cm = self._compute_confusion_matrix_pytorch(
-                all_predicted_tensor, all_targets_tensor, self.num_classes_for_cm
-            )
-
-            # 簡易形式でログファイルに追記出力
-            # epoch番号と行列データを1行で記録し、後続分析に使用可能
-            self._log_confusion_matrix(cm)
-
-        return {"val_loss": avg_loss, "val_accuracy": accuracy}
-
-    def _compute_confusion_matrix_pytorch(
-        self, predicted: torch.Tensor, targets: torch.Tensor, num_classes: int
-    ) -> torch.Tensor:
-        """
-        純粹なPyTorchテンソル操作による混同行列計算.
-
-        sklearn.metrics.confusion_matrixやtorchmetricsを使用せず、
-        基本的なPyTorchテンソル操作のみで混同行列を計算します。
-        これにより、Ctrl+C割り込み時のFortranランタイムエラーを回避できます。
-
-        Args:
-            predicted (torch.Tensor): 予測ラベル（各要素は0からnum_classes-1の整数）
-            targets (torch.Tensor): 正解ラベル（各要素は0からnum_classes-1の整数）
-            num_classes (int): クラス数
-
-        Returns:
-            torch.Tensor: 混同行列（[num_classes, num_classes]の2次元テンソル）
-                         行が正解ラベル、列が予測ラベルに対応
-                         confusion_matrix[i, j] = 正解がi、予測がjの個数
-
-        Note:
-            - メモリ効率のため、要素数の多い場合は時間がかかる可能性があります
-            - GPU/CPUデバイス間の一貫性を保つため、計算前にデバイスを統一します
-        """
-        # デバイスを統一（GPU/CPUの混在を防ぐ）
-        predicted = predicted.to(self.device)
-        targets = targets.to(self.device)
-
-        # 混同行列を初期化（行=正解、列=予測）
-        # dtype=int64で十分な範囲の整数カウントに対応
-        confusion_matrix = torch.zeros(
-            num_classes, num_classes, dtype=torch.int64, device=self.device
+    def validate(self, val_loader: DataLoader[Any]) -> Dict[str, float]:
+        """検証 (Evaluator に委譲)."""
+        if self.criterion is None:
+            raise RuntimeError("criterion is not set")
+        return self.evaluator.validate(
+            model=self.model,
+            val_loader=val_loader,
+            criterion=self.criterion,
+            num_classes_for_cm=self.num_classes_for_cm,
+            epoch=self.epoch,
+            workspace_path=self.current_workspace,
         )
-
-        # 各サンプルの（正解, 予測）ペアをカウント
-        # view(-1)でテンソルを1次元に平坦化してからペアワイズ処理
-        for t, p in zip(targets.view(-1), predicted.view(-1)):
-            # .long()でint64型に変換してインデックスとして使用
-            confusion_matrix[t.long(), p.long()] += 1
-
-        return confusion_matrix
-
-    def _log_confusion_matrix(self, confusion_matrix: torch.Tensor) -> None:
-        """
-        混同行列をログファイルに出力.
-
-        各エポックの検証時に混同行列を.logファイルに追記します。
-        出力形式は簡易的で、後続の分析やレポート生成に使用可能です。
-
-        Args:
-            confusion_matrix (torch.Tensor): PyTorchテンソル形式の混同行列
-                                           [num_classes, num_classes]の2次元テンソル
-
-        Output Format:
-            epoch1
-             [row1]
-             [row2]
-             [row3]
-            epoch2
-             [row1]
-             [row2]
-             [row3]
-
-        Example (3クラス分類):
-            epoch1
-             [10, 0, 0]
-             [0, 8, 2]
-             [1, 0, 9]
-            epoch2
-             [9, 1, 0]
-             [0, 9, 1]
-             [0, 1, 9]
-
-        Note:
-            - ワークスペースが存在しない場合は何もしません
-            - ファイルは追記モードで開くため、訓練継続時も過去のデータが保持されます
-            - UTF-8エンコーディングで保存されます
-        """
-        # ワークスペースが未初期化の場合はスキップ
-        if self.current_workspace is None:
-            return
-
-        # ログファイルパスの構築
-        log_file = Path(self.current_workspace) / "confusion_matrix.log"
-
-        # PyTorchテンソルをNumPy配列に変換し、int型にキャスト
-        # CPUに移動してからnumpy()でNumPy配列化
-        cm_numpy = confusion_matrix.cpu().numpy().astype(int)
-
-        # ファイルに追記モードで書き込み
-        # エポック番号を単独行で出力し、その後に混同行列の各行を縦に並べる
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"epoch{self.epoch}\n")  # エポック番号を単独行で出力
-            for row in cm_numpy:
-                f.write(f" {row.tolist()}\n")  # 各行を改行で区切って出力
 
     def save_checkpoint(
         self, filename: str = "checkpoint.pth", is_best: bool = False

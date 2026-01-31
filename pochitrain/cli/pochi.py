@@ -22,6 +22,7 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
+from pochitrain.training import Evaluator
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
@@ -431,7 +432,8 @@ def infer_command(args: argparse.Namespace) -> None:
         )
 
         # 精度計算・表示
-        accuracy_info = predictor.calculate_accuracy(predicted_labels, true_labels)
+        evaluator = Evaluator(device=torch.device(config["device"]), logger=logger)
+        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
         num_samples = accuracy_info["total_samples"]
         avg_time_per_image = (
             total_inference_time_ms / num_samples if num_samples > 0 else 0
