@@ -172,7 +172,7 @@ class TrainingConfigurator:
                 f"scheduler_paramsが必須です。configs/pochi_config.pyで設定してください。"
             )
 
-        schedulers = {
+        schedulers: Dict[str, type] = {
             "StepLR": optim.lr_scheduler.StepLR,
             "MultiStepLR": optim.lr_scheduler.MultiStepLR,
             "CosineAnnealingLR": optim.lr_scheduler.CosineAnnealingLR,
@@ -183,7 +183,10 @@ class TrainingConfigurator:
         scheduler_cls = schedulers.get(scheduler_name)
         if scheduler_cls is None:
             raise ValueError(f"サポートされていないスケジューラー: {scheduler_name}")
-        return scheduler_cls(optimizer, **scheduler_params)
+        scheduler: optim.lr_scheduler.LRScheduler = scheduler_cls(
+            optimizer, **scheduler_params
+        )
+        return scheduler
 
     def _build_layer_wise_param_groups(
         self,
