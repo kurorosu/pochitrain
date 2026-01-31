@@ -6,12 +6,13 @@
 
 import csv
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pochitrain.exporters import BaseCSVExporter
 
-class InferenceCSVExporter:
+
+class InferenceCSVExporter(BaseCSVExporter):
     """
     推論結果をCSVファイルに出力するクラス.
 
@@ -26,14 +27,8 @@ class InferenceCSVExporter:
         logger: Optional[logging.Logger] = None,
     ):
         """InferenceCSVExporterを初期化."""
-        self.output_dir = Path(output_dir)
+        super().__init__(output_dir=output_dir, logger=logger)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        # ロガーの設定
-        if logger is None:
-            self.logger = logging.getLogger(__name__)
-        else:
-            self.logger = logger
 
     def export_results(
         self,
@@ -60,15 +55,8 @@ class InferenceCSVExporter:
         Returns:
             Path: 出力されたCSVファイルのパス
         """
-        # ファイル名の生成
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"inference_results_{timestamp}.csv"
-
-        if not filename.endswith(".csv"):
-            filename += ".csv"
-
-        output_path = self.output_dir / filename
+        filename = self._generate_filename("inference_results", filename)
+        output_path = self._build_output_path(filename)
 
         # データの検証
         self._validate_data(
@@ -205,14 +193,8 @@ class InferenceCSVExporter:
         Returns:
             Path: 出力されたCSVファイルのパス
         """
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"inference_summary_{timestamp}.csv"
-
-        if not filename.endswith(".csv"):
-            filename += ".csv"
-
-        output_path = self.output_dir / filename
+        filename = self._generate_filename("inference_summary", filename)
+        output_path = self._build_output_path(filename)
 
         with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
