@@ -217,12 +217,27 @@ def train_command(args: argparse.Namespace) -> None:
 
     # データセットパスの保存
     logger.info("データセットパスを保存しています...")
-    trainer.save_dataset_paths(train_loader, val_loader)
+    train_paths = []
+    if hasattr(train_loader.dataset, "get_file_paths"):
+        train_paths = train_loader.dataset.get_file_paths()
+    else:
+        logger.warning("訓練データセットにget_file_pathsメソッドがありません")
+    val_paths = None
+    if hasattr(val_loader.dataset, "get_file_paths"):
+        val_paths = val_loader.dataset.get_file_paths()
+    else:
+        logger.warning("検証データセットにget_file_pathsメソッドがありません")
+    train_file, val_file = trainer.workspace_manager.save_dataset_paths(
+        train_paths, val_paths
+    )
+    logger.info(f"訓練データパスを保存: {train_file}")
+    if val_file is not None:
+        logger.info(f"検証データパスを保存: {val_file}")
 
     # 設定ファイルの保存
     logger.info("設定ファイルを保存しています...")
     config_path_obj = Path(args.config)
-    saved_config_path = trainer.save_training_config(config_path_obj)
+    saved_config_path = trainer.workspace_manager.save_config(config_path_obj)
     logger.info(f"設定ファイルを保存しました: {saved_config_path}")
 
     # メトリクスエクスポート設定の適用

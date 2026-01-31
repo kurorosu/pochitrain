@@ -6,7 +6,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -241,56 +241,6 @@ class PochiTrainer:
             workspace_path=self.current_workspace,
         )
 
-    def save_checkpoint(
-        self, filename: str = "checkpoint.pth", is_best: bool = False
-    ) -> None:
-        """チェックポイントの保存."""
-        self.checkpoint_store.save_checkpoint(
-            filename=filename,
-            epoch=self.epoch,
-            model=self.model,
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-            best_accuracy=self.best_accuracy,
-        )
-
-    def save_best_model(self, epoch: int) -> None:
-        """
-        ベストモデルの保存（エポック数付き、上書き）.
-
-        Args:
-            epoch (int): 現在のエポック数
-        """
-        self.checkpoint_store.save_best_model(
-            epoch=epoch,
-            model=self.model,
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-            best_accuracy=self.best_accuracy,
-        )
-
-    def save_last_model(self) -> None:
-        """ラストモデルの保存（上書き）."""
-        self.checkpoint_store.save_last_model(
-            epoch=self.epoch,
-            model=self.model,
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-            best_accuracy=self.best_accuracy,
-        )
-
-    def load_checkpoint(self, filename: str = "checkpoint.pth") -> None:
-        """チェックポイントの読み込み."""
-        result = self.checkpoint_store.load_checkpoint(
-            filename=filename,
-            model=self.model,
-            device=self.device,
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-        )
-        self.epoch = result["epoch"]
-        self.best_accuracy = result["best_accuracy"]
-
     def train(
         self,
         train_loader: DataLoader[Any],
@@ -347,7 +297,13 @@ class PochiTrainer:
                 self.logger.warning(
                     f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
                 )
-                self.save_last_model()  # 現在の状態を保存
+                self.checkpoint_store.save_last_model(
+                    epoch=self.epoch,
+                    model=self.model,
+                    optimizer=self.optimizer,
+                    scheduler=self.scheduler,
+                    best_accuracy=self.best_accuracy,
+                )  # 現在の状態を保存
                 break
 
             self.logger.info(f"エポック {epoch}/{epochs} を開始")
@@ -380,7 +336,13 @@ class PochiTrainer:
                 # ベストモデルの更新（精度が前回以上なら保存）
                 if val_metrics["val_accuracy"] >= self.best_accuracy:
                     self.best_accuracy = val_metrics["val_accuracy"]
-                    self.save_best_model(epoch)
+                    self.checkpoint_store.save_best_model(
+                        epoch=epoch,
+                        model=self.model,
+                        optimizer=self.optimizer,
+                        scheduler=self.scheduler,
+                        best_accuracy=self.best_accuracy,
+                    )
 
                 # Early Stopping判定
                 if self.early_stopping is not None:
@@ -388,11 +350,23 @@ class PochiTrainer:
                     monitor_value = val_metrics.get(monitor)
                     if monitor_value is not None:
                         if self.early_stopping.step(monitor_value, epoch):
-                            self.save_last_model()
+                            self.checkpoint_store.save_last_model(
+                                epoch=self.epoch,
+                                model=self.model,
+                                optimizer=self.optimizer,
+                                scheduler=self.scheduler,
+                                best_accuracy=self.best_accuracy,
+                            )
                             break
 
             # ラストモデルの保存（毎エポック上書き）
-            self.save_last_model()
+            self.checkpoint_store.save_last_model(
+                epoch=self.epoch,
+                model=self.model,
+                optimizer=self.optimizer,
+                scheduler=self.scheduler,
+                best_accuracy=self.best_accuracy,
+            )
 
             # メトリクスと勾配の記録
             if tracker is not None:
@@ -456,80 +430,6 @@ class PochiTrainer:
                         f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
                         f"(エポック {summary['best_val_accuracy_epoch']})"
                     )
-
-    def get_workspace_info(self) -> dict:
-        """
-        現在のワークスペース情報を取得.
-
-        Returns:
-            dict: ワークスペース情報
-        """
-        return self.workspace_manager.get_workspace_info()
-
-    def save_training_config(self, config_path: Path) -> Path:
-        """
-        訓練に使用した設定ファイルを保存.
-
-        Args:
-            config_path (Path): 設定ファイルのパス
-
-        Returns:
-            Path: 保存されたファイルのパス
-        """
-        return self.workspace_manager.save_config(config_path)
-
-    def save_image_list(self, image_paths: list) -> Path:
-        """
-        使用した画像リストを保存.
-
-        Args:
-            image_paths (list): 画像パスのリスト
-
-        Returns:
-            Path: 保存されたファイルのパス
-        """
-        return self.workspace_manager.save_image_list(image_paths)
-
-    def save_dataset_paths(
-        self, train_loader: DataLoader, val_loader: Optional[DataLoader] = None
-    ) -> Tuple[Path, Optional[Path]]:
-        """
-        訓練・検証データのファイルパスを保存.
-
-        Args:
-            train_loader (DataLoader): 訓練データローダー
-            val_loader (DataLoader, optional): 検証データローダー
-
-        Returns:
-            Tuple[Path, Optional[Path]]: 保存されたファイルのパス (train.txt, val.txt)
-        """
-        # 訓練データのパスを取得
-        train_paths = []
-        if hasattr(train_loader.dataset, "get_file_paths"):
-            train_paths = train_loader.dataset.get_file_paths()
-        else:
-            self.logger.warning("訓練データセットにget_file_pathsメソッドがありません")
-
-        # 検証データのパスを取得
-        val_paths: Optional[list] = None
-        if val_loader is not None:
-            if hasattr(val_loader.dataset, "get_file_paths"):
-                val_paths = val_loader.dataset.get_file_paths()
-            else:
-                self.logger.warning(
-                    "検証データセットにget_file_pathsメソッドがありません"
-                )
-
-        # パスを保存
-        train_file_path, val_file_path = self.workspace_manager.save_dataset_paths(
-            train_paths, val_paths
-        )
-
-        self.logger.info(f"訓練データパスを保存: {train_file_path}")
-        if val_file_path is not None:
-            self.logger.info(f"検証データパスを保存: {val_file_path}")
-
-        return train_file_path, val_file_path
 
     def _get_base_learning_rate(self) -> float:
         """現在の基本学習率を取得.
