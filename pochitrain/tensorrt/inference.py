@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from pochitrain.logging import LoggerManager
+from pochitrain.utils.inference_utils import post_process_logits
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -138,14 +139,7 @@ class TensorRTInference:
 
         logits = np.concatenate(all_logits, axis=0)
 
-        # softmaxで確率に変換
-        exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-        probabilities = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
-
-        predicted = np.argmax(probabilities, axis=1)
-        confidence = np.max(probabilities, axis=1)
-
-        return predicted, confidence
+        return post_process_logits(logits)
 
     def get_input_shape(self) -> Tuple[int, ...]:
         """入力shapeを取得.
