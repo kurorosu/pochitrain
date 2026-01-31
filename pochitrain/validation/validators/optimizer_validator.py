@@ -29,52 +29,24 @@ class OptimizerValidator(BaseValidator):
         Returns:
             bool: バリデーション成功時True、失敗時False
         """
-        # learning_rateの必須チェック
+        # learning_rateのバリデーション
         learning_rate = config.get("learning_rate")
-        if learning_rate is None:
-            logger.error(
-                "learning_rate が設定されていません。configs/pochi_train_config.py で "
-                "学習率を設定してください。"
-            )
+        if not self._validate_required_type(
+            learning_rate, "learning_rate", (int, float), logger
+        ):
+            return False
+        if not self._validate_range(
+            learning_rate, "learning_rate", logger, gt=0, le=1.0
+        ):
             return False
 
-        # learning_rateの型チェック
-        if not isinstance(learning_rate, (int, float)):
-            logger.error(
-                f"learning_rate は数値である必要があります。現在の型: {type(learning_rate)}"
-            )
-            return False
-
-        # learning_rateの範囲チェック（0 < lr ≤ 1.0）
-        if learning_rate <= 0 or learning_rate > 1.0:
-            logger.error(
-                f"learning_rate は 0 < lr ≤ 1.0 の範囲である必要があります。"
-                f"現在の値: {learning_rate}"
-            )
-            return False
-
-        # optimizerの必須チェック
+        # optimizerのバリデーション
         optimizer = config.get("optimizer")
-        if optimizer is None:
-            logger.error(
-                "optimizer が設定されていません。configs/pochi_train_config.py で "
-                "最適化器を設定してください。"
-            )
+        if not self._validate_required_type(optimizer, "optimizer", str, logger):
             return False
-
-        # optimizerの型チェック
-        if not isinstance(optimizer, str):
-            logger.error(
-                f"optimizer は文字列である必要があります。現在の型: {type(optimizer)}"
-            )
-            return False
-
-        # optimizerの妥当性チェック
-        if optimizer not in self.supported_optimizers:
-            logger.error(
-                f"サポートされていない最適化器です: {optimizer}. "
-                f"サポート対象: {self.supported_optimizers}"
-            )
+        if not self._validate_choice(
+            optimizer, "最適化器", self.supported_optimizers, logger
+        ):
             return False
 
         # 成功時のログ出力

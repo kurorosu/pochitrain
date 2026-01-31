@@ -76,7 +76,7 @@ class TestPatienceValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.patience は整数である必要があります。"
+            "early_stopping.patience は int である必要があります。"
             "現在の型: float, 現在の値: 5.0"
         )
 
@@ -89,7 +89,7 @@ class TestPatienceValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.patience は整数である必要があります。"
+            "early_stopping.patience は int である必要があります。"
             "現在の型: bool, 現在の値: True"
         )
 
@@ -102,7 +102,7 @@ class TestPatienceValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.patience は正の整数である必要があります。現在の値: 0"
+            "early_stopping.patience は正の値である必要があります。現在の値: 0"
         )
 
     def test_patience_negative_failure(self, validator, mocker):
@@ -114,7 +114,7 @@ class TestPatienceValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.patience は正の整数である必要があります。現在の値: -5"
+            "early_stopping.patience は正の値である必要があります。現在の値: -5"
         )
 
     def test_patience_valid_success(self, validator, mocker):
@@ -165,7 +165,8 @@ class TestMinDeltaValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.min_delta は0以上である必要があります。現在の値: -0.1"
+            "early_stopping.min_delta は 0 <= early_stopping.min_delta の範囲である必要があります。"
+            "現在の値: -0.1"
         )
 
     def test_min_delta_zero_success(self, validator, mocker):
@@ -199,7 +200,7 @@ class TestMonitorValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "early_stopping.monitor は文字列である必要があります。"
+            "early_stopping.monitor は str である必要があります。"
             "現在の型: int, 現在の値: 123"
         )
 

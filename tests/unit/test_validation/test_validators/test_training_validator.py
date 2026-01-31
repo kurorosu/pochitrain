@@ -23,8 +23,8 @@ class TestEpochsValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs が設定されていません。configs/pochi_train_config.py で "
-            "エポック数を設定してください。"
+            "epochs が設定されていません。"
+            "configs/pochi_train_config.py で設定してください。"
         )
 
     def test_epochs_invalid_type_failure(self, validator, mocker):
@@ -36,7 +36,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs は整数である必要があります。現在の型: str, 現在の値: 50"
+            "epochs は int である必要があります。現在の型: str, 現在の値: 50"
         )
 
         # 浮動小数点数の場合
@@ -45,7 +45,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs は整数である必要があります。現在の型: float, 現在の値: 50.0"
+            "epochs は int である必要があります。現在の型: float, 現在の値: 50.0"
         )
 
         # ブール値の場合
@@ -54,7 +54,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs は整数である必要があります。現在の型: bool, 現在の値: True"
+            "epochs は int である必要があります。現在の型: bool, 現在の値: True"
         )
 
     def test_epochs_non_positive_failure(self, validator, mocker):
@@ -66,7 +66,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs は正の整数である必要があります。現在の値: 0"
+            "epochs は正の値である必要があります。現在の値: 0"
         )
 
         # 負の数の場合
@@ -75,7 +75,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "epochs は正の整数である必要があります。現在の値: -10"
+            "epochs は正の値である必要があります。現在の値: -10"
         )
 
     def test_epochs_valid_success(self, validator, mocker):
@@ -101,8 +101,8 @@ class TestBatchSizeValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size が設定されていません。configs/pochi_train_config.py で "
-            "バッチサイズを設定してください。"
+            "batch_size が設定されていません。"
+            "configs/pochi_train_config.py で設定してください。"
         )
 
     def test_batch_size_invalid_type_failure(self, validator, mocker):
@@ -114,7 +114,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size は整数である必要があります。現在の型: str, 現在の値: 32"
+            "batch_size は int である必要があります。現在の型: str, 現在の値: 32"
         )
 
         # 浮動小数点数の場合
@@ -123,7 +123,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size は整数である必要があります。現在の型: float, 現在の値: 32.0"
+            "batch_size は int である必要があります。現在の型: float, 現在の値: 32.0"
         )
 
         # ブール値の場合
@@ -132,7 +132,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size は整数である必要があります。現在の型: bool, 現在の値: True"
+            "batch_size は int である必要があります。現在の型: bool, 現在の値: True"
         )
 
     def test_batch_size_non_positive_failure(self, validator, mocker):
@@ -144,7 +144,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size は正の整数である必要があります。現在の値: 0"
+            "batch_size は正の値である必要があります。現在の値: 0"
         )
 
         # 負の数の場合
@@ -153,7 +153,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "batch_size は正の整数である必要があります。現在の値: -8"
+            "batch_size は正の値である必要があります。現在の値: -8"
         )
 
     def test_batch_size_valid_success(self, validator, mocker):
@@ -179,8 +179,8 @@ class TestModelNameValidation:
 
         assert result is False
         mock_logger.error.assert_called_with(
-            "model_name が設定されていません。configs/pochi_train_config.py で "
-            "モデル名を設定してください。"
+            "model_name が設定されていません。"
+            "configs/pochi_train_config.py で設定してください。"
         )
 
     def test_model_name_invalid_type_failure(self, validator, mocker):
@@ -192,7 +192,7 @@ class TestModelNameValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "model_name は文字列である必要があります。現在の型: int, 現在の値: 18"
+            "model_name は str である必要があります。現在の型: int, 現在の値: 18"
         )
 
         # ブール値の場合
@@ -201,7 +201,7 @@ class TestModelNameValidation:
         result = validator.validate(config, mock_logger)
         assert result is False
         mock_logger.error.assert_called_with(
-            "model_name は文字列である必要があります。現在の型: bool, 現在の値: True"
+            "model_name は str である必要があります。現在の型: bool, 現在の値: True"
         )
 
     def test_model_name_unsupported_failure(self, validator, mocker):
@@ -271,7 +271,7 @@ class TestTrainingValidatorIntegration:
         assert result is False
         # epochsの型エラーが最初に検出される
         mock_logger.error.assert_called_with(
-            "epochs は整数である必要があります。現在の型: str, 現在の値: invalid"
+            "epochs は int である必要があります。現在の型: str, 現在の値: invalid"
         )
 
     def test_boundary_values_success(self, validator, mocker):
