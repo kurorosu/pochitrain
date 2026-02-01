@@ -164,6 +164,6 @@ class Evaluator:
             "accuracy_percentage": accuracy,
         }
 
-        self.logger.info(f"推論精度: {correct}/{total} ({accuracy:.2f}%)")
+        self.logger.debug(f"推論精度: {correct}/{total} ({accuracy:.2f}%)")
 
         return accuracy_info

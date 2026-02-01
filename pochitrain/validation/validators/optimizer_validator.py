@@ -50,7 +50,7 @@ class OptimizerValidator(BaseValidator):
             return False
 
         # 成功時のログ出力
-        logger.info(f"学習率: {learning_rate}")
-        logger.info(f"最適化器: {optimizer}")
+        logger.debug(f"学習率: {learning_rate}")
+        logger.debug(f"最適化器: {optimizer}")
 
         return True

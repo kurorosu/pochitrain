@@ -57,8 +57,8 @@ class TrainingValidator(BaseValidator):
             return False
 
         # 成功時のログ出力
-        logger.info(f"エポック数: {epochs}")
-        logger.info(f"バッチサイズ: {batch_size}")
-        logger.info(f"モデル名: {model_name}")
+        logger.debug(f"エポック数: {epochs}")
+        logger.debug(f"バッチサイズ: {batch_size}")
+        logger.debug(f"モデル名: {model_name}")
 
         return True

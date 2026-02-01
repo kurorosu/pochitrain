@@ -159,7 +159,7 @@ def save_confusion_matrix_image(
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    logger.info(f"混同行列画像保存: {output_path}")
+    logger.debug(f"混同行列画像保存: {output_path}")
     return output_path
 
 
@@ -247,7 +247,7 @@ def load_config_auto(model_path: Path) -> Dict[str, Any]:
         from pochitrain.utils.config_loader import ConfigLoader
 
         config = ConfigLoader.load_config(str(config_path))
-        logger.info(f"設定ファイルを読み込み: {config_path}")
+        logger.debug(f"設定ファイルを読み込み: {config_path}")
         return config
     except Exception as e:
         logger.error(f"設定ファイル読み込みエラー: {e}")
@@ -308,7 +308,7 @@ def write_inference_csv(
                 ]
             )
 
-    logger.info(f"結果を保存: {csv_path}")
+    logger.debug(f"詳細結果: {csv_path}")
     return csv_path
 
 
@@ -361,7 +361,7 @@ def write_inference_summary(
             for key, value in extra_info.items():
                 f.write(f"{key}: {value}\n")
 
-    logger.info(f"サマリーを保存: {summary_path}")
+    logger.debug(f"サマリー: {summary_path}")
     return summary_path
 
 
@@ -442,7 +442,7 @@ def save_classification_report(
             ]
         )
 
-    logger.info(f"クラス別精度レポート保存: {csv_path}")
+    logger.debug(f"クラス別精度レポート保存: {csv_path}")
     return csv_path
 
 
@@ -465,7 +465,6 @@ def log_inference_result(
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
-    logger.info("推論完了")
     logger.info(f"精度: {correct}/{num_samples} ({accuracy:.2f}%)")
     logger.info(
         f"平均推論時間: {avg_time_per_image:.2f} ms/image "

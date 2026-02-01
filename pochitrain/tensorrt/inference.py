@@ -87,9 +87,9 @@ class TensorRTInference:
             self.output_shape, dtype=torch.float32, device="cuda"
         )
 
-        logger.info(f"TensorRTエンジンを読み込み: {engine_path}")
-        logger.info(f"入力shape: {self.input_shape}")
-        logger.info(f"出力shape: {self.output_shape}")
+        logger.debug(f"TensorRTエンジンを読み込み: {engine_path}")
+        logger.debug(f"入力shape: {self.input_shape}")
+        logger.debug(f"出力shape: {self.output_shape}")
 
     def _get_binding_shape(self, binding_idx: int) -> Tuple[int, ...]:
         """バインディングのshapeを取得.

@@ -55,7 +55,7 @@ class MetricsTracker:
                 logger=self.logger,
                 layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
-            self.logger.info("メトリクス記録機能を有効化しました")
+            self.logger.debug("メトリクス記録機能を有効化しました")
 
         if self.enable_gradient_tracking:
             exclude_patterns = self.gradient_tracking_config.get(
@@ -72,7 +72,7 @@ class MetricsTracker:
                 group_by_block=group_by_block,
                 aggregation_method=aggregation_method,
             )
-            self.logger.info(
+            self.logger.debug(
                 f"勾配トレース機能を有効化しました "
                 f"(集約: {aggregation_method}, ブロック化: {group_by_block})"
             )

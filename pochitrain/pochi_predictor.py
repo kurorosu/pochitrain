@@ -91,13 +91,13 @@ class PochiPredictor:
             # メタ情報の取得
             if "best_accuracy" in checkpoint:
                 self.best_accuracy = checkpoint["best_accuracy"]
-                self.logger.info(f"モデルの最高精度: {self.best_accuracy:.2f}%")
+                self.logger.debug(f"モデルの最高精度: {self.best_accuracy:.2f}%")
 
             if "epoch" in checkpoint:
                 self.epoch = checkpoint["epoch"]
-                self.logger.info(f"学習エポック数: {self.epoch}")
+                self.logger.debug(f"学習エポック数: {self.epoch}")
 
-            self.logger.info(f"学習済みモデルを読み込み: {self.model_path}")
+            self.logger.debug(f"学習済みモデルを読み込み: {self.model_path}")
 
         except Exception as e:
             raise RuntimeError(f"モデルの読み込みに失敗しました: {e}")

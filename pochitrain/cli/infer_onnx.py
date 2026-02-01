@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 from pochitrain.logging import LoggerManager
+from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
 from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.utils import (
@@ -55,6 +56,11 @@ def main() -> None:
 
     parser.add_argument("model_path", help="ONNXモデルファイルパス")
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="デバッグログを有効化",
+    )
+    parser.add_argument(
         "--data",
         help="推論データディレクトリ（省略時はconfigのval_data_rootを使用）",
     )
@@ -65,6 +71,11 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    manager = LoggerManager()
+    level = LogLevel.DEBUG if args.debug else LogLevel.INFO
+    manager.set_default_level(level)
+    manager.set_logger_level(__name__, level)
 
     # パス検証
     model_path = Path(args.model_path)
@@ -78,7 +89,7 @@ def main() -> None:
         data_path = Path(args.data)
     elif "val_data_root" in config:
         data_path = Path(config["val_data_root"])
-        logger.info(f"データパスをconfigから取得: {data_path}")
+        logger.debug(f"データパスをconfigから取得: {data_path}")
     else:
         logger.error("--data を指定するか、configにval_data_rootを設定してください")
         sys.exit(1)
@@ -90,32 +101,32 @@ def main() -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
     else:
         base_dir = get_default_output_base_dir(model_path)
-        manager = InferenceWorkspaceManager(str(base_dir))
-        output_dir = manager.create_workspace()
+        workspace_manager = InferenceWorkspaceManager(str(base_dir))
+        output_dir = workspace_manager.create_workspace()
 
     # configからパラメータ取得
     batch_size = config.get("batch_size", 1)
     use_gpu = config.get("device", "cpu") == "cuda"
     val_transform = config["val_transform"]
 
-    logger.info(f"モデル: {model_path}")
-    logger.info(f"データ: {data_path}")
-    logger.info(f"バッチサイズ: {batch_size}")
-    logger.info(f"GPU使用: {use_gpu}")
-    logger.info(f"出力先: {output_dir}")
+    logger.debug(f"モデル: {model_path}")
+    logger.debug(f"データ: {data_path}")
+    logger.debug(f"バッチサイズ: {batch_size}")
+    logger.debug(f"GPU使用: {use_gpu}")
+    logger.debug(f"出力先: {output_dir}")
 
     # データセット作成（configのval_transformを使用）
     dataset = PochiImageDataset(str(data_path), transform=val_transform)
 
-    logger.info(f"データセット: {len(dataset)}枚")
-    logger.info(f"クラス: {dataset.get_classes()}")
+    logger.debug(f"データセット: {len(dataset)}枚")
+    logger.debug(f"クラス: {dataset.get_classes()}")
 
     # ONNX推論クラス作成
-    logger.info("ONNXセッションを作成中...")
+    logger.debug("ONNXセッションを作成中...")
     inference = OnnxInference(model_path, use_gpu=use_gpu)
 
     # ウォームアップ（最初の1バッチで10回実行）
-    logger.info("ウォームアップ中...")
+    logger.debug("ウォームアップ中...")
     warmup_image, _ = dataset[0]
     assert isinstance(warmup_image, torch.Tensor)
     warmup_np = warmup_image.numpy()[np.newaxis, ...].astype(np.float32)
@@ -191,6 +202,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
     )
+    logger.info("推論完了")
 
     # 結果ファイル出力
     class_names = dataset.get_classes()
@@ -221,6 +233,7 @@ def main() -> None:
         filename="onnx_inference_summary.txt",
         extra_info={"実行プロバイダー": providers},
     )
+    logger.info(f"ワークスペース: {output_dir.name}へサマリーファイルを出力しました")
 
     # 混同行列画像を生成
     cm_config = config.get("confusion_matrix_config", None)
@@ -232,7 +245,7 @@ def main() -> None:
             output_dir=output_dir,
             cm_config=cm_config,
         )
-        logger.info(f"混同行列画像を生成しました: {cm_path}")
+        logger.debug(f"混同行列画像を生成しました: {cm_path}")
     except Exception as e:
         logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
@@ -244,7 +257,7 @@ def main() -> None:
             class_names=class_names,
             output_dir=output_dir,
         )
-        logger.info(f"クラス別精度レポートを生成しました: {report_path}")
+        logger.debug(f"クラス別精度レポートを生成しました: {report_path}")
     except Exception as e:
         logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 
