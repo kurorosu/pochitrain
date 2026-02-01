@@ -159,7 +159,7 @@ def save_confusion_matrix_image(
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    logger.info(f"混同行列画像保存: {output_path}")
+    logger.debug(f"混同行列画像保存: {output_path}")
     return output_path
 
 
@@ -442,7 +442,7 @@ def save_classification_report(
             ]
         )
 
-    logger.info(f"クラス別精度レポート保存: {csv_path}")
+    logger.debug(f"クラス別精度レポート保存: {csv_path}")
     return csv_path
 
 

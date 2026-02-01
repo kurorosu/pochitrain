@@ -332,12 +332,12 @@ def infer_command(args: argparse.Namespace) -> None:
     import torch
 
     logger = setup_logging(debug=args.debug)
-    logger.info("=== pochitrain 推論モード ===")
+    logger.debug("=== pochitrain 推論モード ===")
 
     # モデルパス確認
     model_path = Path(args.model_path)
     validate_model_path(model_path)
-    logger.info(f"使用するモデル: {model_path}")
+    logger.debug(f"使用するモデル: {model_path}")
 
     # 設定ファイル読み込み（自動検出または指定）
     if args.config_path:
@@ -358,12 +358,12 @@ def infer_command(args: argparse.Namespace) -> None:
         data_path = Path(args.data)
     elif pochi_config.val_data_root:
         data_path = Path(pochi_config.val_data_root)
-        logger.info(f"データパスをconfigから取得: {data_path}")
+        logger.debug(f"データパスをconfigから取得: {data_path}")
     else:
         logger.error("--data を指定するか、configにval_data_rootを設定してください")
         return
     validate_data_path(data_path)
-    logger.info(f"推論データ: {data_path}")
+    logger.debug(f"推論データ: {data_path}")
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
@@ -374,10 +374,10 @@ def infer_command(args: argparse.Namespace) -> None:
         work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
         output_dir = str(work_dir / "inference_results")
 
-    logger.info(f"推論結果出力先: {output_dir}")
+    logger.debug(f"推論結果出力先: {output_dir}")
 
     # 推論器作成
-    logger.info("推論器を作成しています...")
+    logger.debug("推論器を作成しています...")
     try:
         predictor = PochiPredictor(
             model_name=pochi_config.model_name,
@@ -385,7 +385,7 @@ def infer_command(args: argparse.Namespace) -> None:
             device=pochi_config.device,
             model_path=str(model_path),
         )
-        logger.info("推論器の作成成功")
+        logger.debug("推論器の作成成功")
 
     except Exception as e:
         logger.error(f"推論器作成エラー: {e}")
@@ -405,10 +405,10 @@ def infer_command(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
-        logger.info(f"推論データ: {len(val_dataset)}枚の画像")
-        logger.info("使用されたTransform (設定ファイルから):")
+        logger.debug(f"推論データ: {len(val_dataset)}枚の画像")
+        logger.debug("使用されたTransform (設定ファイルから):")
         for i, transform in enumerate(pochi_config.val_transform.transforms):
-            logger.info(f"   {i+1}. {transform}")
+            logger.debug(f"   {i+1}. {transform}")
 
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
@@ -448,7 +448,7 @@ def infer_command(args: argparse.Namespace) -> None:
         return
 
     # CSV出力
-    logger.info("結果をCSVに出力しています...")
+    logger.debug("結果をCSVに出力しています...")
     try:
         from pochitrain.inference import InferenceResultExporter
         from pochitrain.utils.directory_manager import InferenceWorkspaceManager
@@ -487,21 +487,23 @@ def infer_command(args: argparse.Namespace) -> None:
         throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
         logger.info("=== 推論結果 ===")
-        logger.info(f"処理画像数: {num_samples}枚")
+        logger.info(f"推論画像枚数: {num_samples}枚")
         logger.info(f"正解数: {accuracy_info['correct_predictions']}")
         logger.info(f"精度: {accuracy_info['accuracy_percentage']:.2f}%")
         logger.info(
             f"平均処理時間: {avg_time_per_image:.2f} ms/image（データ読み込み含む）"
         )
         logger.info(f"スループット: {throughput:.1f} images/sec")
-        logger.info(f"詳細結果: {results_csv}")
-        logger.info(f"サマリー: {summary_csv}")
+        logger.debug(f"詳細結果: {results_csv}")
+        logger.debug(f"サマリー: {summary_csv}")
 
         # ワークスペース情報
         workspace_info = exporter.get_workspace_info()
-        logger.info(f"ワークスペース: {workspace_info['workspace_name']}")
+        logger.info(
+            f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
+        )
 
-        logger.info("推論が完了しました！")
+        logger.debug("推論が完了しました！")
 
     except Exception as e:
         logger.error(f"CSV出力エラー: {e}")

@@ -80,7 +80,7 @@ class InferenceCSVExporter(BaseCSVExporter):
                 class_names,
             )
 
-        self.logger.info(f"推論結果をCSVに出力: {output_path}")
+        self.logger.debug(f"推論結果をCSVに出力: {output_path}")
         return output_path
 
     def _validate_data(
@@ -221,5 +221,5 @@ class InferenceCSVExporter(BaseCSVExporter):
                 for key, value in model_info.items():
                     writer.writerow([key, str(value)])
 
-        self.logger.info(f"推論サマリーをCSVに出力: {output_path}")
+        self.logger.debug(f"推論サマリーをCSVに出力: {output_path}")
         return output_path

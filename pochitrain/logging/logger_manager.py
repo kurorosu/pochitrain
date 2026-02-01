@@ -209,6 +209,15 @@ class LoggerManager:
         """
         self._default_level = level
         self._use_debug_format = level == LogLevel.DEBUG
+        self._update_existing_handlers_format()
+
+    def _update_existing_handlers_format(self) -> None:
+        """既存ハンドラーのフォーマット設定を更新する."""
+        for logger in self._loggers.values():
+            for handler in logger.handlers:
+                formatter = handler.formatter
+                if isinstance(formatter, LevelBasedFormatter):
+                    formatter._force_debug_format = self._use_debug_format
 
     def set_logger_level(self, name: str, level: LogLevel) -> None:
         """
