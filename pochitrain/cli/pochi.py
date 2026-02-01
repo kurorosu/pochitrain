@@ -36,34 +36,43 @@ from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
-_DEBUG_ENABLED = False
 
 
-def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
-    """Ctrl+Cのシグナルハンドラー."""
-    global training_interrupted
-    training_interrupted = True
+def create_signal_handler(debug: bool = False) -> Any:
+    """デバッグフラグを保持するシグナルハンドラーを生成する.
 
-    # シグナルハンドラー内で直接ロガーを作成
-    logger = setup_logging()
-    logger.warning("訓練を安全に停止しています... (Ctrl+Cが検出されました)")
-    logger.warning("現在のエポックが完了次第、訓練を終了します。")
+    Args:
+        debug (bool): デバッグモードが有効かどうか
+
+    Returns:
+        シグナルハンドラー関数
+    """
+
+    def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
+        """Ctrl+Cのシグナルハンドラー."""
+        global training_interrupted
+        training_interrupted = True
+
+        logger = setup_logging(debug=debug)
+        logger.warning("訓練を安全に停止しています... (Ctrl+Cが検出されました)")
+        logger.warning("現在のエポックが完了次第、訓練を終了します。")
+
+    return signal_handler
 
 
 def setup_logging(
-    logger_name: str = "pochitrain", debug: bool | None = None
+    logger_name: str = "pochitrain", debug: bool = False
 ) -> logging.Logger:
     """
     ログ設定の初期化.
 
     Args:
         logger_name (str): ロガー名
+        debug (bool): デバッグモードが有効かどうか
 
     Returns:
         logger: 設定済みロガー
     """
-    if debug is None:
-        debug = _DEBUG_ENABLED
     logger_manager = LoggerManager()
     level = LogLevel.DEBUG if debug else LogLevel.INFO
     logger_manager.set_default_level(level)
@@ -122,7 +131,7 @@ def validate_config(config: Dict[str, Any], logger: logging.Logger) -> bool:
 def train_command(args: argparse.Namespace) -> None:
     """訓練サブコマンドの実行."""
     # Ctrl+Cの安全な処理を設定
-    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGINT, create_signal_handler(debug=args.debug))
 
     logger = setup_logging(debug=args.debug)
     logger.info("=== pochitrain 訓練モード ===")
@@ -725,9 +734,6 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-
-    global _DEBUG_ENABLED
-    _DEBUG_ENABLED = args.debug
 
     if args.command == "train":
         train_command(args)

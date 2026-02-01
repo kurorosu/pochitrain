@@ -73,12 +73,9 @@ def main() -> None:
     args = parser.parse_args()
 
     manager = LoggerManager()
-    if args.debug:
-        manager.set_default_level(LogLevel.DEBUG)
-        manager.set_logger_level(__name__, LogLevel.DEBUG)
-    else:
-        manager.set_default_level(LogLevel.INFO)
-        manager.set_logger_level(__name__, LogLevel.INFO)
+    level = LogLevel.DEBUG if args.debug else LogLevel.INFO
+    manager.set_default_level(level)
+    manager.set_logger_level(__name__, level)
 
     # パス検証
     model_path = Path(args.model_path)

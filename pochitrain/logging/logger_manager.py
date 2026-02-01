@@ -46,6 +46,15 @@ class LevelBasedFormatter(logging.Formatter):
             self._info_formatter = logging.Formatter(info_format, datefmt=datefmt)
             self._debug_formatter = logging.Formatter(debug_format, datefmt=datefmt)
 
+    @property
+    def force_debug_format(self) -> bool:
+        """デバッグフォーマットの強制使用フラグ."""
+        return self._force_debug_format
+
+    @force_debug_format.setter
+    def force_debug_format(self, value: bool) -> None:
+        self._force_debug_format = value
+
     def format(self, record: logging.LogRecord) -> str:
         """ログレコードを整形."""
         record.levelname = {"WARNING": "WARN"}.get(record.levelname, record.levelname)
@@ -218,7 +227,7 @@ class LoggerManager:
             for handler in logger.handlers:
                 formatter = handler.formatter
                 if isinstance(formatter, LevelBasedFormatter):
-                    formatter._force_debug_format = self._use_debug_format
+                    formatter.force_debug_format = self._use_debug_format
 
     def _update_existing_loggers_level(self) -> None:
         """既存ロガーのレベル設定を更新する."""

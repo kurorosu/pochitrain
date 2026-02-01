@@ -8,15 +8,7 @@ from unittest.mock import Mock
 from pochitrain.validation.validators.class_weights_validator import (
     ClassWeightsValidator,
 )
-
-
-def assert_info_or_debug_called_with(mock_logger, message):
-    """INFO/DEBUG のどちらかでメッセージが出ていることを確認する."""
-    info_calls = mock_logger.info.call_args_list
-    debug_calls = mock_logger.debug.call_args_list
-    assert any(
-        call.args and call.args[0] == message for call in info_calls + debug_calls
-    )
+from tests.unit.test_validation.conftest import assert_info_or_debug_called_with
 
 
 class TestClassWeightsValidator(unittest.TestCase):
