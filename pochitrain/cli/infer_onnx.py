@@ -202,6 +202,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
     )
+    logger.info("推論完了")
 
     # 結果ファイル出力
     class_names = dataset.get_classes()

@@ -465,7 +465,6 @@ def log_inference_result(
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
-    logger.info("推論完了")
     logger.info(f"精度: {correct}/{num_samples} ({accuracy:.2f}%)")
     logger.info(
         f"平均推論時間: {avg_time_per_image:.2f} ms/image "
