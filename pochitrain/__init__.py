@@ -1,4 +1,4 @@
-﻿"""
+"""
 pochitrain: 画像分類向けの軽量 CNN 学習パイプライン.
 
 Example:
@@ -22,10 +22,10 @@ from .pochi_dataset import (
 )
 from .pochi_predictor import PochiPredictor
 
-# Pochi繧､繝ｳ繧ｿ繝ｼ繝輔ぉ繝ｼ繧ｹ
+# Pochiインターフェース
 from .pochi_trainer import PochiTrainer
 
-# 繝ｦ繝ｼ繝・ぅ繝ｪ繝・ぅ
+# ユーティリティ
 from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
 __version__ = "1.2.0"
@@ -35,7 +35,7 @@ __email__ = "pochi@example.com"
 __all__ = [
     # Logging
     "LoggerManager",
-    # Pochi繧､繝ｳ繧ｿ繝ｼ繝輔ぉ繝ｼ繧ｹ
+    # Pochiインターフェース
     "PochiTrainer",
     "PochiPredictor",
     "PochiConfig",
@@ -45,7 +45,7 @@ __all__ = [
     "get_basic_transforms",
     "create_model",
     "print_dataset_info",
-    # 繝ｦ繝ｼ繝・ぅ繝ｪ繝・ぅ
+    # ユーティリティ
     "PochiWorkspaceManager",
     "InferenceWorkspaceManager",
 ]

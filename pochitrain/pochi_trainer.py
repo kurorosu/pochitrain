@@ -4,6 +4,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
+import dataclasses
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -13,6 +14,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from .config import PochiConfig
 from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .training.checkpoint_store import CheckpointStore
@@ -125,6 +127,41 @@ class PochiTrainer:
 
         # Early Stopping（setup_training()で初期化）
         self.early_stopping: Optional[EarlyStopping] = None
+
+    @classmethod
+    def from_config(
+        cls, config: PochiConfig, create_workspace: bool = True
+    ) -> "PochiTrainer":
+        """PochiConfigからトレーナーを作成."""
+        return cls(
+            model_name=config.model_name,
+            num_classes=config.num_classes,
+            device=config.device,
+            pretrained=config.pretrained,
+            work_dir=config.work_dir,
+            create_workspace=create_workspace,
+            cudnn_benchmark=config.cudnn_benchmark,
+        )
+
+    def setup_training_from_config(self, config: PochiConfig, num_classes: int) -> None:
+        """PochiConfigから訓練設定を適用."""
+        layer_wise_lr_config = dataclasses.asdict(config.layer_wise_lr_config)
+        early_stopping_config = (
+            dataclasses.asdict(config.early_stopping)
+            if config.early_stopping is not None
+            else None
+        )
+        self.setup_training(
+            learning_rate=config.learning_rate,
+            optimizer_name=config.optimizer,
+            scheduler_name=config.scheduler,
+            scheduler_params=config.scheduler_params,
+            class_weights=config.class_weights,
+            num_classes=num_classes,
+            enable_layer_wise_lr=config.enable_layer_wise_lr,
+            layer_wise_lr_config=layer_wise_lr_config,
+            early_stopping_config=early_stopping_config,
+        )
 
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
