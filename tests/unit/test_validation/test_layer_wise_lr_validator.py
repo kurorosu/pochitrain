@@ -54,7 +54,7 @@ class TestLayerWiseLRValidator:
 
         result = validator.validate(config, mock_logger)
         assert result is True
-        mock_logger.info.assert_called()
+        assert mock_logger.info.called or mock_logger.debug.called
 
     def test_missing_enable_layer_wise_lr(self, validator, mock_logger):
         """enable_layer_wise_lrが存在しない場合のテスト."""

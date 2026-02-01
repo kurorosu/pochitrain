@@ -83,9 +83,9 @@ class TrainingConfigurator:
         # スケジューラーの構築
         scheduler = self._build_scheduler(optimizer, scheduler_name, scheduler_params)
 
-        self.logger.info(f"最適化器: {optimizer_name} (学習率: {learning_rate})")
+        self.logger.debug(f"最適化器: {optimizer_name} (学習率: {learning_rate})")
         if scheduler_name:
-            self.logger.info(f"スケジューラー: {scheduler_name}")
+            self.logger.debug(f"スケジューラー: {scheduler_name}")
 
         return TrainingComponents(
             optimizer=optimizer,
@@ -120,7 +120,7 @@ class TrainingConfigurator:
             weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(
                 self.device
             )
-            self.logger.info(f"クラス重みを設定: {class_weights}")
+            self.logger.debug(f"クラス重みを設定: {class_weights}")
             return nn.CrossEntropyLoss(weight=weights_tensor)
         return nn.CrossEntropyLoss()
 
@@ -262,10 +262,10 @@ class TrainingConfigurator:
         Args:
             param_groups: パラメータグループのリスト.
         """
-        self.logger.info("=== 層別学習率設定 ===")
+        self.logger.debug("=== 層別学習率設定 ===")
         for group in param_groups:
             layer_name = group.get("layer_name", "unknown")
             lr = group["lr"]
             param_count = sum(p.numel() for p in group["params"])
-            self.logger.info(f"  {layer_name}: lr={lr:.6f}, params={param_count:,}")
-        self.logger.info("=====================")
+            self.logger.debug(f"  {layer_name}: lr={lr:.6f}, params={param_count:,}")
+        self.logger.debug("=====================")

@@ -24,6 +24,7 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
+from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.training import Evaluator
 from pochitrain.utils import (
     ConfigLoader,
@@ -35,6 +36,7 @@ from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
+_DEBUG_ENABLED = False
 
 
 def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
@@ -48,7 +50,9 @@ def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
     logger.warning("現在のエポックが完了次第、訓練を終了します。")
 
 
-def setup_logging(logger_name: str = "pochitrain") -> logging.Logger:
+def setup_logging(
+    logger_name: str = "pochitrain", debug: bool | None = None
+) -> logging.Logger:
     """
     ログ設定の初期化.
 
@@ -58,8 +62,14 @@ def setup_logging(logger_name: str = "pochitrain") -> logging.Logger:
     Returns:
         logger: 設定済みロガー
     """
+    if debug is None:
+        debug = _DEBUG_ENABLED
     logger_manager = LoggerManager()
-    return logger_manager.get_logger(logger_name)
+    level = LogLevel.DEBUG if debug else LogLevel.INFO
+    logger_manager.set_default_level(level)
+    for existing_name in logger_manager.get_available_loggers():
+        logger_manager.set_logger_level(existing_name, level)
+    return logger_manager.get_logger(logger_name, level=level)
 
 
 def find_best_model(work_dir: str) -> Path:
@@ -114,7 +124,7 @@ def train_command(args: argparse.Namespace) -> None:
     # Ctrl+Cの安全な処理を設定
     signal.signal(signal.SIGINT, signal_handler)
 
-    logger = setup_logging()
+    logger = setup_logging(debug=args.debug)
     logger.info("=== pochitrain 訓練モード ===")
     logger.info(
         "安全終了: 訓練中にCtrl+Cを押すと、現在のエポック完了後に安全に終了します。"
@@ -137,42 +147,40 @@ def train_command(args: argparse.Namespace) -> None:
     pochi_config = PochiConfig.from_dict(config)
 
     # 設定確認ログ
-    logger.info("=== 設定確認 ===")
-    logger.info(f"モデル: {pochi_config.model_name}")
-    logger.info(f"デバイス: {pochi_config.device}")
-    logger.info(f"学習率: {pochi_config.learning_rate}")
-    logger.info(f"オプティマイザー: {pochi_config.optimizer}")
+    logger.debug("=== 設定確認 ===")
+    logger.debug(f"モデル: {pochi_config.model_name}")
+    logger.debug(f"デバイス: {pochi_config.device}")
+    logger.debug(f"学習率: {pochi_config.learning_rate}")
+    logger.debug(f"オプティマイザー: {pochi_config.optimizer}")
 
     # スケジューラー設定の明示的ログ出力
     scheduler_name = pochi_config.scheduler
     if scheduler_name is None:
         logger.info("スケジューラー: なし（固定学習率）")
     else:
-        logger.info(f"スケジューラー: {scheduler_name}")
+        logger.debug(f"スケジューラー: {scheduler_name}")
         scheduler_params = pochi_config.scheduler_params
-        logger.info(f"スケジューラーパラメータ: {scheduler_params}")
+        logger.debug(f"スケジューラーパラメータ: {scheduler_params}")
 
     # クラス重み設定の明示的ログ出力
     class_weights = pochi_config.class_weights
     if class_weights is None:
-        logger.info("クラス重み: なし（均等扱い）")
+        logger.debug("クラス重み: なし（均等扱い）")
     else:
-        logger.info(f"クラス重み: {class_weights}")
+        logger.debug(f"クラス重み: {class_weights}")
 
     # 層別学習率設定の明示的ログ出力
     enable_layer_wise_lr = pochi_config.enable_layer_wise_lr
     if enable_layer_wise_lr:
-        logger.info("層別学習率: 有効")
+        logger.debug("層別学習率: 有効")
         layer_wise_lr_config = dataclasses.asdict(pochi_config.layer_wise_lr_config)
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
-        logger.info(f"層別学習率設定: {layer_rates}")
+        logger.debug(f"層別学習率設定: {layer_rates}")
     else:
-        logger.info("層別学習率: 無効")
-
-    logger.info("==================")
+        logger.debug("層別学習率: 無効")
 
     # データローダーの作成
-    logger.info("データローダーを作成しています...")
+    logger.debug("データローダーを作成しています...")
     try:
         if pochi_config.val_data_root is None:
             logger.error("val_data_root が設定されていません。")
@@ -186,10 +194,10 @@ def train_command(args: argparse.Namespace) -> None:
             val_transform=pochi_config.val_transform,
         )
 
-        logger.info(f"クラス数: {len(classes)}")
-        logger.info(f"クラス名: {classes}")
-        logger.info(f"訓練バッチ数: {len(train_loader)}")
-        logger.info(f"検証バッチ数: {len(val_loader)}")
+        logger.debug(f"クラス数: {len(classes)}")
+        logger.debug(f"クラス名: {classes}")
+        logger.debug(f"訓練バッチ数: {len(train_loader)}")
+        logger.debug(f"検証バッチ数: {len(val_loader)}")
 
         # 設定のクラス数を更新
         config["num_classes"] = len(classes)
@@ -200,7 +208,7 @@ def train_command(args: argparse.Namespace) -> None:
         return
 
     # トレーナーの作成
-    logger.info("トレーナーを作成しています...")
+    logger.debug("トレーナーを作成しています...")
     trainer = PochiTrainer(
         model_name=pochi_config.model_name,
         num_classes=pochi_config.num_classes,
@@ -211,7 +219,7 @@ def train_command(args: argparse.Namespace) -> None:
     )
 
     # 訓練設定
-    logger.info("訓練設定を行っています...")
+    logger.debug("訓練設定を行っています...")
     trainer.setup_training(
         learning_rate=pochi_config.learning_rate,
         optimizer_name=pochi_config.optimizer,
@@ -229,7 +237,7 @@ def train_command(args: argparse.Namespace) -> None:
     )
 
     # データセットパスの保存
-    logger.info("データセットパスを保存しています...")
+    logger.debug("データセットパスを保存しています...")
     train_paths = []
     if hasattr(train_loader.dataset, "get_file_paths"):
         train_paths = train_loader.dataset.get_file_paths()
@@ -243,20 +251,20 @@ def train_command(args: argparse.Namespace) -> None:
     train_file, val_file = trainer.workspace_manager.save_dataset_paths(
         train_paths, val_paths
     )
-    logger.info(f"訓練データパスを保存: {train_file}")
+    logger.debug(f"訓練データパスを保存: {train_file}")
     if val_file is not None:
-        logger.info(f"検証データパスを保存: {val_file}")
+        logger.debug(f"検証データパスを保存: {val_file}")
 
     # 設定ファイルの保存
-    logger.info("設定ファイルを保存しています...")
+    logger.debug("設定ファイルを保存しています...")
     config_path_obj = Path(args.config)
     saved_config_path = trainer.workspace_manager.save_config(config_path_obj)
-    logger.info(f"設定ファイルを保存しました: {saved_config_path}")
+    logger.debug(f"設定ファイルを保存しました: {saved_config_path}")
 
     # メトリクスエクスポート設定の適用
     trainer.enable_metrics_export = pochi_config.enable_metrics_export
     if trainer.enable_metrics_export:
-        logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
+        logger.debug("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
     # Early Stopping設定のログ出力（初期化はsetup_training()で完了済み）
     early_stopping_config = (
@@ -265,12 +273,12 @@ def train_command(args: argparse.Namespace) -> None:
         else None
     )
     if not (early_stopping_config and early_stopping_config.get("enabled", False)):
-        logger.info("Early Stopping: 無効")
+        logger.debug("Early Stopping: 無効")
 
     # 勾配トレース設定の適用
     trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
-        logger.info("勾配トレース機能が有効です")
+        logger.debug("勾配トレース機能が有効です")
         gradient_config = dataclasses.asdict(pochi_config.gradient_tracking_config)
         trainer.gradient_tracking_config.update(gradient_config)
 
@@ -323,7 +331,7 @@ def infer_command(args: argparse.Namespace) -> None:
 
     import torch
 
-    logger = setup_logging()
+    logger = setup_logging(debug=args.debug)
     logger.info("=== pochitrain 推論モード ===")
 
     # モデルパス確認
@@ -384,7 +392,7 @@ def infer_command(args: argparse.Namespace) -> None:
         return
 
     # データローダー作成（訓練時と同じval_transformを使用）
-    logger.info("データローダーを作成しています...")
+    logger.debug("データローダーを作成しています...")
     try:
         val_dataset = PochiImageDataset(
             str(data_path), transform=pochi_config.val_transform
@@ -502,7 +510,7 @@ def infer_command(args: argparse.Namespace) -> None:
 
 def optimize_command(args: argparse.Namespace) -> None:
     """最適化サブコマンドの実行."""
-    logger = setup_logging()
+    logger = setup_logging(debug=args.debug)
     logger.info("=== pochitrain Optuna最適化モード ===")
 
     # 設定ファイルの読み込み
@@ -538,7 +546,7 @@ def optimize_command(args: argparse.Namespace) -> None:
     logger.info(f"出力ディレクトリ: {output_dir}")
 
     # データローダーの作成
-    logger.info("データローダーを作成しています...")
+    logger.debug("データローダーを作成しています...")
     try:
         train_loader, val_loader, classes = create_data_loaders(
             train_root=pochi_config.train_data_root or "data/train",
@@ -550,8 +558,8 @@ def optimize_command(args: argparse.Namespace) -> None:
         )
         config["num_classes"] = len(classes)
         pochi_config.num_classes = len(classes)
-        logger.info(f"クラス数: {len(classes)}")
-        logger.info(f"クラス名: {classes}")
+        logger.debug(f"クラス数: {len(classes)}")
+        logger.debug(f"クラス名: {classes}")
         logger.info(f"訓練サンプル数: {len(cast(Sized, train_loader.dataset))}")
         logger.info(f"検証サンプル数: {len(cast(Sized, val_loader.dataset))}")
     except Exception as e:
@@ -671,6 +679,8 @@ def main() -> None:
         """,
     )
 
+    parser.add_argument("--debug", action="store_true", help="DEBUGログを有効化")
+
     subparsers = parser.add_subparsers(dest="command", help="サブコマンド")
 
     # 訓練サブコマンド
@@ -713,6 +723,9 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    global _DEBUG_ENABLED
+    _DEBUG_ENABLED = args.debug
 
     if args.command == "train":
         train_command(args)

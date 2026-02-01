@@ -37,7 +37,7 @@ class ClassWeightsValidator(BaseValidator):
 
         # class_weightsがNoneの場合は正常（クラス重みなし）
         if class_weights is None:
-            logger.info("クラス重み: なし（均等扱い）")
+            logger.debug("クラス重み: なし（均等扱い）")
             return True
 
         # class_weightsの型チェック
@@ -75,6 +75,6 @@ class ClassWeightsValidator(BaseValidator):
                 return False
 
         # バリデーション成功時のログ出力
-        logger.info(f"クラス重み: {weights_list}")
+        logger.debug(f"クラス重み: {weights_list}")
 
         return True

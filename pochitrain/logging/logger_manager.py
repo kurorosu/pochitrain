@@ -16,6 +16,44 @@ except ImportError:
     COLORLOG_AVAILABLE = False
 
 
+class LevelBasedFormatter(logging.Formatter):
+    """デバッグモードによって切り替わるログ形式."""
+
+    def __init__(
+        self,
+        info_format: str,
+        debug_format: str,
+        datefmt: str,
+        use_color: bool = False,
+        log_colors: dict | None = None,
+        force_debug_format: bool = False,
+    ) -> None:
+        """ログ整形の初期化."""
+        super().__init__(datefmt=datefmt)
+        self._info_format = info_format
+        self._debug_format = debug_format
+        self._use_color = use_color
+        self._log_colors = log_colors or {}
+        self._force_debug_format = force_debug_format
+        if use_color:
+            self._info_formatter = colorlog.ColoredFormatter(
+                info_format, datefmt=datefmt, log_colors=self._log_colors
+            )
+            self._debug_formatter = colorlog.ColoredFormatter(
+                debug_format, datefmt=datefmt, log_colors=self._log_colors
+            )
+        else:
+            self._info_formatter = logging.Formatter(info_format, datefmt=datefmt)
+            self._debug_formatter = logging.Formatter(debug_format, datefmt=datefmt)
+
+    def format(self, record: logging.LogRecord) -> str:
+        """ログレコードを整形."""
+        record.levelname = {"WARNING": "WARN"}.get(record.levelname, record.levelname)
+        if self._force_debug_format:
+            return str(self._debug_formatter.format(record))
+        return str(self._info_formatter.format(record))
+
+
 class LogLevel(Enum):
     """ログレベル列挙型."""
 
@@ -54,14 +92,19 @@ class LoggerManager:
             return
 
         self._default_level = LogLevel.INFO
-        self._format_string = (
-            "[%(asctime)s][%(log_color)s%(levelname)s%(reset)s]"
-            "[%(name)s][%(filename)s:%(lineno)d] %(message)s"
+        self._use_debug_format = False
+        self._info_format = (
+            "%(asctime)s|%(log_color)s%(levelname)-5.5s%(reset)s| %(message)s"
+        )
+        self._debug_format = (
+            "%(asctime)s|%(log_color)s%(levelname)-5.5s%(reset)s|"
+            "%(filename)-28s|%(lineno)03d| %(message)s"
         )
         self._date_format = "%Y-%m-%d %H:%M:%S"
         self._log_colors = {
             "DEBUG": "cyan",
             "INFO": "green",
+            "WARN": "yellow",
             "WARNING": "yellow",
             "ERROR": "red",
             "CRITICAL": "red,bg_white",
@@ -133,21 +176,25 @@ class LoggerManager:
         formatter: logging.Formatter
         if COLORLOG_AVAILABLE:
             handler = colorlog.StreamHandler()
-            formatter = colorlog.ColoredFormatter(
-                self._format_string,
+            formatter = LevelBasedFormatter(
+                self._info_format,
+                self._debug_format,
                 datefmt=self._date_format,
+                use_color=True,
                 log_colors=self._log_colors,
+                force_debug_format=self._use_debug_format,
             )
         else:
             handler = logging.StreamHandler()
             # colorlogが利用できない場合は色情報を除去したフォーマット
-            plain_format = (
-                "[%(asctime)s][%(levelname)s][%(name)s]"
-                "[%(filename)s:%(lineno)d] %(message)s"
-            )
-            formatter = logging.Formatter(
-                plain_format,
+            info_format = "%(asctime)s|%(levelname)-5.5s| %(message)s"
+            debug_format = "%(asctime)s|%(levelname)-5.5s|%(filename)-28s|%(lineno)03d| %(message)s"
+            formatter = LevelBasedFormatter(
+                info_format,
+                debug_format,
                 datefmt=self._date_format,
+                use_color=False,
+                force_debug_format=self._use_debug_format,
             )
 
         handler.setFormatter(formatter)
@@ -161,6 +208,7 @@ class LoggerManager:
             level (LogLevel): 新しいデフォルトレベル
         """
         self._default_level = level
+        self._use_debug_format = level == LogLevel.DEBUG
 
     def set_logger_level(self, name: str, level: LogLevel) -> None:
         """

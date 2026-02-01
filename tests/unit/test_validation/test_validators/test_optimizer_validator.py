@@ -5,6 +5,15 @@ import pytest
 from pochitrain.validation.validators.optimizer_validator import OptimizerValidator
 
 
+def assert_info_or_debug_any_call(mock_logger, message):
+    """INFO/DEBUG のどちらかでメッセージが出ていることを確認する."""
+    info_calls = [call.args[0] for call in mock_logger.info.call_args_list if call.args]
+    debug_calls = [
+        call.args[0] for call in mock_logger.debug.call_args_list if call.args
+    ]
+    assert message in info_calls or message in debug_calls
+
+
 @pytest.fixture
 def validator():
     """OptimizerValidatorのfixture."""
@@ -103,8 +112,8 @@ def test_valid_adam_success(validator, mocker):
     result = validator.validate(config, mock_logger)
 
     assert result is True
-    mock_logger.info.assert_any_call("学習率: 0.001")
-    mock_logger.info.assert_any_call("最適化器: Adam")
+    assert_info_or_debug_any_call(mock_logger, "学習率: 0.001")
+    assert_info_or_debug_any_call(mock_logger, "最適化器: Adam")
 
 
 def test_valid_sgd_success(validator, mocker):
@@ -115,8 +124,8 @@ def test_valid_sgd_success(validator, mocker):
     result = validator.validate(config, mock_logger)
 
     assert result is True
-    mock_logger.info.assert_any_call("学習率: 0.1")
-    mock_logger.info.assert_any_call("最適化器: SGD")
+    assert_info_or_debug_any_call(mock_logger, "学習率: 0.1")
+    assert_info_or_debug_any_call(mock_logger, "最適化器: SGD")
 
 
 def test_learning_rate_boundary_values(validator, mocker):
