@@ -60,9 +60,10 @@ class Evaluator:
                 output = model(data)
                 loss = criterion(output, target)
 
-                total_loss += loss.item()
+                batch_size = target.size(0)
+                total_loss += loss.item() * batch_size
                 _, predicted = output.max(1)
-                total += target.size(0)
+                total += batch_size
                 correct += predicted.eq(target).sum().item()
 
                 # 混同行列用にデータを保存
@@ -70,8 +71,7 @@ class Evaluator:
                 all_targets.append(target)
 
         # 例外回避のための防御的ガード. 本来はバリデーションで止めるのが望ましい
-        loader_len = len(val_loader)
-        avg_loss = total_loss / loader_len if loader_len > 0 else 0.0
+        avg_loss = total_loss / total if total > 0 else 0.0
         accuracy = 100.0 * correct / total if total > 0 else 0.0
 
         # 混同行列の計算と出力
