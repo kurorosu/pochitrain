@@ -1,9 +1,9 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-ee4c2c.svg)](https://pytorch.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
 
 A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
@@ -204,11 +204,14 @@ predictions, confidences = trainer.predict(test_loader)
 - **勾配トレース**: 層ごとの勾配推移を可視化
 - **クラス重み**: 不均衡データセットへ柔軟に対応
 - **ハイパーパラメータ最適化**: Optunaによる自動パラメータ探索
+- **Early Stopping**: 過学習を自動検知して訓練を早期終了
+- **クラス別精度レポート**: 推論時にクラスごとの精度を詳細出力
+- **TensorRT推論**: ONNXモデルをTensorRTエンジンに変換し高速推論
 
 ## 📋 要件
 
 - Python 3.13+
-- PyTorch 2.6+ (CUDA 13.0)
+- PyTorch 2.9+ (CUDA 13.0)
 - torchvision 0.21+
 - pandas 2.0+ (勾配トレース可視化用)
 - Optuna 3.5+ (ハイパーパラメータ最適化用)
