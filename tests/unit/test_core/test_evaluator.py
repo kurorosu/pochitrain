@@ -204,6 +204,36 @@ class TestValidate:
             assert log_file.exists()
 
 
+class TestSampleWeightedLoss:
+    """サンプル重み付け損失平均のテスト."""
+
+    def test_validate_sample_weighted_loss(self, evaluator):
+        """不均一バッチサイズでサンプル重み付け平均が正しく計算される."""
+        # 固定重みのモデルで再現性を確保
+        torch.manual_seed(42)
+        model = nn.Linear(4, 3)
+        model.eval()
+        criterion = nn.CrossEntropyLoss()
+
+        # 7サンプル, batch_size=4 -> バッチ1: 4サンプル, バッチ2: 3サンプル
+        data = torch.randn(7, 4)
+        targets = torch.tensor([0, 1, 2, 0, 1, 2, 0])
+        dataset = TensorDataset(data, targets)
+        loader = DataLoader(dataset, batch_size=4, shuffle=False)
+
+        result = evaluator.validate(model, loader, criterion)
+
+        # 手動で期待値を計算
+        with torch.no_grad():
+            out1 = model(data[:4])
+            loss1 = criterion(out1, targets[:4]).item()
+            out2 = model(data[4:])
+            loss2 = criterion(out2, targets[4:]).item()
+
+        expected_loss = (loss1 * 4 + loss2 * 3) / 7
+        assert result["val_loss"] == pytest.approx(expected_loss, abs=1e-6)
+
+
 class TestLogConfusionMatrix:
     """log_confusion_matrixメソッドのテスト."""
 

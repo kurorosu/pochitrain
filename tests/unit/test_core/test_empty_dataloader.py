@@ -34,6 +34,52 @@ def test_train_epoch_with_empty_loader():
         assert metrics["accuracy"] == 0.0
 
 
+def test_train_epoch_sample_weighted_loss():
+    """不均一バッチサイズでサンプル重み付け平均が正しく計算される.
+
+    criterion をモックして固定 loss を返すことで,
+    サンプル重み付け平均の計算ロジックを直接検証する.
+    バッチ1 (4サンプル) -> loss=1.0, バッチ2 (1サンプル) -> loss=2.0 の場合,
+    サンプル重み付け平均 = (1.0*4 + 2.0*1) / 5 = 1.2
+    バッチ平均だと (1.0 + 2.0) / 2 = 1.5 になるため, 区別可能.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        torch.manual_seed(42)
+        trainer = PochiTrainer(
+            model_name="resnet18",
+            num_classes=3,
+            pretrained=False,
+            device="cpu",
+            work_dir=temp_dir,
+        )
+        trainer.setup_training(learning_rate=0.0, optimizer_name="SGD", num_classes=3)
+
+        # 5サンプル, batch_size=4 -> バッチ1: 4サンプル, バッチ2: 1サンプル
+        data = torch.randn(5, 3, 224, 224)
+        targets = torch.tensor([0, 1, 2, 0, 1])
+        dataset = TensorDataset(data, targets)
+        loader = DataLoader(dataset, batch_size=4, shuffle=False)
+
+        # criterion をモックしてバッチごとに固定 loss を返す
+        call_count = 0
+        original_criterion = trainer.criterion
+
+        def fake_criterion(output, target):
+            nonlocal call_count
+            call_count += 1
+            # 逆伝播可能な tensor を返す必要がある
+            if call_count == 1:
+                return torch.tensor(1.0, requires_grad=True)
+            return torch.tensor(2.0, requires_grad=True)
+
+        trainer.criterion = fake_criterion  # type: ignore[assignment]
+        metrics = trainer.train_epoch(loader)
+
+        # サンプル重み付け平均: (1.0*4 + 2.0*1) / 5 = 1.2
+        expected_loss = (1.0 * 4 + 2.0 * 1) / 5
+        assert abs(metrics["loss"] - expected_loss) < 1e-6
+
+
 def test_evaluator_with_empty_loader():
     logger = logging.getLogger("test_evaluator_empty_loader")
     evaluator = Evaluator(device=torch.device("cpu"), logger=logger)
