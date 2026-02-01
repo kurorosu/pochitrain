@@ -69,8 +69,10 @@ class Evaluator:
                 all_predicted.append(predicted)
                 all_targets.append(target)
 
-        avg_loss = total_loss / len(val_loader)
-        accuracy = 100.0 * correct / total
+        # 例外回避のための防御的ガード. 本来はバリデーションで止めるのが望ましい
+        loader_len = len(val_loader)
+        avg_loss = total_loss / loader_len if loader_len > 0 else 0.0
+        accuracy = 100.0 * correct / total if total > 0 else 0.0
 
         # 混同行列の計算と出力
         if num_classes_for_cm is not None and all_predicted and all_targets:

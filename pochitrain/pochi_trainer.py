@@ -278,8 +278,10 @@ class PochiTrainer:
                 )
 
         # エポックの統計情報
-        avg_loss = total_loss / len(train_loader)
-        accuracy = 100.0 * correct / total
+        # 例外回避のための防御的ガード. 本来はバリデーションで止めるのが望ましい
+        loader_len = len(train_loader)
+        avg_loss = total_loss / loader_len if loader_len > 0 else 0.0
+        accuracy = 100.0 * correct / total if total > 0 else 0.0
 
         return {"loss": avg_loss, "accuracy": accuracy}
 
