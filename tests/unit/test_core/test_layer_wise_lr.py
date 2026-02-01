@@ -65,19 +65,19 @@ class TestLayerWiseLR:
         assert trainer.base_learning_rate == 0.001
 
     def test_get_layer_group(self, trainer):
-        """層グループ名の取得テスト."""
-        # ResNetの各層名をテスト
-        assert trainer._get_layer_group("conv1.weight") == "conv1"
-        assert trainer._get_layer_group("bn1.weight") == "bn1"
-        assert trainer._get_layer_group("layer1.0.conv1.weight") == "layer1"
-        assert trainer._get_layer_group("layer2.1.bn2.bias") == "layer2"
-        assert trainer._get_layer_group("layer3.0.downsample.0.weight") == "layer3"
-        assert trainer._get_layer_group("layer4.1.conv2.weight") == "layer4"
-        assert trainer._get_layer_group("fc.weight") == "fc"
-        assert trainer._get_layer_group("unknown.weight") == "other"
+        """層グループ名の取得テスト (TrainingConfigurator 経由)."""
+        configurator = trainer.training_configurator
+        assert configurator._get_layer_group("conv1.weight") == "conv1"
+        assert configurator._get_layer_group("bn1.weight") == "bn1"
+        assert configurator._get_layer_group("layer1.0.conv1.weight") == "layer1"
+        assert configurator._get_layer_group("layer2.1.bn2.bias") == "layer2"
+        assert configurator._get_layer_group("layer3.0.downsample.0.weight") == "layer3"
+        assert configurator._get_layer_group("layer4.1.conv2.weight") == "layer4"
+        assert configurator._get_layer_group("fc.weight") == "fc"
+        assert configurator._get_layer_group("unknown.weight") == "other"
 
     def test_build_layer_wise_param_groups(self, trainer):
-        """パラメータグループ構築のテスト."""
+        """パラメータグループ構築のテスト (TrainingConfigurator 経由)."""
         layer_wise_lr_config = {
             "layer_rates": {
                 "conv1": 0.0001,
@@ -85,9 +85,10 @@ class TestLayerWiseLR:
                 "fc": 0.01,
             }
         }
-        trainer.layer_wise_lr_config = layer_wise_lr_config
 
-        param_groups = trainer._build_layer_wise_param_groups(0.001)
+        param_groups = trainer.training_configurator._build_layer_wise_param_groups(
+            trainer.model, 0.001, layer_wise_lr_config
+        )
 
         # パラメータグループが作成されることを確認
         assert len(param_groups) > 0
@@ -151,7 +152,9 @@ class TestLayerWiseLR:
         assert trainer.scheduler is not None
         assert trainer.enable_layer_wise_lr
 
-    @patch("pochitrain.pochi_trainer.PochiTrainer._log_layer_wise_lr")
+    @patch(
+        "pochitrain.training.training_configurator.TrainingConfigurator._log_layer_wise_lr"
+    )
     def test_log_layer_wise_lr_called(self, mock_log, trainer):
         """層別学習率ログ出力が呼ばれることのテスト."""
         layer_wise_lr_config = {

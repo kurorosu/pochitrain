@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch.nn as nn
 
+from pochitrain.logging import LoggerManager
+
 
 class GradientTracer:
     """
@@ -40,7 +42,7 @@ class GradientTracer:
 
         # ロガーの設定
         if logger is None:
-            self.logger = logging.getLogger(__name__)
+            self.logger = LoggerManager().get_logger(__name__)
         else:
             self.logger = logger
 

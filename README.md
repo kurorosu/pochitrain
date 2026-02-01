@@ -1,9 +1,9 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-ee4c2c.svg)](https://pytorch.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
 
 A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
@@ -89,24 +89,19 @@ uv run pochi train --config configs/my_custom_config.py
 
 ### 5. 推論の実行
 
-基本的な推論:
+基本的な推論（config・データパスはモデルパスから自動検出）:
 ```bash
-uv run pochi infer \
-  --model-path work_dirs/20251018_001/models/best_epoch40.pth \
-  --data data/val \
-  --config-path work_dirs/20251018_001/config.py
+uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth
 ```
 
-出力先を指定する場合:
+データパスや出力先を上書きする場合:
 ```bash
-uv run pochi infer \
-  --model-path work_dirs/20251018_001/models/best_epoch40.pth \
+uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth \
   --data data/test \
-  --config-path work_dirs/20251018_001/config.py \
   --output results/
 ```
 
-推論完了時に1枚あたりの平均推論時間 (ms/image) が表示されます. 実運用での1枚ずつの推論速度を計測したい場合は, configの`batch_size`を1に設定してください.
+推論完了時に平均処理時間 (ms/image) とスループット (images/sec) が表示されます.
 
 ### 6. 結果と出力
 
@@ -209,11 +204,14 @@ predictions, confidences = trainer.predict(test_loader)
 - **勾配トレース**: 層ごとの勾配推移を可視化
 - **クラス重み**: 不均衡データセットへ柔軟に対応
 - **ハイパーパラメータ最適化**: Optunaによる自動パラメータ探索
+- **Early Stopping**: 過学習を自動検知して訓練を早期終了
+- **クラス別精度レポート**: 推論時にクラスごとの精度を詳細出力
+- **TensorRT推論**: ONNXモデルをTensorRTエンジンに変換し高速推論
 
 ## 📋 要件
 
 - Python 3.13+
-- PyTorch 2.6+ (CUDA 13.0)
+- PyTorch 2.9+ (CUDA 13.0)
 - torchvision 0.21+
 - pandas 2.0+ (勾配トレース可視化用)
 - Optuna 3.5+ (ハイパーパラメータ最適化用)
@@ -341,17 +339,16 @@ uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
 
 ### ONNX推論の実行
 
-エクスポートしたONNXモデルで推論:
+エクスポートしたONNXモデルで推論（config・データパスはモデルパスから自動検出）:
 ```bash
-uv run infer-onnx model.onnx --data data/val --input-size 224 224
+uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx
 ```
 
-GPU利用可否の確認:
+データパスや出力先を上書きする場合:
 ```bash
-uv run infer-onnx --check-gpu
+uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx \
+  --data data/test -o results/
 ```
-
-`CUDAExecutionProvider`が表示されればGPU推論が可能です.
 
 ### コマンドオプション
 
@@ -368,15 +365,64 @@ uv run infer-onnx --check-gpu
 
 | オプション | 説明 | デフォルト |
 |-----------|------|-----------|
-| `--data` | 推論データのパス | (必須) |
-| `--input-size` | 入力画像サイズ (H W) | (必須*) |
-| `--config` | 設定ファイルパス | - |
-| `--output` | 結果CSVの出力先 | `./onnx_results` |
-| `--batch-size` | バッチサイズ | `1` |
-| `--gpu` | GPUを使用 | - |
-| `--check-gpu` | GPU利用可否を確認して終了 | - |
+| `--data` | 推論データのパス | configの`val_data_root` |
+| `--output` | 結果の出力先ディレクトリ | モデルパスから自動決定 |
 
-*`--config`に`input_size`を記載すれば`--input-size`は不要
+## ⚡ TensorRT高速推論
+
+ONNXモデルをTensorRTエンジンに変換し、ネイティブTensorRTで高速推論を行う機能です。ONNX Runtimeと比較して約5倍高速な推論が可能です。
+
+### 前提条件
+
+TensorRT SDKのインストールが必要です。
+
+1. [NVIDIA TensorRT](https://developer.nvidia.com/tensorrt)からSDKをダウンロード
+2. SDKをインストール後、`trtexec`がPATHに通っていることを確認
+3. Python APIをインストール:
+```bash
+uv pip install <TensorRT_SDK_PATH>/python/tensorrt-10.x.x-cpXX-none-win_amd64.whl
+```
+
+### 使用フロー
+
+#### 1. ONNXモデルのエクスポート
+
+```bash
+uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 512 512
+```
+
+#### 2. TensorRTエンジンのビルド
+
+```bash
+trtexec --onnx=best_epoch40.onnx --saveEngine=model.engine
+```
+
+#### 3. TensorRT推論の実行
+
+基本的な使い方（config・データパスはエンジンパスから自動検出）:
+```bash
+uv run infer-trt work_dirs/20251018_001/models/model.engine
+```
+
+データパスや出力先を上書きする場合:
+```bash
+uv run infer-trt work_dirs/20251018_001/models/model.engine \
+  --data data/test -o results/
+```
+
+### コマンドオプション
+
+**infer-trt:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--data` | 推論データのパス | configの`val_data_root` |
+| `--output` | 結果の出力先ディレクトリ | エンジンパスから自動決定 |
+
+### 注意事項
+
+- TensorRTエンジンはGPUアーキテクチャ固有です（異なるGPUでは再ビルドが必要）
+- `uv sync`を実行するとTensorRTがアンインストールされます。その場合は再度`uv pip install`でインストールしてください
 
 ## 🔧 設定オプション
 

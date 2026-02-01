@@ -48,6 +48,7 @@ class_weights = None  # クラス毎の損失重み
 # その他設定
 work_dir = "work_dirs"  # 作業ディレクトリ
 device = "cuda"  # デバイス
+cudnn_benchmark = False  # cuDNN自動チューニング（固定サイズ入力で高速化）
 
 # 訓練メトリクス可視化設定
 enable_metrics_export = True  # メトリクスのCSV出力とグラフ生成を有効化
@@ -59,6 +60,14 @@ gradient_tracking_config = {
     "exclude_patterns": ["fc\\.", "\\.bias"],  # 除外する層名パターン（正規表現）
     "group_by_block": True,  # ResNetブロック単位で集約（layer1.*, layer2.*など）
     "aggregation_method": "median",  # 集約方法: "median", "mean", "max", "rms"
+}
+
+# Early Stopping設定
+early_stopping = {
+    "enabled": False,  # Early Stoppingを有効化
+    "patience": 30,  # 改善なしの許容エポック数
+    "min_delta": 3.0,  # この値以上の変化がないと改善と見なさない(0.0なら少しでも良くなれば改善扱い)
+    "monitor": "val_accuracy",  # 監視メトリクス ("val_accuracy" or "val_loss")
 }
 
 # 層別学習率設定

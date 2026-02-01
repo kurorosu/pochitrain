@@ -1,6 +1,6 @@
 [project]
 name = "pochitrain"
-version = "1.2.0"
+version = "1.3.0"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -55,6 +55,7 @@ onnx = [
 pochi = "pochitrain.cli.pochi:main"
 export-onnx = "pochitrain.cli.export_onnx:main"
 infer-onnx = "pochitrain.cli.infer_onnx:main"
+infer-trt = "pochitrain.cli.infer_trt:main"
 vis-grad = "pochitrain.cli.visualize_gradient:main"
 
 [build-system]

@@ -7,14 +7,15 @@ CSV形式で保存してグラフを自動生成します。
 
 import csv
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 
+from pochitrain.exporters import BaseCSVExporter
 
-class TrainingMetricsExporter:
+
+class TrainingMetricsExporter(BaseCSVExporter):
     """
     訓練メトリクスをCSVファイルに出力し、グラフを生成するクラス.
 
@@ -32,14 +33,8 @@ class TrainingMetricsExporter:
         layer_wise_lr_graph_config: Optional[Dict[str, Any]] = None,
     ):
         """TrainingMetricsExporterを初期化."""
-        self.output_dir = Path(output_dir)
+        super().__init__(output_dir=output_dir, logger=logger)
         self.enable_visualization = enable_visualization
-
-        # ロガーの設定
-        if logger is None:
-            self.logger = logging.getLogger(__name__)
-        else:
-            self.logger = logger
 
         # 層別学習率グラフの設定
         if layer_wise_lr_graph_config is None:
@@ -144,15 +139,8 @@ class TrainingMetricsExporter:
             self.logger.warning("記録されたメトリクスがありません")
             return None
 
-        # ファイル名の生成
-        if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"training_metrics_{timestamp}.csv"
-
-        if not filename.endswith(".csv"):
-            filename += ".csv"
-
-        output_path = self.output_dir / filename
+        filename = self._generate_filename("training_metrics", filename)
+        output_path = self._build_output_path(filename)
 
         # 全ヘッダーの結合
         all_headers = self.base_headers + self.extended_headers
@@ -214,8 +202,9 @@ class TrainingMetricsExporter:
 
         # ベースファイル名の生成
         if base_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            base_filename = f"training_metrics_{timestamp}"
+            timestamp = self._generate_filename("training_metrics")
+            # .csv を除いてベース名として使う
+            base_filename = timestamp.removesuffix(".csv")
 
         output_paths = []
 

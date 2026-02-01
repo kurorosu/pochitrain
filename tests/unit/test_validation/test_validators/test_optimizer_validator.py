@@ -20,8 +20,8 @@ def test_learning_rate_missing_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "learning_rate が設定されていません。configs/pochi_train_config.py で "
-        "学習率を設定してください。"
+        "learning_rate が設定されていません。"
+        "configs/pochi_train_config.py で設定してください。"
     )
 
 
@@ -34,7 +34,8 @@ def test_learning_rate_invalid_type_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "learning_rate は数値である必要があります。現在の型: <class 'str'>"
+        "learning_rate は int または float である必要があります。"
+        "現在の型: str, 現在の値: 0.001"
     )
 
 
@@ -62,8 +63,8 @@ def test_optimizer_missing_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "optimizer が設定されていません。configs/pochi_train_config.py で "
-        "最適化器を設定してください。"
+        "optimizer が設定されていません。"
+        "configs/pochi_train_config.py で設定してください。"
     )
 
 
@@ -76,7 +77,7 @@ def test_optimizer_invalid_type_failure(validator, mocker):
 
     assert result is False
     mock_logger.error.assert_called_with(
-        "optimizer は文字列である必要があります。現在の型: <class 'int'>"
+        "optimizer は str である必要があります。" "現在の型: int, 現在の値: 123"
     )
 
 

@@ -6,23 +6,31 @@ pochitrain 統一CLI エントリーポイント.
 """
 
 import argparse
+import dataclasses
 import logging
 import signal
 import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sized, cast
 
 from torch.utils.data import DataLoader
 
 from pochitrain import (
     LoggerManager,
+    PochiConfig,
     PochiImageDataset,
     PochiPredictor,
     PochiTrainer,
     create_data_loaders,
 )
-from pochitrain.utils import ConfigLoader
+from pochitrain.training import Evaluator
+from pochitrain.utils import (
+    ConfigLoader,
+    load_config_auto,
+    validate_data_path,
+    validate_model_path,
+)
 from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
@@ -126,34 +134,36 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error("設定にエラーがあります。修正してください。")
         return
 
+    pochi_config = PochiConfig.from_dict(config)
+
     # 設定確認ログ
     logger.info("=== 設定確認 ===")
-    logger.info(f"モデル: {config['model_name']}")
-    logger.info(f"デバイス: {config['device']}")
-    logger.info(f"学習率: {config['learning_rate']}")
-    logger.info(f"オプティマイザー: {config['optimizer']}")
+    logger.info(f"モデル: {pochi_config.model_name}")
+    logger.info(f"デバイス: {pochi_config.device}")
+    logger.info(f"学習率: {pochi_config.learning_rate}")
+    logger.info(f"オプティマイザー: {pochi_config.optimizer}")
 
     # スケジューラー設定の明示的ログ出力
-    scheduler_name = config.get("scheduler")
+    scheduler_name = pochi_config.scheduler
     if scheduler_name is None:
         logger.info("スケジューラー: なし（固定学習率）")
     else:
         logger.info(f"スケジューラー: {scheduler_name}")
-        scheduler_params = config.get("scheduler_params")
+        scheduler_params = pochi_config.scheduler_params
         logger.info(f"スケジューラーパラメータ: {scheduler_params}")
 
     # クラス重み設定の明示的ログ出力
-    class_weights = config.get("class_weights")
+    class_weights = pochi_config.class_weights
     if class_weights is None:
         logger.info("クラス重み: なし（均等扱い）")
     else:
         logger.info(f"クラス重み: {class_weights}")
 
     # 層別学習率設定の明示的ログ出力
-    enable_layer_wise_lr = config.get("enable_layer_wise_lr", False)
+    enable_layer_wise_lr = pochi_config.enable_layer_wise_lr
     if enable_layer_wise_lr:
         logger.info("層別学習率: 有効")
-        layer_wise_lr_config = config.get("layer_wise_lr_config", {})
+        layer_wise_lr_config = dataclasses.asdict(pochi_config.layer_wise_lr_config)
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
         logger.info(f"層別学習率設定: {layer_rates}")
     else:
@@ -164,13 +174,16 @@ def train_command(args: argparse.Namespace) -> None:
     # データローダーの作成
     logger.info("データローダーを作成しています...")
     try:
+        if pochi_config.val_data_root is None:
+            logger.error("val_data_root が設定されていません。")
+            return
         train_loader, val_loader, classes = create_data_loaders(
-            train_root=config["train_data_root"],
-            val_root=config["val_data_root"],
-            batch_size=config["batch_size"],
-            num_workers=config["num_workers"],
-            train_transform=config.get("train_transform"),
-            val_transform=config.get("val_transform"),
+            train_root=pochi_config.train_data_root,
+            val_root=pochi_config.val_data_root,
+            batch_size=pochi_config.batch_size,
+            num_workers=pochi_config.num_workers,
+            train_transform=pochi_config.train_transform,
+            val_transform=pochi_config.val_transform,
         )
 
         logger.info(f"クラス数: {len(classes)}")
@@ -180,6 +193,7 @@ def train_command(args: argparse.Namespace) -> None:
 
         # 設定のクラス数を更新
         config["num_classes"] = len(classes)
+        pochi_config.num_classes = len(classes)
 
     except Exception as e:
         logger.error(f"データローダーの作成に失敗しました: {e}")
@@ -188,46 +202,76 @@ def train_command(args: argparse.Namespace) -> None:
     # トレーナーの作成
     logger.info("トレーナーを作成しています...")
     trainer = PochiTrainer(
-        model_name=config["model_name"],
-        num_classes=config["num_classes"],
-        device=config["device"],
-        pretrained=config["pretrained"],
-        work_dir=config["work_dir"],
+        model_name=pochi_config.model_name,
+        num_classes=pochi_config.num_classes,
+        device=pochi_config.device,
+        pretrained=pochi_config.pretrained,
+        work_dir=pochi_config.work_dir,
+        cudnn_benchmark=pochi_config.cudnn_benchmark,
     )
 
     # 訓練設定
     logger.info("訓練設定を行っています...")
     trainer.setup_training(
-        learning_rate=config["learning_rate"],
-        optimizer_name=config["optimizer"],
-        scheduler_name=config.get("scheduler"),
-        scheduler_params=config.get("scheduler_params"),
-        class_weights=config.get("class_weights"),
+        learning_rate=pochi_config.learning_rate,
+        optimizer_name=pochi_config.optimizer,
+        scheduler_name=pochi_config.scheduler,
+        scheduler_params=pochi_config.scheduler_params,
+        class_weights=pochi_config.class_weights,
         num_classes=len(classes),
-        enable_layer_wise_lr=config.get("enable_layer_wise_lr", False),
-        layer_wise_lr_config=config.get("layer_wise_lr_config"),
+        enable_layer_wise_lr=pochi_config.enable_layer_wise_lr,
+        layer_wise_lr_config=dataclasses.asdict(pochi_config.layer_wise_lr_config),
+        early_stopping_config=(
+            dataclasses.asdict(pochi_config.early_stopping)
+            if pochi_config.early_stopping is not None
+            else None
+        ),
     )
 
     # データセットパスの保存
     logger.info("データセットパスを保存しています...")
-    trainer.save_dataset_paths(train_loader, val_loader)
+    train_paths = []
+    if hasattr(train_loader.dataset, "get_file_paths"):
+        train_paths = train_loader.dataset.get_file_paths()
+    else:
+        logger.warning("訓練データセットにget_file_pathsメソッドがありません")
+    val_paths = None
+    if hasattr(val_loader.dataset, "get_file_paths"):
+        val_paths = val_loader.dataset.get_file_paths()
+    else:
+        logger.warning("検証データセットにget_file_pathsメソッドがありません")
+    train_file, val_file = trainer.workspace_manager.save_dataset_paths(
+        train_paths, val_paths
+    )
+    logger.info(f"訓練データパスを保存: {train_file}")
+    if val_file is not None:
+        logger.info(f"検証データパスを保存: {val_file}")
 
     # 設定ファイルの保存
     logger.info("設定ファイルを保存しています...")
     config_path_obj = Path(args.config)
-    saved_config_path = trainer.save_training_config(config_path_obj)
+    saved_config_path = trainer.workspace_manager.save_config(config_path_obj)
     logger.info(f"設定ファイルを保存しました: {saved_config_path}")
 
     # メトリクスエクスポート設定の適用
-    trainer.enable_metrics_export = config.get("enable_metrics_export", True)
+    trainer.enable_metrics_export = pochi_config.enable_metrics_export
     if trainer.enable_metrics_export:
         logger.info("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
+    # Early Stopping設定のログ出力（初期化はsetup_training()で完了済み）
+    early_stopping_config = (
+        dataclasses.asdict(pochi_config.early_stopping)
+        if pochi_config.early_stopping is not None
+        else None
+    )
+    if not (early_stopping_config and early_stopping_config.get("enabled", False)):
+        logger.info("Early Stopping: 無効")
+
     # 勾配トレース設定の適用
-    trainer.enable_gradient_tracking = config.get("enable_gradient_tracking", False)
+    trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
         logger.info("勾配トレース機能が有効です")
-        gradient_config = config.get("gradient_tracking_config", {})
+        gradient_config = dataclasses.asdict(pochi_config.gradient_tracking_config)
         trainer.gradient_tracking_config.update(gradient_config)
 
     # 訓練実行
@@ -235,12 +279,12 @@ def train_command(args: argparse.Namespace) -> None:
     trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
-        epochs=config["epochs"],
+        epochs=pochi_config.epochs,
         stop_flag_callback=lambda: training_interrupted,
     )
 
     logger.info("訓練が完了しました！")
-    logger.info(f"結果は {config['work_dir']} に保存されています。")
+    logger.info(f"結果は {pochi_config.work_dir} に保存されています。")
 
 
 def get_indexed_output_dir(base_dir: str) -> Path:
@@ -275,34 +319,43 @@ def get_indexed_output_dir(base_dir: str) -> Path:
 
 def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
+    import time
+
+    import torch
+
     logger = setup_logging()
     logger.info("=== pochitrain 推論モード ===")
 
-    # 設定ファイル読み込み
-    config_path = Path(args.config_path)
-    try:
-        config = ConfigLoader.load_config(str(config_path))
-        logger.info(f"設定ファイルを読み込み: {config_path}")
-    except Exception as e:
-        logger.error(f"設定ファイル読み込みエラー: {e}")
-        logger.error(
-            f"設定ファイルが存在することを確認してください: {args.config_path}"
-        )
-        return
-
     # モデルパス確認
     model_path = Path(args.model_path)
-    if not model_path.exists():
-        logger.error(f"指定されたモデルファイルが見つかりません: {model_path}")
-        return
+    validate_model_path(model_path)
     logger.info(f"使用するモデル: {model_path}")
 
-    # データパス確認
-    data_root = args.data
-    if not Path(data_root).exists():
-        logger.error(f"データディレクトリが見つかりません: {data_root}")
+    # 設定ファイル読み込み（自動検出または指定）
+    if args.config_path:
+        config_path = Path(args.config_path)
+        try:
+            config = ConfigLoader.load_config(str(config_path))
+            logger.info(f"設定ファイルを読み込み: {config_path}")
+        except Exception as e:
+            logger.error(f"設定ファイル読み込みエラー: {e}")
+            return
+    else:
+        config = load_config_auto(model_path)
+
+    pochi_config = PochiConfig.from_dict(config)
+
+    # データパスの決定（--data指定 or configのval_data_root）
+    if args.data:
+        data_path = Path(args.data)
+    elif pochi_config.val_data_root:
+        data_path = Path(pochi_config.val_data_root)
+        logger.info(f"データパスをconfigから取得: {data_path}")
+    else:
+        logger.error("--data を指定するか、configにval_data_rootを設定してください")
         return
-    logger.info(f"推論データ: {data_root}")
+    validate_data_path(data_path)
+    logger.info(f"推論データ: {data_path}")
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
@@ -319,11 +372,10 @@ def infer_command(args: argparse.Namespace) -> None:
     logger.info("推論器を作成しています...")
     try:
         predictor = PochiPredictor(
-            model_name=config["model_name"],
-            num_classes=config["num_classes"],
-            device=config["device"],
+            model_name=pochi_config.model_name,
+            num_classes=pochi_config.num_classes,
+            device=pochi_config.device,
             model_path=str(model_path),
-            work_dir=output_dir,
         )
         logger.info("推論器の作成成功")
 
@@ -334,28 +386,45 @@ def infer_command(args: argparse.Namespace) -> None:
     # データローダー作成（訓練時と同じval_transformを使用）
     logger.info("データローダーを作成しています...")
     try:
-        val_dataset = PochiImageDataset(data_root, transform=config["val_transform"])
+        val_dataset = PochiImageDataset(
+            str(data_path), transform=pochi_config.val_transform
+        )
         val_loader = DataLoader(
             val_dataset,
-            batch_size=config["batch_size"],
+            batch_size=pochi_config.batch_size,
             shuffle=False,
-            num_workers=config.get("num_workers", 0),
+            num_workers=pochi_config.num_workers,
             pin_memory=True,
         )
 
         logger.info(f"推論データ: {len(val_dataset)}枚の画像")
         logger.info("使用されたTransform (設定ファイルから):")
-        for i, transform in enumerate(config["val_transform"].transforms):
+        for i, transform in enumerate(pochi_config.val_transform.transforms):
             logger.info(f"   {i+1}. {transform}")
 
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
         return
 
-    # 推論実行
+    # 推論実行（時間計測付き）
     logger.info("推論を開始します...")
     try:
-        predictions, confidences = predictor.predict(val_loader)
+        use_gpu = pochi_config.device == "cuda" and torch.cuda.is_available()
+
+        if use_gpu:
+            # GPU時間計測: CUDA Eventを使用
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
+            predictions, confidences = predictor.predict(val_loader)
+            end_event.record()
+            torch.cuda.synchronize()
+            total_inference_time_ms = start_event.elapsed_time(end_event)
+        else:
+            # CPU時間計測
+            start_time = time.perf_counter()
+            predictions, confidences = predictor.predict(val_loader)
+            total_inference_time_ms = (time.perf_counter() - start_time) * 1000
 
         # 結果整理
         image_paths = val_dataset.get_file_paths()
@@ -373,32 +442,55 @@ def infer_command(args: argparse.Namespace) -> None:
     # CSV出力
     logger.info("結果をCSVに出力しています...")
     try:
-        # 混同行列設定を取得（設定ファイルにあれば使用）
-        cm_config = config.get("confusion_matrix_config", None)
+        from pochitrain.inference import InferenceResultExporter
+        from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
-        results_csv, summary_csv = predictor.export_results_to_workspace(
+        # 混同行列設定を取得（設定ファイルにあれば使用）
+        cm_config = (
+            dataclasses.asdict(pochi_config.confusion_matrix_config)
+            if pochi_config.confusion_matrix_config is not None
+            else None
+        )
+
+        # InferenceResultExporter 経由で結果を出力
+        exporter = InferenceResultExporter(
+            workspace_manager=InferenceWorkspaceManager(output_dir),
+            logger=logger,
+        )
+        results_csv, summary_csv = exporter.export(
             image_paths=image_paths,
             predicted_labels=predicted_labels,
             true_labels=true_labels,
             confidence_scores=confidence_scores,
             class_names=class_names,
+            model_info=predictor.get_model_info(),
             results_filename="inference_results.csv",
             summary_filename="inference_summary.csv",
             cm_config=cm_config,
         )
 
         # 精度計算・表示
-        accuracy_info = predictor.calculate_accuracy(predicted_labels, true_labels)
+        evaluator = Evaluator(device=torch.device(pochi_config.device), logger=logger)
+        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
+        num_samples = accuracy_info["total_samples"]
+        avg_time_per_image = (
+            total_inference_time_ms / num_samples if num_samples > 0 else 0
+        )
+        throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
         logger.info("=== 推論結果 ===")
-        logger.info(f"処理画像数: {accuracy_info['total_samples']}枚")
+        logger.info(f"処理画像数: {num_samples}枚")
         logger.info(f"正解数: {accuracy_info['correct_predictions']}")
         logger.info(f"精度: {accuracy_info['accuracy_percentage']:.2f}%")
+        logger.info(
+            f"平均処理時間: {avg_time_per_image:.2f} ms/image（データ読み込み含む）"
+        )
+        logger.info(f"スループット: {throughput:.1f} images/sec")
         logger.info(f"詳細結果: {results_csv}")
         logger.info(f"サマリー: {summary_csv}")
 
         # ワークスペース情報
-        workspace_info = predictor.get_inference_workspace_info()
+        workspace_info = exporter.get_workspace_info()
         logger.info(f"ワークスペース: {workspace_info['workspace_name']}")
 
         logger.info("推論が完了しました！")
@@ -420,6 +512,8 @@ def optimize_command(args: argparse.Namespace) -> None:
     except FileNotFoundError:
         logger.error(f"設定ファイルが見つかりません: {args.config}")
         return
+
+    pochi_config = PochiConfig.from_dict(config)
 
     # Optuna関連のインポート（遅延インポート）
     try:
@@ -447,63 +541,64 @@ def optimize_command(args: argparse.Namespace) -> None:
     logger.info("データローダーを作成しています...")
     try:
         train_loader, val_loader, classes = create_data_loaders(
-            train_root=config.get("train_data_root", "data/train"),
-            val_root=config.get("val_data_root", "data/val"),
-            batch_size=config.get("batch_size", 32),
-            num_workers=config.get("num_workers", 0),
-            train_transform=config.get("train_transform"),
-            val_transform=config.get("val_transform"),
+            train_root=pochi_config.train_data_root or "data/train",
+            val_root=pochi_config.val_data_root or "data/val",
+            batch_size=pochi_config.batch_size,
+            num_workers=pochi_config.num_workers,
+            train_transform=pochi_config.train_transform,
+            val_transform=pochi_config.val_transform,
         )
         config["num_classes"] = len(classes)
+        pochi_config.num_classes = len(classes)
         logger.info(f"クラス数: {len(classes)}")
         logger.info(f"クラス名: {classes}")
-        logger.info(f"訓練サンプル数: {len(train_loader.dataset)}")
-        logger.info(f"検証サンプル数: {len(val_loader.dataset)}")
+        logger.info(f"訓練サンプル数: {len(cast(Sized, train_loader.dataset))}")
+        logger.info(f"検証サンプル数: {len(cast(Sized, val_loader.dataset))}")
     except Exception as e:
         logger.error(f"データローダーの作成に失敗しました: {e}")
         return
 
     # パラメータサジェスターを作成
-    search_space = config.get("search_space", {})
-    if not search_space:
+    if pochi_config.optuna is None or not pochi_config.optuna.search_space:
         logger.error("search_spaceが設定されていません")
         return
+    search_space = pochi_config.optuna.search_space
     param_suggestor = DefaultParamSuggestor(search_space)
     logger.info(f"探索空間: {list(search_space.keys())}")
 
     # 目的関数を作成
     objective = ClassificationObjective(
-        base_config=config,
+        base_config=pochi_config.to_dict(),
         param_suggestor=param_suggestor,
         train_loader=train_loader,
         val_loader=val_loader,
-        optuna_epochs=config.get("optuna_epochs", 10),
-        device=config.get("device", "cuda"),
+        optuna_epochs=pochi_config.optuna.optuna_epochs,
+        device=pochi_config.device,
     )
 
     # Study管理を作成
-    storage = config.get("storage")
+    storage = pochi_config.optuna.storage
     study_manager = OptunaStudyManager(storage=storage)
 
     # Studyを作成
     logger.info("Optuna Studyを作成しています...")
     study = study_manager.create_study(
-        study_name=config.get("study_name", "pochitrain_optimization"),
-        direction=config.get("direction", "maximize"),
-        sampler=config.get("sampler", "TPESampler"),
-        pruner=config.get("pruner"),
+        study_name=pochi_config.optuna.study_name,
+        direction=pochi_config.optuna.direction,
+        sampler=pochi_config.optuna.sampler,
+        pruner=pochi_config.optuna.pruner,
     )
     logger.info(f"Study名: {study.study_name}")
-    logger.info(f"方向: {config.get('direction', 'maximize')}")
-    logger.info(f"サンプラー: {config.get('sampler', 'TPESampler')}")
+    logger.info(f"方向: {pochi_config.optuna.direction}")
+    logger.info(f"サンプラー: {pochi_config.optuna.sampler}")
 
     # 最適化を実行
-    n_trials = config.get("n_trials", 20)
+    n_trials = pochi_config.optuna.n_trials
     logger.info(f"最適化を開始します（{n_trials}試行）...")
     study_manager.optimize(
         objective=objective,
         n_trials=n_trials,
-        n_jobs=config.get("n_jobs", 1),
+        n_jobs=pochi_config.optuna.n_jobs,
     )
 
     # 結果を取得
@@ -526,7 +621,7 @@ def optimize_command(args: argparse.Namespace) -> None:
     json_exporter.export(best_params, best_value, study, str(output_dir))
 
     # Python設定ファイル形式でエクスポート
-    config_exporter = ConfigExporter(config)
+    config_exporter = ConfigExporter(pochi_config.to_dict())
     config_exporter.export(best_params, best_value, study, str(output_dir))
 
     # 統計情報とパラメータ重要度をエクスポート
@@ -588,15 +683,14 @@ def main() -> None:
 
     # 推論サブコマンド
     infer_parser = subparsers.add_parser("infer", help="モデル推論")
+    infer_parser.add_argument("model_path", help="モデルファイルパス")
     infer_parser.add_argument(
-        "--model-path", "-m", required=True, help="モデルファイルパス"
+        "--data", "-d", help="推論データパス（省略時はconfigのval_data_rootを使用）"
     )
-    infer_parser.add_argument("--data", "-d", required=True, help="推論データパス")
     infer_parser.add_argument(
         "--config-path",
         "-c",
-        required=True,
-        help="設定ファイルパス（work_dir/config.py）",
+        help="設定ファイルパス（省略時はモデルパスから自動検出）",
     )
     infer_parser.add_argument(
         "--output",

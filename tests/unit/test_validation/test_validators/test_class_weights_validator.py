@@ -27,8 +27,8 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes が設定されていません。configs/pochi_train_config.py で "
-            "クラス数を設定してください。"
+            "num_classes が設定されていません。"
+            "configs/pochi_train_config.py で設定してください。"
         )
 
     def test_num_classes_none_validation_fails(self):
@@ -40,8 +40,8 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes が設定されていません。configs/pochi_train_config.py で "
-            "クラス数を設定してください。"
+            "num_classes が設定されていません。"
+            "configs/pochi_train_config.py で設定してください。"
         )
 
     def test_num_classes_invalid_type_validation_fails(self):
@@ -53,7 +53,7 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes は正の整数である必要があります。現在の値: 4"
+            "num_classes は int である必要があります。" "現在の型: str, 現在の値: 4"
         )
 
     def test_num_classes_negative_validation_fails(self):
@@ -65,7 +65,7 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes は正の整数である必要があります。現在の値: -1"
+            "num_classes は正の値である必要があります。現在の値: -1"
         )
 
     def test_num_classes_zero_validation_fails(self):
@@ -77,7 +77,7 @@ class TestClassWeightsValidator(unittest.TestCase):
         # アサーション
         assert result is False
         self.mock_logger.error.assert_called_once_with(
-            "num_classes は正の整数である必要があります。現在の値: 0"
+            "num_classes は正の値である必要があります。現在の値: 0"
         )
 
     def test_class_weights_none_validation_succeeds(self):

@@ -4,16 +4,24 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
+import dataclasses
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from .config import PochiConfig
+from .logging import LoggerManager
 from .models.pochi_models import create_model
+from .training.checkpoint_store import CheckpointStore
+from .training.early_stopping import EarlyStopping
+from .training.evaluator import Evaluator
+from .training.metrics_tracker import MetricsTracker
+from .training.training_configurator import TrainingConfigurator
 from .utils.directory_manager import PochiWorkspaceManager
 
 
@@ -44,6 +52,7 @@ class PochiTrainer:
         pretrained: bool = True,
         work_dir: str = "work_dirs",
         create_workspace: bool = True,
+        cudnn_benchmark: bool = False,
     ):
         """PochiTrainerを初期化."""
         # モデル設定の保存
@@ -52,6 +61,13 @@ class PochiTrainer:
 
         # デバイスの設定（バリデーション済みの設定を使用）
         self.device = torch.device(device)
+
+        # cuDNN自動チューニングの設定
+        if self.device.type == "cuda" and cudnn_benchmark:
+            torch.backends.cudnn.benchmark = True
+            self.cudnn_benchmark = True
+        else:
+            self.cudnn_benchmark = False
 
         # ワークスペースマネージャーの初期化
         self.workspace_manager = PochiWorkspaceManager(work_dir)
@@ -65,8 +81,19 @@ class PochiTrainer:
         # ロガーの設定
         self.logger = self._setup_logger()
         self.logger.info(f"使用デバイス: {self.device}")
+        if self.cudnn_benchmark:
+            self.logger.info("cuDNN自動チューニング: 有効")
         self.logger.info(f"ワークスペース: {self.current_workspace}")
         self.logger.info(f"モデル保存先: {self.work_dir}")
+
+        # チェックポイントストアの初期化
+        self.checkpoint_store = CheckpointStore(self.work_dir, self.logger)
+
+        # 検証器の初期化
+        self.evaluator = Evaluator(self.device, self.logger)
+
+        # 訓練コンフィギュレータの初期化
+        self.training_configurator = TrainingConfigurator(self.device, self.logger)
 
         # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
@@ -91,21 +118,53 @@ class PochiTrainer:
         self.scheduler: Optional[optim.lr_scheduler.LRScheduler] = None
         self.criterion: Optional[nn.Module] = None
 
-        # メトリクスエクスポーター（訓練時のみ初期化）
-        self.metrics_exporter: Optional[Any] = None  # TrainingMetricsExporter
+        # メトリクス・勾配の設定（CLIから設定される）
         self.enable_metrics_export = True  # デフォルトで有効
-
-        # 勾配トレーサー（訓練時のみ初期化）
-        self.gradient_tracer: Optional[Any] = None  # GradientTracer
         self.enable_gradient_tracking = False  # デフォルトでOFF（計算コスト考慮）
         self.gradient_tracking_config: Dict[str, Any] = {
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
 
+        # Early Stopping（setup_training()で初期化）
+        self.early_stopping: Optional[EarlyStopping] = None
+
+    @classmethod
+    def from_config(
+        cls, config: PochiConfig, create_workspace: bool = True
+    ) -> "PochiTrainer":
+        """PochiConfigからトレーナーを作成."""
+        return cls(
+            model_name=config.model_name,
+            num_classes=config.num_classes,
+            device=config.device,
+            pretrained=config.pretrained,
+            work_dir=config.work_dir,
+            create_workspace=create_workspace,
+            cudnn_benchmark=config.cudnn_benchmark,
+        )
+
+    def setup_training_from_config(self, config: PochiConfig, num_classes: int) -> None:
+        """PochiConfigから訓練設定を適用."""
+        layer_wise_lr_config = dataclasses.asdict(config.layer_wise_lr_config)
+        early_stopping_config = (
+            dataclasses.asdict(config.early_stopping)
+            if config.early_stopping is not None
+            else None
+        )
+        self.setup_training(
+            learning_rate=config.learning_rate,
+            optimizer_name=config.optimizer,
+            scheduler_name=config.scheduler,
+            scheduler_params=config.scheduler_params,
+            class_weights=config.class_weights,
+            num_classes=num_classes,
+            enable_layer_wise_lr=config.enable_layer_wise_lr,
+            layer_wise_lr_config=layer_wise_lr_config,
+            early_stopping_config=early_stopping_config,
+        )
+
     def _setup_logger(self) -> logging.Logger:
         """ロガーの設定."""
-        from pochitrain.logging import LoggerManager
-
         logger_manager = LoggerManager()
         return logger_manager.get_logger("pochitrain")
 
@@ -119,6 +178,7 @@ class PochiTrainer:
         num_classes: Optional[int] = None,
         enable_layer_wise_lr: bool = False,
         layer_wise_lr_config: Optional[Dict[str, Any]] = None,
+        early_stopping_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         訓練の設定.
@@ -134,93 +194,49 @@ class PochiTrainer:
             num_classes (int, optional): クラス数（重みのバリデーション用）
             enable_layer_wise_lr (bool): 層別学習率を有効にするか
             layer_wise_lr_config (Dict[str, Any], optional): 層別学習率の設定
+            early_stopping_config (Dict[str, Any], optional): Early Stopping設定
         """
-        # 損失関数の設定（クラス重み対応）
-        if class_weights is not None:
-            # クラス数の整合性チェック
-            if num_classes is not None and len(class_weights) != num_classes:
-                raise ValueError(
-                    f"クラス重みの長さ({len(class_weights)})がクラス数({num_classes})と一致しません"
-                )
-            weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(
-                self.device
-            )
-            self.criterion = nn.CrossEntropyLoss(weight=weights_tensor)
-            self.logger.info(f"クラス重みを設定: {class_weights}")
-        else:
-            self.criterion = nn.CrossEntropyLoss()
-
-        # 層別学習率の設定を保存
-        self.enable_layer_wise_lr = enable_layer_wise_lr
-        self.layer_wise_lr_config = layer_wise_lr_config or {}
-        self.layer_wise_lr_graph_config = self.layer_wise_lr_config.get(
-            "graph_config", {}
+        components = self.training_configurator.configure(
+            model=self.model,
+            learning_rate=learning_rate,
+            optimizer_name=optimizer_name,
+            scheduler_name=scheduler_name,
+            scheduler_params=scheduler_params,
+            class_weights=class_weights,
+            num_classes=num_classes,
+            enable_layer_wise_lr=enable_layer_wise_lr,
+            layer_wise_lr_config=layer_wise_lr_config,
         )
-        self.base_learning_rate = learning_rate  # 基本学習率を保存
 
-        # 最適化器の設定（層別学習率対応）
-        if self.enable_layer_wise_lr:
-            # 層別学習率が有効な場合、パラメータグループを作成
-            param_groups = self._build_layer_wise_param_groups(learning_rate)
-            self._log_layer_wise_lr(param_groups)
-        else:
-            # 通常の場合、全パラメータに同じ学習率を適用
-            param_groups = [{"params": self.model.parameters(), "lr": learning_rate}]
-
-        if optimizer_name == "Adam":
-            self.optimizer = optim.Adam(param_groups)
-        elif optimizer_name == "AdamW":
-            self.optimizer = optim.AdamW(param_groups, weight_decay=1e-2)
-        elif optimizer_name == "SGD":
-            self.optimizer = optim.SGD(
-                param_groups,
-                momentum=0.9,
-                weight_decay=1e-4,
-            )
-        else:
-            raise ValueError(f"サポートされていない最適化器: {optimizer_name}")
-
-        # スケジューラーの設定（バリデーション済みパラメータを使用）
-        if scheduler_name:
-            if scheduler_params is None:
-                raise ValueError(
-                    f"スケジューラー '{scheduler_name}' を使用する場合、"
-                    f"scheduler_paramsが必須です。configs/pochi_config.pyで設定してください。"
-                )
-
-            if scheduler_name == "StepLR":
-                self.scheduler = optim.lr_scheduler.StepLR(
-                    self.optimizer, **scheduler_params
-                )
-            elif scheduler_name == "MultiStepLR":
-                self.scheduler = optim.lr_scheduler.MultiStepLR(
-                    self.optimizer, **scheduler_params
-                )
-            elif scheduler_name == "CosineAnnealingLR":
-                self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimizer, **scheduler_params
-                )
-            elif scheduler_name == "ExponentialLR":
-                self.scheduler = optim.lr_scheduler.ExponentialLR(
-                    self.optimizer, **scheduler_params
-                )
-            elif scheduler_name == "LinearLR":
-                self.scheduler = optim.lr_scheduler.LinearLR(
-                    self.optimizer, **scheduler_params
-                )
-            else:
-                raise ValueError(
-                    f"サポートされていないスケジューラー: {scheduler_name}"
-                )
-
-        self.logger.info(f"最適化器: {optimizer_name} (学習率: {learning_rate})")
-        if scheduler_name:
-            self.logger.info(f"スケジューラー: {scheduler_name}")
+        self.optimizer = components.optimizer
+        self.scheduler = components.scheduler
+        self.criterion = components.criterion
+        self.enable_layer_wise_lr = components.enable_layer_wise_lr
+        self.base_learning_rate = components.base_learning_rate
+        self.layer_wise_lr_config = components.layer_wise_lr_config
+        self.layer_wise_lr_graph_config = components.layer_wise_lr_graph_config
 
         # 混同行列計算のためのクラス数を設定
         if num_classes:
             self.num_classes_for_cm = num_classes
             self.logger.info(f"混同行列計算を有効化しました (クラス数: {num_classes})")
+
+        # Early Stoppingの初期化
+        if early_stopping_config is not None and early_stopping_config.get(
+            "enabled", False
+        ):
+            self.early_stopping = EarlyStopping(
+                patience=early_stopping_config.get("patience", 10),
+                min_delta=early_stopping_config.get("min_delta", 0.0),
+                monitor=early_stopping_config.get("monitor", "val_accuracy"),
+                logger=self.logger,
+            )
+            self.logger.info(
+                f"Early Stopping: 有効 "
+                f"(patience={self.early_stopping.patience}, "
+                f"min_delta={self.early_stopping.min_delta}, "
+                f"monitor={self.early_stopping.monitor})"
+            )
 
     def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
         """1エポックの訓練."""
@@ -249,9 +265,10 @@ class PochiTrainer:
                 self.optimizer.step()
 
             # 統計情報の更新
-            total_loss += loss.item()
+            batch_size = target.size(0)
+            total_loss += loss.item() * batch_size
             _, predicted = output.max(1)
-            total += target.size(0)
+            total += batch_size
             correct += predicted.eq(target).sum().item()
 
             # ログ出力
@@ -262,226 +279,24 @@ class PochiTrainer:
                 )
 
         # エポックの統計情報
-        avg_loss = total_loss / len(train_loader)
-        accuracy = 100.0 * correct / total
+        # 例外回避のための防御的ガード. 本来はバリデーションで止めるのが望ましい
+        avg_loss = total_loss / total if total > 0 else 0.0
+        accuracy = 100.0 * correct / total if total > 0 else 0.0
 
         return {"loss": avg_loss, "accuracy": accuracy}
 
-    def validate(self, val_loader: DataLoader) -> Dict[str, float]:
-        """検証."""
-        self.model.eval()
-        total_loss = 0.0
-        correct = 0
-        total = 0
-
-        # 混同行列計算のためのリスト
-        all_predicted = []
-        all_targets = []
-
-        with torch.no_grad():
-            for data, target in val_loader:
-                data, target = data.to(self.device), target.to(self.device)
-
-                output = self.model(data)
-                if self.criterion is not None:
-                    loss = self.criterion(output, target)
-                else:
-                    raise RuntimeError("criterion is not set")
-
-                total_loss += loss.item()
-                _, predicted = output.max(1)
-                total += target.size(0)
-                correct += predicted.eq(target).sum().item()
-
-                # 混同行列用にデータを保存
-                all_predicted.append(predicted)
-                all_targets.append(target)
-
-        avg_loss = total_loss / len(val_loader)
-        accuracy = 100.0 * correct / total
-
-        # 混同行列の計算と出力（Fortranエラー回避のため純粋PyTorch実装）
-        if self.num_classes_for_cm is not None and all_predicted and all_targets:
-            # バッチごとに収集した予測値と正解値を連結
-            # 各バッチのテンソルを1つの大きなテンソルにまとめる
-            all_predicted_tensor = torch.cat(all_predicted, dim=0)
-            all_targets_tensor = torch.cat(all_targets, dim=0)
-
-            # 混同行列を計算（sklearn/torchmetrics不使用）
-            # 基本的なPyTorchテンソル操作のみを使用してFortranエラーを回避
-            cm = self._compute_confusion_matrix_pytorch(
-                all_predicted_tensor, all_targets_tensor, self.num_classes_for_cm
-            )
-
-            # 簡易形式でログファイルに追記出力
-            # epoch番号と行列データを1行で記録し、後続分析に使用可能
-            self._log_confusion_matrix(cm)
-
-        return {"val_loss": avg_loss, "val_accuracy": accuracy}
-
-    def _compute_confusion_matrix_pytorch(
-        self, predicted: torch.Tensor, targets: torch.Tensor, num_classes: int
-    ) -> torch.Tensor:
-        """
-        純粹なPyTorchテンソル操作による混同行列計算.
-
-        sklearn.metrics.confusion_matrixやtorchmetricsを使用せず、
-        基本的なPyTorchテンソル操作のみで混同行列を計算します。
-        これにより、Ctrl+C割り込み時のFortranランタイムエラーを回避できます。
-
-        Args:
-            predicted (torch.Tensor): 予測ラベル（各要素は0からnum_classes-1の整数）
-            targets (torch.Tensor): 正解ラベル（各要素は0からnum_classes-1の整数）
-            num_classes (int): クラス数
-
-        Returns:
-            torch.Tensor: 混同行列（[num_classes, num_classes]の2次元テンソル）
-                         行が正解ラベル、列が予測ラベルに対応
-                         confusion_matrix[i, j] = 正解がi、予測がjの個数
-
-        Note:
-            - メモリ効率のため、要素数の多い場合は時間がかかる可能性があります
-            - GPU/CPUデバイス間の一貫性を保つため、計算前にデバイスを統一します
-        """
-        # デバイスを統一（GPU/CPUの混在を防ぐ）
-        predicted = predicted.to(self.device)
-        targets = targets.to(self.device)
-
-        # 混同行列を初期化（行=正解、列=予測）
-        # dtype=int64で十分な範囲の整数カウントに対応
-        confusion_matrix = torch.zeros(
-            num_classes, num_classes, dtype=torch.int64, device=self.device
+    def validate(self, val_loader: DataLoader[Any]) -> Dict[str, float]:
+        """検証 (Evaluator に委譲)."""
+        if self.criterion is None:
+            raise RuntimeError("criterion is not set")
+        return self.evaluator.validate(
+            model=self.model,
+            val_loader=val_loader,
+            criterion=self.criterion,
+            num_classes_for_cm=self.num_classes_for_cm,
+            epoch=self.epoch,
+            workspace_path=self.current_workspace,
         )
-
-        # 各サンプルの（正解, 予測）ペアをカウント
-        # view(-1)でテンソルを1次元に平坦化してからペアワイズ処理
-        for t, p in zip(targets.view(-1), predicted.view(-1)):
-            # .long()でint64型に変換してインデックスとして使用
-            confusion_matrix[t.long(), p.long()] += 1
-
-        return confusion_matrix
-
-    def _log_confusion_matrix(self, confusion_matrix: torch.Tensor) -> None:
-        """
-        混同行列をログファイルに出力.
-
-        各エポックの検証時に混同行列を.logファイルに追記します。
-        出力形式は簡易的で、後続の分析やレポート生成に使用可能です。
-
-        Args:
-            confusion_matrix (torch.Tensor): PyTorchテンソル形式の混同行列
-                                           [num_classes, num_classes]の2次元テンソル
-
-        Output Format:
-            epoch1
-             [row1]
-             [row2]
-             [row3]
-            epoch2
-             [row1]
-             [row2]
-             [row3]
-
-        Example (3クラス分類):
-            epoch1
-             [10, 0, 0]
-             [0, 8, 2]
-             [1, 0, 9]
-            epoch2
-             [9, 1, 0]
-             [0, 9, 1]
-             [0, 1, 9]
-
-        Note:
-            - ワークスペースが存在しない場合は何もしません
-            - ファイルは追記モードで開くため、訓練継続時も過去のデータが保持されます
-            - UTF-8エンコーディングで保存されます
-        """
-        # ワークスペースが未初期化の場合はスキップ
-        if self.current_workspace is None:
-            return
-
-        # ログファイルパスの構築
-        log_file = Path(self.current_workspace) / "confusion_matrix.log"
-
-        # PyTorchテンソルをNumPy配列に変換し、int型にキャスト
-        # CPUに移動してからnumpy()でNumPy配列化
-        cm_numpy = confusion_matrix.cpu().numpy().astype(int)
-
-        # ファイルに追記モードで書き込み
-        # エポック番号を単独行で出力し、その後に混同行列の各行を縦に並べる
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"epoch{self.epoch}\n")  # エポック番号を単独行で出力
-            for row in cm_numpy:
-                f.write(f" {row.tolist()}\n")  # 各行を改行で区切って出力
-
-    def save_checkpoint(
-        self, filename: str = "checkpoint.pth", is_best: bool = False
-    ) -> None:
-        """チェックポイントの保存."""
-        checkpoint = {
-            "epoch": self.epoch,
-            "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": (
-                self.optimizer.state_dict() if self.optimizer is not None else None
-            ),
-            "best_accuracy": self.best_accuracy,
-        }
-
-        if self.scheduler is not None:
-            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-
-        # チェックポイントの保存
-        checkpoint_path = self.work_dir / filename
-        torch.save(checkpoint, checkpoint_path)
-
-    def save_best_model(self, epoch: int) -> None:
-        """
-        ベストモデルの保存（エポック数付き、上書き）.
-
-        Args:
-            epoch (int): 現在のエポック数
-        """
-        # 既存のベストモデルファイルを削除
-        for existing_file in self.work_dir.glob("best_epoch*.pth"):
-            existing_file.unlink()
-            self.logger.info(f"既存のベストモデルを削除: {existing_file}")
-
-        # 新しいベストモデルを保存
-        best_filename = f"best_epoch{epoch}.pth"
-        self.save_checkpoint(best_filename)
-        self.logger.info(f"ベストモデルを保存: {self.work_dir / best_filename}")
-
-    def save_last_model(self) -> None:
-        """ラストモデルの保存（上書き）."""
-        last_filename = "last_model.pth"
-        self.save_checkpoint(last_filename)
-
-    def load_checkpoint(self, filename: str = "checkpoint.pth") -> None:
-        """チェックポイントの読み込み."""
-        checkpoint_path = self.work_dir / filename
-
-        if not checkpoint_path.exists():
-            raise FileNotFoundError(
-                f"チェックポイントが見つかりません: {checkpoint_path}"
-            )
-
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
-
-        self.epoch = checkpoint["epoch"]
-        self.best_accuracy = checkpoint["best_accuracy"]
-
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        if (
-            self.optimizer is not None
-            and checkpoint["optimizer_state_dict"] is not None
-        ):
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        self.logger.info(f"チェックポイントを読み込み: {checkpoint_path}")
 
     def train(
         self,
@@ -501,42 +316,18 @@ class PochiTrainer:
         """
         self.logger.info(f"訓練を開始 - エポック数: {epochs}")
 
-        # メトリクスエクスポーターの初期化
-        if self.enable_metrics_export and self.current_workspace is not None:
-            from pochitrain.visualization import TrainingMetricsExporter
-
-            visualization_dir = self.workspace_manager.get_visualization_dir()
-            self.metrics_exporter = TrainingMetricsExporter(
-                output_dir=visualization_dir,
-                enable_visualization=True,
+        # MetricsTrackerの初期化（ワークスペースがある場合のみ）
+        tracker = None
+        if self.current_workspace is not None:
+            tracker = MetricsTracker(
                 logger=self.logger,
+                visualization_dir=self.workspace_manager.get_visualization_dir(),
+                enable_metrics_export=self.enable_metrics_export,
+                enable_gradient_tracking=self.enable_gradient_tracking,
+                gradient_tracking_config=self.gradient_tracking_config,
                 layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
-            self.logger.info("メトリクス記録機能を有効化しました")
-
-        # 勾配トレーサーの初期化
-        if self.enable_gradient_tracking and self.current_workspace is not None:
-            from pochitrain.visualization import GradientTracer
-
-            # 設定を取得
-            exclude_patterns = self.gradient_tracking_config.get(
-                "exclude_patterns", ["fc\\.", "\\.bias"]
-            )
-            group_by_block = self.gradient_tracking_config.get("group_by_block", True)
-            aggregation_method = self.gradient_tracking_config.get(
-                "aggregation_method", "median"
-            )
-
-            self.gradient_tracer = GradientTracer(
-                logger=self.logger,
-                exclude_patterns=exclude_patterns,
-                group_by_block=group_by_block,
-                aggregation_method=aggregation_method,
-            )
-            self.logger.info(
-                f"勾配トレース機能を有効化しました "
-                f"(集約: {aggregation_method}, ブロック化: {group_by_block})"
-            )
+            tracker.initialize()
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
@@ -546,7 +337,13 @@ class PochiTrainer:
                 self.logger.warning(
                     f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
                 )
-                self.save_last_model()  # 現在の状態を保存
+                self.checkpoint_store.save_last_model(
+                    epoch=self.epoch,
+                    model=self.model,
+                    optimizer=self.optimizer,
+                    scheduler=self.scheduler,
+                    best_accuracy=self.best_accuracy,
+                )  # 現在の状態を保存
                 break
 
             self.logger.info(f"エポック {epoch}/{epochs} を開始")
@@ -579,39 +376,55 @@ class PochiTrainer:
                 # ベストモデルの更新（精度が前回以上なら保存）
                 if val_metrics["val_accuracy"] >= self.best_accuracy:
                     self.best_accuracy = val_metrics["val_accuracy"]
-                    self.save_best_model(epoch)
+                    self.checkpoint_store.save_best_model(
+                        epoch=epoch,
+                        model=self.model,
+                        optimizer=self.optimizer,
+                        scheduler=self.scheduler,
+                        best_accuracy=self.best_accuracy,
+                    )
+
+                # Early Stopping判定
+                if self.early_stopping is not None:
+                    monitor = self.early_stopping.monitor
+                    monitor_value = val_metrics.get(monitor)
+                    if monitor_value is not None:
+                        if self.early_stopping.step(monitor_value, epoch):
+                            self.checkpoint_store.save_last_model(
+                                epoch=self.epoch,
+                                model=self.model,
+                                optimizer=self.optimizer,
+                                scheduler=self.scheduler,
+                                best_accuracy=self.best_accuracy,
+                            )
+                            break
 
             # ラストモデルの保存（毎エポック上書き）
-            self.save_last_model()
+            self.checkpoint_store.save_last_model(
+                epoch=self.epoch,
+                model=self.model,
+                optimizer=self.optimizer,
+                scheduler=self.scheduler,
+                best_accuracy=self.best_accuracy,
+            )
 
-            # メトリクスの記録
-            if self.metrics_exporter is not None:
-                # 現在の学習率を取得（層別学習率対応）
-                current_lr = self._get_base_learning_rate()
-
-                # 層別学習率が有効な場合、各層の学習率も記録
+            # メトリクスと勾配の記録
+            if tracker is not None:
                 layer_wise_rates = {}
                 if self.is_layer_wise_lr_enabled():
                     layer_rates = self.get_layer_wise_learning_rates()
                     for layer_name, lr in layer_rates.items():
                         layer_wise_rates[f"lr_{layer_name}"] = lr
 
-                self.metrics_exporter.record_epoch(
+                tracker.record_epoch(
                     epoch=epoch,
-                    learning_rate=current_lr,
-                    train_loss=train_metrics["loss"],
-                    train_accuracy=train_metrics["accuracy"],
-                    val_loss=val_metrics.get("val_loss"),
-                    val_accuracy=val_metrics.get("val_accuracy"),
+                    train_metrics=train_metrics,
+                    val_metrics=val_metrics,
+                    model=self.model,
+                    learning_rate=self._get_base_learning_rate(),
                     layer_wise_lr_enabled=self.is_layer_wise_lr_enabled(),
-                    **layer_wise_rates,
+                    layer_wise_rates=layer_wise_rates,
                 )
-
-            # 勾配ノルムの記録
-            if self.gradient_tracer is not None:
-                record_freq = self.gradient_tracking_config.get("record_frequency", 1)
-                if epoch % record_freq == 0:
-                    self.gradient_tracer.record_gradients(self.model, epoch)
 
             # 停止フラグのチェック（エポック完了後）
             if stop_flag_callback and stop_flag_callback():
@@ -620,13 +433,23 @@ class PochiTrainer:
                 )
                 break
 
-        self.logger.info("訓練が完了しました")
+        # Early Stoppingによる停止の場合、その旨をログ出力
+        if self.early_stopping is not None and self.early_stopping.should_stop:
+            self.logger.info(
+                f"Early Stoppingにより訓練を停止しました "
+                f"(最終エポック: {self.epoch}, "
+                f"ベスト{self.early_stopping.monitor}: "
+                f"{self.early_stopping.best_value:.4f}, "
+                f"ベストエポック: {self.early_stopping.best_epoch})"
+            )
+        else:
+            self.logger.info("訓練が完了しました")
         if val_loader:
             self.logger.info(f"最高精度: {self.best_accuracy:.2f}%")
 
-        # 訓練完了後にメトリクスをエクスポート
-        if self.metrics_exporter is not None:
-            csv_path, graph_paths = self.metrics_exporter.export_all()
+        # 訓練完了後のエクスポート処理
+        if tracker is not None:
+            csv_path, graph_paths = tracker.finalize()
             if csv_path:
                 self.logger.info(f"メトリクスCSVを出力: {csv_path}")
             if graph_paths:
@@ -634,7 +457,7 @@ class PochiTrainer:
                     self.logger.info(f"メトリクスグラフを出力: {graph_path}")
 
             # サマリー情報の表示
-            summary = self.metrics_exporter.get_summary()
+            summary = tracker.get_summary()
             if summary:
                 self.logger.info("=== 訓練サマリー ===")
                 self.logger.info(f"総エポック数: {summary['total_epochs']}")
@@ -648,261 +471,33 @@ class PochiTrainer:
                         f"(エポック {summary['best_val_accuracy_epoch']})"
                     )
 
-        # 勾配トレースをCSVに保存
-        if self.gradient_tracer is not None:
-            from pochitrain.utils.timestamp_utils import get_current_timestamp
-
-            visualization_dir = self.workspace_manager.get_visualization_dir()
-            timestamp = get_current_timestamp()
-            gradient_csv_path = visualization_dir / f"gradient_trace_{timestamp}.csv"
-            self.gradient_tracer.save_csv(gradient_csv_path)
-
-    def predict(
-        self,
-        data_loader: DataLoader[Any],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        予測の実行.
-
-        Args:
-            data_loader (DataLoader): 予測データローダー
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
-        """
-        import time
-
-        self.model.eval()
-        predictions: List[Any] = []
-        confidences: List[Any] = []
-        total_samples = 0
-        inference_time_ms = 0.0
-
-        use_cuda = self.device.type == "cuda"
-
-        with torch.no_grad():
-            for data, _ in data_loader:
-                data = data.to(self.device)
-                batch_size = data.size(0)
-
-                # 推論時間計測（モデル推論部分のみ）
-                if use_cuda:
-                    start_event = torch.cuda.Event(enable_timing=True)
-                    end_event = torch.cuda.Event(enable_timing=True)
-                    start_event.record()
-                    output = self.model(data)
-                    end_event.record()
-                    torch.cuda.synchronize()
-                    inference_time_ms += start_event.elapsed_time(end_event)
-                else:
-                    start_time = time.perf_counter()
-                    output = self.model(data)
-                    inference_time_ms += (time.perf_counter() - start_time) * 1000
-
-                # 後処理（計測対象外）
-                probabilities = torch.softmax(output, dim=1)
-                confidence, predicted = probabilities.max(1)
-
-                predictions.extend(predicted.cpu().numpy())
-                confidences.extend(confidence.cpu().numpy())
-                total_samples += batch_size
-
-        # 1枚あたりの平均推論時間を表示
-        if total_samples > 0:
-            avg_time_per_image = inference_time_ms / total_samples
-            self.logger.info(
-                f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-                f"(総推論数: {total_samples}枚)"
-            )
-
-        return torch.tensor(predictions), torch.tensor(confidences)
-
-    def get_workspace_info(self) -> dict:
-        """
-        現在のワークスペース情報を取得.
-
-        Returns:
-            dict: ワークスペース情報
-        """
-        return self.workspace_manager.get_workspace_info()
-
-    def save_training_config(self, config_path: Path) -> Path:
-        """
-        訓練に使用した設定ファイルを保存.
-
-        Args:
-            config_path (Path): 設定ファイルのパス
-
-        Returns:
-            Path: 保存されたファイルのパス
-        """
-        return self.workspace_manager.save_config(config_path)
-
-    def save_image_list(self, image_paths: list) -> Path:
-        """
-        使用した画像リストを保存.
-
-        Args:
-            image_paths (list): 画像パスのリスト
-
-        Returns:
-            Path: 保存されたファイルのパス
-        """
-        return self.workspace_manager.save_image_list(image_paths)
-
-    def save_dataset_paths(
-        self, train_loader: DataLoader, val_loader: Optional[DataLoader] = None
-    ) -> Tuple[Path, Optional[Path]]:
-        """
-        訓練・検証データのファイルパスを保存.
-
-        Args:
-            train_loader (DataLoader): 訓練データローダー
-            val_loader (DataLoader, optional): 検証データローダー
-
-        Returns:
-            Tuple[Path, Optional[Path]]: 保存されたファイルのパス (train.txt, val.txt)
-        """
-        # 訓練データのパスを取得
-        train_paths = []
-        if hasattr(train_loader.dataset, "get_file_paths"):
-            train_paths = train_loader.dataset.get_file_paths()
-        else:
-            self.logger.warning("訓練データセットにget_file_pathsメソッドがありません")
-
-        # 検証データのパスを取得
-        val_paths: Optional[list] = None
-        if val_loader is not None:
-            if hasattr(val_loader.dataset, "get_file_paths"):
-                val_paths = val_loader.dataset.get_file_paths()
-            else:
-                self.logger.warning(
-                    "検証データセットにget_file_pathsメソッドがありません"
-                )
-
-        # パスを保存
-        train_file_path, val_file_path = self.workspace_manager.save_dataset_paths(
-            train_paths, val_paths
-        )
-
-        self.logger.info(f"訓練データパスを保存: {train_file_path}")
-        if val_file_path is not None:
-            self.logger.info(f"検証データパスを保存: {val_file_path}")
-
-        return train_file_path, val_file_path
-
-    def _get_layer_group(self, param_name: str) -> str:
-        """
-        パラメータ名から層グループ名を取得.
-
-        Args:
-            param_name (str): パラメータ名
-
-        Returns:
-            str: 層グループ名
-        """
-        # ResNetの構造に基づいて層を分類（順序重要：より具体的なものから先に判定）
-        if "layer1" in param_name:
-            return "layer1"
-        elif "layer2" in param_name:
-            return "layer2"
-        elif "layer3" in param_name:
-            return "layer3"
-        elif "layer4" in param_name:
-            return "layer4"
-        elif "conv1" in param_name:
-            return "conv1"
-        elif "bn1" in param_name:
-            return "bn1"
-        elif "fc" in param_name:
-            return "fc"
-        else:
-            # 未知の層は "other" グループに分類
-            return "other"
-
-    def _build_layer_wise_param_groups(self, base_lr: float) -> List[Dict[str, Any]]:
-        """
-        層別学習率のパラメータグループを構築.
-
-        Args:
-            base_lr (float): 基本学習率
-
-        Returns:
-            List[Dict[str, Any]]: パラメータグループのリスト
-        """
-        layer_rates = self.layer_wise_lr_config.get("layer_rates", {})
-
-        # 層ごとにパラメータを分類
-        layer_params: Dict[str, List] = {}
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                layer_group = self._get_layer_group(name)
-                if layer_group not in layer_params:
-                    layer_params[layer_group] = []
-                layer_params[layer_group].append(param)
-
-        # パラメータグループを作成
-        param_groups = []
-        for layer_name, params in layer_params.items():
-            # 設定された学習率を使用、なければ基本学習率を使用
-            lr = layer_rates.get(layer_name, base_lr)
-            param_groups.append(
-                {
-                    "params": params,
-                    "lr": lr,
-                    "layer_name": layer_name,  # デバッグ用
-                }
-            )
-
-        return param_groups
-
-    def _log_layer_wise_lr(self, param_groups: List[Dict[str, Any]]) -> None:
-        """
-        層別学習率の設定をログ出力.
-
-        Args:
-            param_groups (List[Dict[str, Any]]): パラメータグループのリスト
-        """
-        self.logger.info("=== 層別学習率設定 ===")
-        for group in param_groups:
-            layer_name = group.get("layer_name", "unknown")
-            lr = group["lr"]
-            param_count = sum(p.numel() for p in group["params"])
-            self.logger.info(f"  {layer_name}: lr={lr:.6f}, params={param_count:,}")
-        self.logger.info("=====================")
-
     def _get_base_learning_rate(self) -> float:
-        """
-        現在の基本学習率を取得.
+        """現在の基本学習率を取得.
 
         Returns:
-            float: 基本学習率（層別学習率有効時は設定値、無効時は実際の学習率）
+            float: 基本学習率 (層別学習率有効時は設定値, 無効時は実際の学習率).
         """
         if self.enable_layer_wise_lr:
-            # 層別学習率有効時は設定ファイルの固定値を返す
             return self.base_learning_rate
         else:
-            # 通常時はスケジューラーによる動的な値を返す
             if self.optimizer is not None:
                 lr: float = self.optimizer.param_groups[0]["lr"]
                 return lr
             return 0.0
 
     def is_layer_wise_lr_enabled(self) -> bool:
-        """
-        層別学習率が有効かどうかを判定.
+        """層別学習率が有効かどうかを判定.
 
         Returns:
-            bool: 層別学習率が有効な場合True
+            bool: 層別学習率が有効な場合True.
         """
         return self.enable_layer_wise_lr
 
     def get_layer_wise_learning_rates(self) -> Dict[str, float]:
-        """
-        各層の現在の学習率を取得.
+        """各層の現在の学習率を取得.
 
         Returns:
-            Dict[str, float]: 層名をキー、学習率を値とする辞書
+            Dict[str, float]: 層名をキー, 学習率を値とする辞書.
         """
         layer_rates = {}
         if self.enable_layer_wise_lr and self.optimizer:
