@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
 
+from pochitrain.logging import LoggerManager
+
 
 class BaseCSVExporter(ABC):
     """
@@ -33,7 +35,7 @@ class BaseCSVExporter(ABC):
         self.output_dir = Path(output_dir)
 
         if logger is None:
-            self.logger = logging.getLogger(type(self).__qualname__)
+            self.logger = LoggerManager().get_logger(type(self).__qualname__)
         else:
             self.logger = logger
 
