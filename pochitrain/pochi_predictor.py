@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Tuple
 import torch
 from torch.utils.data import DataLoader
 
+from .config import PochiConfig
 from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .utils.inference_utils import post_process_logits
@@ -30,6 +31,16 @@ class PochiPredictor:
         device (str): デバイス ('cuda' or 'cpu')
         model_path (str): 学習済みモデルのパス
     """
+
+    @classmethod
+    def from_config(cls, config: PochiConfig, model_path: str) -> "PochiPredictor":
+        """PochiConfigから推論器を作成."""
+        return cls(
+            model_name=config.model_name,
+            num_classes=config.num_classes,
+            device=config.device,
+            model_path=model_path,
+        )
 
     def __init__(
         self,
