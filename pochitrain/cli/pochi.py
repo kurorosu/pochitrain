@@ -29,6 +29,7 @@ from pochitrain.training import Evaluator
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
+    log_inference_result,
     validate_data_path,
     validate_model_path,
 )
@@ -423,25 +424,10 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.error(f"データローダー作成エラー: {e}")
         return
 
-    # 推論実行（時間計測付き）
+    # 推論実行（時間計測はPredictor内で行う）
     logger.info("推論を開始します...")
     try:
-        use_gpu = pochi_config.device == "cuda" and torch.cuda.is_available()
-
-        if use_gpu:
-            # GPU時間計測: CUDA Eventを使用
-            start_event = torch.cuda.Event(enable_timing=True)
-            end_event = torch.cuda.Event(enable_timing=True)
-            start_event.record()
-            predictions, confidences = predictor.predict(val_loader)
-            end_event.record()
-            torch.cuda.synchronize()
-            total_inference_time_ms = start_event.elapsed_time(end_event)
-        else:
-            # CPU時間計測
-            start_time = time.perf_counter()
-            predictions, confidences = predictor.predict(val_loader)
-            total_inference_time_ms = (time.perf_counter() - start_time) * 1000
+        predictions, confidences, metrics = predictor.predict(val_loader)
 
         # 結果整理
         image_paths = val_dataset.get_file_paths()
@@ -489,20 +475,16 @@ def infer_command(args: argparse.Namespace) -> None:
         # 精度計算・表示
         evaluator = Evaluator(device=torch.device(pochi_config.device), logger=logger)
         accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
-        num_samples = accuracy_info["total_samples"]
-        avg_time_per_image = (
-            total_inference_time_ms / num_samples if num_samples > 0 else 0
-        )
-        throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
-        logger.info("=== 推論結果 ===")
-        logger.info(f"推論画像枚数: {num_samples}枚")
-        logger.info(f"正解数: {accuracy_info['correct_predictions']}")
-        logger.info(f"精度: {accuracy_info['accuracy_percentage']:.2f}%")
-        logger.info(
-            f"平均処理時間: {avg_time_per_image:.2f} ms/image（データ読み込み含む）"
+        # 共通のログ出力機能を使用
+        log_inference_result(
+            num_samples=int(accuracy_info["total_samples"]),
+            correct=int(accuracy_info["correct_predictions"]),
+            avg_time_per_image=metrics["avg_time_per_image"],
+            total_samples=int(metrics["total_samples"]),
+            warmup_samples=int(metrics["warmup_samples"]),
         )
-        logger.info(f"スループット: {throughput:.1f} images/sec")
+
         logger.debug(f"詳細結果: {results_csv}")
         logger.debug(f"サマリー: {summary_csv}")
 
@@ -511,8 +493,6 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.info(
             f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
         )
-
-        logger.debug("推論が完了しました！")
 
     except Exception as e:
         logger.error(f"CSV出力エラー: {e}")

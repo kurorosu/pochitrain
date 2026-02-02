@@ -158,7 +158,7 @@ class Evaluator:
         correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
         accuracy = (correct / total) * 100 if total > 0 else 0.0
 
-        accuracy_info: Dict[str, float] = {
+        accuracy_info: Dict[str, Any] = {
             "total_samples": total,
             "correct_predictions": correct,
             "accuracy_percentage": accuracy,

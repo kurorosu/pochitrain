@@ -105,7 +105,7 @@ class PochiPredictor:
     def predict(
         self,
         data_loader: DataLoader[Any],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
         """
         予測の実行.
 
@@ -113,7 +113,12 @@ class PochiPredictor:
             data_loader (DataLoader): 予測データローダー
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: (予測値, 確信度)
+            Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
+                (予測値, 確信度, メトリクス)
+                メトリクスには以下が含まれる:
+                - avg_time_per_image: 1枚あたりの平均推論時間 (ms)
+                - total_samples: 計測サンプル数
+                - warmup_samples: ウォームアップ除外サンプル数
         """
         self.model.eval()
         predictions: List[Any] = []
@@ -132,7 +137,6 @@ class PochiPredictor:
 
                 if is_first_batch:
                     # ウォームアップ: 最初のバッチは計測対象外
-                    # CUDAカーネルのコンパイルやcuDNNアルゴリズム選択を事前に行う
                     output = self.model(data)
                     if use_cuda:
                         torch.cuda.synchronize()
@@ -162,15 +166,17 @@ class PochiPredictor:
                 predictions.extend(predicted)
                 confidences.extend(confidence)
 
-        # 1枚あたりの平均推論時間を表示（ウォームアップ分を除く）
+        avg_time_per_image = 0.0
         if total_samples > 0:
             avg_time_per_image = inference_time_ms / total_samples
-            self.logger.info(
-                f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-                f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
-            )
 
-        return torch.tensor(predictions), torch.tensor(confidences)
+        metrics = {
+            "avg_time_per_image": avg_time_per_image,
+            "total_samples": total_samples,
+            "warmup_samples": warmup_samples,
+        }
+
+        return torch.tensor(predictions), torch.tensor(confidences), metrics
 
     def get_model_info(self) -> Dict[str, Any]:
         """

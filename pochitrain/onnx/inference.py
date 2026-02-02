@@ -64,7 +64,7 @@ class OnnxInference:
         providers.append("CPUExecutionProvider")
 
         session = ort.InferenceSession(str(self.model_path), providers=providers)
-        logger.info(f"実行プロバイダー: {session.get_providers()}")
+        logger.debug(f"実行プロバイダー: {session.get_providers()}")
         return session
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

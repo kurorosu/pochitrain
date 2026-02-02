@@ -155,7 +155,7 @@ def main() -> None:
         inference.run(image_np)
 
     # 推論実行（バッチサイズ1固定）
-    logger.info("推論を開始...")
+    logger.info("推論を開始します...")
     all_predictions: List[int] = []
     all_confidences: List[float] = []
     all_true_labels: List[int] = []
@@ -188,6 +188,8 @@ def main() -> None:
         all_confidences.append(float(confidence[0]))
         all_true_labels.append(label)
 
+    logger.info("推論完了")
+
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
     num_samples = len(dataset)
@@ -203,7 +205,6 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
     )
-    logger.info("推論完了")
 
     # 結果ファイル出力
     class_names = dataset.get_classes()
