@@ -321,6 +321,7 @@ def write_inference_summary(
     avg_time_per_image: float,
     total_samples: int,
     warmup_samples: int,
+    avg_total_time_per_image: Optional[float] = None,
     filename: str = "inference_summary.txt",
     extra_info: Optional[Dict[str, Any]] = None,
 ) -> Path:
@@ -335,6 +336,7 @@ def write_inference_summary(
         avg_time_per_image: 平均推論時間 (ms/image)
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
+        avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
         filename: 出力ファイル名
         extra_info: 追加情報（任意）
 
@@ -351,8 +353,20 @@ def write_inference_summary(
         f.write(f"データ: {data_path}\n")
         f.write(f"サンプル数: {num_samples}\n")
         f.write(f"精度: {accuracy:.2f}%\n")
-        f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
-        f.write(f"スループット: {throughput:.1f} images/sec\n")
+        f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image (純粋推論のみ)\n")
+        f.write(f"スループット: {throughput:.1f} images/sec (純粋推論ベース)\n")
+
+        if avg_total_time_per_image is not None:
+            total_throughput = (
+                1000 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0
+            )
+            f.write(
+                f"平均全処理時間: {avg_total_time_per_image:.2f} ms/image (End-to-End)\n"
+            )
+            f.write(
+                f"スループット: {total_throughput:.1f} images/sec (実効性能ベース)\n"
+            )
+
         f.write(
             f"計測サンプル数: {total_samples} (ウォームアップ除外: {warmup_samples})\n"
         )
@@ -452,6 +466,7 @@ def log_inference_result(
     avg_time_per_image: float,
     total_samples: int,
     warmup_samples: int,
+    avg_total_time_per_image: Optional[float] = None,
 ) -> None:
     """推論結果をログに出力する.
 
@@ -461,12 +476,30 @@ def log_inference_result(
         avg_time_per_image: 平均推論時間 (ms/image)
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
+        avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
     """
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
     logger.info(f"推論画像枚数: {num_samples}枚")
     logger.info(f"精度: {accuracy:.2f}%")
-    logger.info(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
-    logger.info(f"スループット: {throughput:.1f} images/sec, 推論時間ベース")
+
+    logger.info(
+        f"平均推論時間: {avg_time_per_image:.2f} ms/image, 計測範囲: 純粋推論のみ (転送・I/O除外)"
+    )
+    logger.info(
+        f"スループット: {throughput:.1f} images/sec, 計測範囲: 純粋推論のみ (転送・I/O除外)"
+    )
+
+    if avg_total_time_per_image is not None:
+        total_throughput = (
+            1000 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0
+        )
+        logger.info(
+            f"平均全処理時間: {avg_total_time_per_image:.2f} ms/image, 計測範囲: 全処理 (I/O・前処理・転送・推論・後処理込み)"
+        )
+        logger.info(
+            f"スループット: {total_throughput:.1f} images/sec, 計測範囲: 全処理 (I/O・前処理・転送・推論・後処理込み)"
+        )
+
     logger.info(f"計測詳細: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚")
