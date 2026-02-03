@@ -9,6 +9,7 @@
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import List
 
@@ -155,8 +156,10 @@ def main() -> None:
     for _ in range(10):
         inference.run(image_np)
 
-    # 推論実行（バッチサイズ1固定）
+    # 推論実行（End-to-End計測の開始）
     logger.info("推論を開始します...")
+    e2e_start_time = time.perf_counter()
+
     all_predictions: List[int] = []
     all_confidences: List[float] = []
     all_true_labels: List[int] = []
@@ -197,12 +200,16 @@ def main() -> None:
         all_confidences.append(float(confidence[0]))
         all_true_labels.append(label)
 
+    # 全処理計測の終了
+    e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
+
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
     num_samples = len(dataset)
     avg_time_per_image = (
         total_inference_time_ms / total_samples if total_samples > 0 else 0
     )
+    avg_total_time_per_image = e2e_total_time_ms / num_samples if num_samples > 0 else 0
 
     # 結果ログ出力
     log_inference_result(
@@ -211,6 +218,7 @@ def main() -> None:
         avg_time_per_image=avg_time_per_image,
         total_samples=total_samples,
         warmup_samples=warmup_samples,
+        avg_total_time_per_image=avg_total_time_per_image,
     )
     logger.info("推論完了")
 
@@ -239,6 +247,7 @@ def main() -> None:
         avg_time_per_image=avg_time_per_image,
         total_samples=total_samples,
         warmup_samples=warmup_samples,
+        avg_total_time_per_image=avg_total_time_per_image,
         filename="tensorrt_inference_summary.txt",
         extra_info={"入力サイズ": input_size_str},
     )

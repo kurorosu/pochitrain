@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import signal
 import sys
+import time
 from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
@@ -426,8 +427,12 @@ def infer_command(args: argparse.Namespace) -> None:
 
     # 推論実行（時間計測はPredictor内で行う）
     logger.info("推論を開始します...")
+    e2e_start_time = time.perf_counter()
     try:
         predictions, confidences, metrics = predictor.predict(val_loader)
+
+        # 全処理計測の終了
+        e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
 
         # 結果整理
         image_paths = val_dataset.get_file_paths()
@@ -435,8 +440,6 @@ def infer_command(args: argparse.Namespace) -> None:
         confidence_scores = confidences.tolist()
         true_labels = val_dataset.labels
         class_names = val_dataset.get_classes()
-
-        logger.info("推論完了")
 
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
@@ -477,13 +480,20 @@ def infer_command(args: argparse.Namespace) -> None:
         accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
 
         # 共通のログ出力機能を使用
+        num_samples = int(accuracy_info["total_samples"])
+        avg_total_time_per_image = (
+            e2e_total_time_ms / num_samples if num_samples > 0 else 0
+        )
+
         log_inference_result(
-            num_samples=int(accuracy_info["total_samples"]),
+            num_samples=num_samples,
             correct=int(accuracy_info["correct_predictions"]),
             avg_time_per_image=metrics["avg_time_per_image"],
             total_samples=int(metrics["total_samples"]),
             warmup_samples=int(metrics["warmup_samples"]),
+            avg_total_time_per_image=avg_total_time_per_image,
         )
+        logger.info("推論完了")
 
         logger.debug(f"詳細結果: {results_csv}")
         logger.debug(f"サマリー: {summary_csv}")
