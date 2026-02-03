@@ -24,6 +24,7 @@ from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
+    post_process_logits,
     save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
@@ -165,20 +166,28 @@ def main() -> None:
 
         if batch_idx == 0:
             # 最初のバッチは計測対象外（ウォームアップ）
-            predicted, confidence = inference.run(images_np)
+            inference.set_input(images_np)
+            inference.run_pure()
+            logits = inference.get_output()
+            predicted, confidence = post_process_logits(logits)
             warmup_samples = len(batch_images)
         else:
             # 推論時間計測
+            inference.set_input(images_np)  # 転送（計測外）
+
             if use_gpu:
                 start_event.record()
-                predicted, confidence = inference.run(images_np)
+                inference.run_pure()  # 純粋推論のみを計測
                 end_event.record()
                 torch.cuda.synchronize()
                 inference_time_ms = start_event.elapsed_time(end_event)
             else:
                 start_time = time.perf_counter()
-                predicted, confidence = inference.run(images_np)
+                inference.run_pure()  # 純粋推論のみを計測
                 inference_time_ms = (time.perf_counter() - start_time) * 1000
+
+            logits = inference.get_output()  # 取得（計測外）
+            predicted, confidence = post_process_logits(logits)
 
             total_inference_time_ms += inference_time_ms
             total_samples += len(batch_images)
@@ -186,8 +195,6 @@ def main() -> None:
         all_predictions.extend(predicted.tolist())
         all_confidences.extend(confidence.tolist())
         all_true_labels.extend(batch_labels)
-
-    logger.info("推論完了")
 
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
@@ -204,6 +211,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
     )
+    logger.info("推論完了")
 
     # 結果ファイル出力
     class_names = dataset.get_classes()

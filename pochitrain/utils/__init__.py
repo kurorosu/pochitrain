@@ -12,6 +12,7 @@ from .inference_utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
+    post_process_logits,
     save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
@@ -44,4 +45,5 @@ __all__ = [
     "write_inference_csv",
     "write_inference_summary",
     "log_inference_result",
+    "post_process_logits",
 ]

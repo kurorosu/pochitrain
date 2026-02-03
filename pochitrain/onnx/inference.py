@@ -29,6 +29,7 @@ class OnnxInference:
     Attributes:
         session: ONNXランタイムセッション
         use_gpu: GPU使用フラグ
+        io_binding: IO Bindingオブジェクト（GPU使用時のみ）
     """
 
     def __init__(self, model_path: Path, use_gpu: bool = False) -> None:
@@ -41,6 +42,13 @@ class OnnxInference:
         self.model_path = model_path
         self.use_gpu = use_gpu
         self.session: ort.InferenceSession = self._create_session()
+
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_name = self.session.get_outputs()[0].name
+        self.io_binding = None
+
+        if self.use_gpu:
+            self.io_binding = self.session.io_binding()
 
     def _create_session(self) -> ort.InferenceSession:
         """ONNXセッションを作成.
@@ -67,8 +75,49 @@ class OnnxInference:
         logger.debug(f"実行プロバイダー: {session.get_providers()}")
         return session
 
+    def set_input(self, images: np.ndarray) -> None:
+        """入力を設定（GPUなら転送を含む）.
+
+        Args:
+            images: 入力画像 (batch, channels, height, width)
+        """
+        if self.io_binding:
+            # GPU上のメモリにデータをバインド（H2D転送が発生）
+            self.io_binding.bind_cpu_input(self.input_name, images)
+            # 出力バッファもバインド
+            self.io_binding.bind_output(self.output_name, "cuda")
+        else:
+            # CPUの場合は単純に保持
+            self._temp_cpu_images = images
+
+    def run_pure(self) -> None:
+        """純粋な推論実行（計測対象）.
+
+        IO Bindingを使用している場合、転送を含まない純粋な計算のみを行う.
+        """
+        if self.io_binding:
+            self.session.run_with_iobinding(self.io_binding)
+        else:
+            # CPUの場合は通常のrunを実行（転送コストがないため）
+            self._temp_cpu_outputs = self.session.run(
+                [self.output_name], {self.input_name: self._temp_cpu_images}
+            )
+
+    def get_output(self) -> np.ndarray:
+        """推論結果を取得（GPUなら取得転送を含む）.
+
+        Returns:
+            出力ロジット (batch, num_classes)
+        """
+        if self.io_binding:
+            # GPUからCPUへ結果を取得（D2H転送が発生）
+            outputs = self.io_binding.copy_outputs_to_cpu()
+            return outputs[0]
+        else:
+            return self._temp_cpu_outputs[0]
+
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """推論を実行.
+        """推論を一括実行（互換性および簡易用）.
 
         Args:
             images: 入力画像 (batch, channels, height, width)
@@ -76,11 +125,9 @@ class OnnxInference:
         Returns:
             (予測クラス, 信頼度) のタプル
         """
-        input_name = self.session.get_inputs()[0].name
-        output_name = self.session.get_outputs()[0].name
-
-        outputs = self.session.run([output_name], {input_name: images})
-        logits = outputs[0]
+        self.set_input(images)
+        self.run_pure()
+        logits = self.get_output()
 
         return post_process_logits(logits)
 

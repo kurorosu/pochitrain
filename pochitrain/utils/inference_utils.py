@@ -467,6 +467,10 @@ def log_inference_result(
 
     logger.info(f"推論画像枚数: {num_samples}枚")
     logger.info(f"精度: {accuracy:.2f}%")
-    logger.info(f"平均推論時間: {avg_time_per_image:.2f} ms/image")
-    logger.info(f"スループット: {throughput:.1f} images/sec, 推論時間ベース")
+    logger.info(
+        f"平均推論時間: {avg_time_per_image:.2f} ms/image, 計測範囲: 純粋推論のみ (転送・I/O除外)"
+    )
+    logger.info(
+        f"スループット: {throughput:.1f} images/sec, 計測範囲: 純粋推論のみ (転送・I/O除外)"
+    )
     logger.info(f"計測詳細: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚")
