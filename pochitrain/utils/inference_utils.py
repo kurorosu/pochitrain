@@ -322,6 +322,7 @@ def write_inference_summary(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
     filename: str = "inference_summary.txt",
     extra_info: Optional[Dict[str, Any]] = None,
 ) -> Path:
@@ -337,6 +338,7 @@ def write_inference_summary(
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
         avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
         filename: 出力ファイル名
         extra_info: 追加情報（任意）
 
@@ -467,6 +469,7 @@ def log_inference_result(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
 ) -> None:
     """推論結果をログに出力する.
 
@@ -477,6 +480,7 @@ def log_inference_result(
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
         avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
     """
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
