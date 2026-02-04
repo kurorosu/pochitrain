@@ -158,6 +158,17 @@ def main() -> None:
 
     # 推論実行（End-to-End計測の開始）
     logger.info("推論を開始します...")
+
+    # 入力サイズの取得 (TensorRTの入力形状から)
+    input_size = None
+    try:
+        # inference.input_shape から [batch, channel, height, width] を抽出
+        shape = inference.input_shape
+        if len(shape) == 4:
+            input_size = (shape[1], shape[2], shape[3])
+    except Exception:
+        pass
+
     e2e_start_time = time.perf_counter()
 
     all_predictions: List[int] = []
@@ -219,6 +230,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
         avg_total_time_per_image=avg_total_time_per_image,
+        input_size=input_size,
     )
     logger.info("推論完了")
 
@@ -248,8 +260,8 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
         avg_total_time_per_image=avg_total_time_per_image,
+        input_size=input_size,
         filename="tensorrt_inference_summary.txt",
-        extra_info={"入力サイズ": input_size_str},
     )
 
     logger.info(f"ワークスペース: {output_dir.name}へサマリーファイルを出力しました")
