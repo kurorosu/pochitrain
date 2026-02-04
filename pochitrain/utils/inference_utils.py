@@ -322,6 +322,7 @@ def write_inference_summary(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
     filename: str = "inference_summary.txt",
     extra_info: Optional[Dict[str, Any]] = None,
 ) -> Path:
@@ -337,6 +338,7 @@ def write_inference_summary(
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
         avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
         filename: 出力ファイル名
         extra_info: 追加情報（任意）
 
@@ -351,6 +353,9 @@ def write_inference_summary(
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(f"モデル: {model_path}\n")
         f.write(f"データ: {data_path}\n")
+        if input_size:
+            f.write(f"入力解像度: {input_size[2]}x{input_size[1]} (WxH)\n")
+            f.write(f"入力チャンネル: {input_size[0]}\n")
         f.write(f"サンプル数: {num_samples}\n")
         f.write(f"精度: {accuracy:.2f}%\n")
         f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image (純粋推論のみ)\n")
@@ -467,6 +472,7 @@ def log_inference_result(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
 ) -> None:
     """推論結果をログに出力する.
 
@@ -477,11 +483,16 @@ def log_inference_result(
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
         avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
     """
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
     logger.info(f"推論画像枚数: {num_samples}枚")
+    if input_size:
+        logger.info(
+            f"入力解像度: {input_size[2]}x{input_size[1]} (WxH), チャンネル数: {input_size[0]}"
+        )
     logger.info(f"精度: {accuracy:.2f}%")
 
     logger.info(

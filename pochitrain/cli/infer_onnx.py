@@ -136,6 +136,21 @@ def main() -> None:
 
     # 推論実行（End-to-End計測の開始）
     logger.info("推論を開始します...")
+
+    # 入力サイズの取得 (ONNXの入力形状から)
+    input_size = None
+    try:
+        # get_inputs()[0].shape から [batch, channel, height, width] を抽出
+        shape = inference.session.get_inputs()[0].shape
+        if len(shape) == 4:
+            c = shape[1] if isinstance(shape[1], int) else 3
+            h = shape[2] if isinstance(shape[2], int) else None
+            w = shape[3] if isinstance(shape[3], int) else None
+            if h and w:
+                input_size = (c, h, w)
+    except Exception:
+        pass
+
     e2e_start_time = time.perf_counter()
 
     all_predictions: List[int] = []
@@ -217,6 +232,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
         avg_total_time_per_image=avg_total_time_per_image,
+        input_size=input_size,
     )
     logger.info("推論完了")
 
@@ -247,6 +263,7 @@ def main() -> None:
         total_samples=total_samples,
         warmup_samples=warmup_samples,
         avg_total_time_per_image=avg_total_time_per_image,
+        input_size=input_size,
         filename="onnx_inference_summary.txt",
         extra_info={"実行プロバイダー": providers},
     )

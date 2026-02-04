@@ -427,6 +427,30 @@ def infer_command(args: argparse.Namespace) -> None:
 
     # 推論実行（時間計測はPredictor内で行う）
     logger.info("推論を開始します...")
+
+    # 入力サイズの取得 (Transform設定またはデータセットから)
+    input_size = None
+    try:
+        from torchvision.transforms import CenterCrop, RandomResizedCrop, Resize
+
+        # Transformからサイズ情報を探す
+        for t in pochi_config.val_transform.transforms:
+            if isinstance(t, (Resize, CenterCrop, RandomResizedCrop)):
+                size = getattr(t, "size", None)
+                if size:
+                    if isinstance(size, int):
+                        input_size = (3, size, size)
+                    elif isinstance(size, (list, tuple)):
+                        input_size = (3, size[0], size[1])
+                    break
+        # 見つからない場合はデータセットの最初のサンプルを確認
+        if input_size is None and len(val_dataset) > 0:
+            sample_img, _ = val_dataset[0]
+            if hasattr(sample_img, "shape"):
+                input_size = tuple(sample_img.shape)  # type: ignore
+    except Exception:
+        pass
+
     e2e_start_time = time.perf_counter()
     try:
         predictions, confidences, metrics = predictor.predict(val_loader)
@@ -492,6 +516,7 @@ def infer_command(args: argparse.Namespace) -> None:
             total_samples=int(metrics["total_samples"]),
             warmup_samples=int(metrics["warmup_samples"]),
             avg_total_time_per_image=avg_total_time_per_image,
+            input_size=input_size,
         )
         logger.info("推論完了")
 
