@@ -33,6 +33,7 @@ from pochitrain.utils import (
     log_inference_result,
     validate_data_path,
     validate_model_path,
+    write_inference_summary,
 )
 from pochitrain.validation import ConfigValidator
 
@@ -487,15 +488,16 @@ def infer_command(args: argparse.Namespace) -> None:
             workspace_manager=InferenceWorkspaceManager(output_dir),
             logger=logger,
         )
-        results_csv, summary_csv = exporter.export(
+        # results_csv のみ取得し, summary_csv は廃止
+        results_csv, _ = exporter.export(
             image_paths=image_paths,
             predicted_labels=predicted_labels,
             true_labels=true_labels,
             confidence_scores=confidence_scores,
             class_names=class_names,
             model_info=predictor.get_model_info(),
-            results_filename="inference_results.csv",
-            summary_filename="inference_summary.csv",
+            results_filename="pytorch_inference_results.csv",
+            summary_filename=None,  # サマリーCSVは廃止
             cm_config=cm_config,
         )
 
@@ -518,10 +520,29 @@ def infer_command(args: argparse.Namespace) -> None:
             avg_total_time_per_image=avg_total_time_per_image,
             input_size=input_size,
         )
+
+        # 共通サマリー (TXT) の出力
+        write_inference_summary(
+            output_dir=results_csv.parent,  # 作成済みのワークスペースディレクトリを使用
+            model_path=model_path,
+            data_path=data_path,
+            num_samples=num_samples,
+            accuracy=(
+                (int(accuracy_info["correct_predictions"]) / num_samples * 100)
+                if num_samples > 0
+                else 0
+            ),
+            avg_time_per_image=metrics["avg_time_per_image"],
+            total_samples=int(metrics["total_samples"]),
+            warmup_samples=int(metrics["warmup_samples"]),
+            avg_total_time_per_image=avg_total_time_per_image,
+            input_size=input_size,
+            filename="pytorch_inference_summary.txt",
+        )
+
         logger.info("推論完了")
 
         logger.debug(f"詳細結果: {results_csv}")
-        logger.debug(f"サマリー: {summary_csv}")
 
         # ワークスペース情報
         workspace_info = exporter.get_workspace_info()
