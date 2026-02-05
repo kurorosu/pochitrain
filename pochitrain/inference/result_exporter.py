@@ -40,7 +40,7 @@ class InferenceResultExporter:
         """
         if self.workspace is None:
             self.workspace = self.workspace_manager.create_workspace()
-            self.logger.info(f"推論ワークスペースを作成: {self.workspace}")
+            self.logger.debug(f"推論ワークスペースを作成: {self.workspace}")
         return self.workspace
 
     def export(
@@ -52,16 +52,16 @@ class InferenceResultExporter:
         class_names: List[str],
         model_info: Dict[str, Any],
         results_filename: str = "inference_results.csv",
-        summary_filename: str = "inference_summary.csv",
+        summary_filename: Optional[str] = None,
         cm_config: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Path, Path]:
+    ) -> Tuple[Path, Optional[Path]]:
         """推論結果を一括エクスポート.
 
         実行内容:
         1. ワークスペース確保 (遅延作成)
         2. 精度計算 (Evaluator 経由)
         3. 詳細結果CSV出力 (InferenceCSVExporter 経由)
-        4. サマリーCSV出力
+        4. サマリーCSV出力 (summary_filename が指定されている場合のみ)
         5. モデル情報JSON保存
         6. 混同行列画像生成
         7. クラス別精度レポート生成
@@ -74,11 +74,11 @@ class InferenceResultExporter:
             class_names: クラス名のリスト
             model_info: モデル情報の辞書
             results_filename: 詳細結果CSVファイル名
-            summary_filename: サマリーCSVファイル名
+            summary_filename: サマリーCSVファイル名 (None の場合は出力スキップ)
             cm_config: 混同行列可視化設定
 
         Returns:
-            Tuple[Path, Path]: (詳細結果CSVパス, サマリーCSVパス)
+            Tuple[Path, Optional[Path]]: (詳細結果CSVパス, サマリーCSVパス)
         """
         # 推論ワークスペースを確保(遅延作成)
         inference_workspace = self._ensure_workspace()
@@ -87,13 +87,6 @@ class InferenceResultExporter:
         csv_exporter = InferenceCSVExporter(
             output_dir=str(inference_workspace), logger=self.logger
         )
-
-        # 精度計算 (Evaluator 経由)
-        evaluator = Evaluator(
-            device=None,  # type: ignore[arg-type]
-            logger=self.logger,
-        )
-        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
 
         # 詳細結果のCSV出力
         results_csv = csv_exporter.export_results(
@@ -107,24 +100,30 @@ class InferenceResultExporter:
         )
 
         # サマリーのCSV出力
-        summary_csv = csv_exporter.export_summary(
-            accuracy_info=accuracy_info,
-            model_info=model_info,
-            filename=summary_filename,
-        )
+        summary_csv = None
+        if summary_filename:
+            evaluator = Evaluator(
+                device=None,  # type: ignore[arg-type]
+                logger=self.logger,
+            )
+            accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
+            summary_csv = csv_exporter.export_summary(
+                accuracy_info=accuracy_info,
+                model_info=model_info,
+                filename=summary_filename,
+            )
 
         # モデル情報もJSONで保存
         self.workspace_manager.save_model_info(model_info)
 
         # 混同行列画像を自動生成
         try:
-            confusion_matrix_path = self.save_confusion_matrix_image(
+            self.save_confusion_matrix_image(
                 predicted_labels=predicted_labels,
                 true_labels=true_labels,
                 class_names=class_names,
                 cm_config=cm_config,
             )
-            self.logger.info(f"混同行列画像も生成されました: {confusion_matrix_path}")
         except Exception as e:
             self.logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
@@ -132,13 +131,12 @@ class InferenceResultExporter:
         try:
             from ..utils.inference_utils import save_classification_report
 
-            report_path = save_classification_report(
+            save_classification_report(
                 predicted_labels=predicted_labels,
                 true_labels=true_labels,
                 class_names=class_names,
                 output_dir=inference_workspace,
             )
-            self.logger.info(f"クラス別精度レポートも生成されました: {report_path}")
         except Exception as e:
             self.logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 

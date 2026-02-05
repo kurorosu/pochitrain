@@ -8,11 +8,11 @@ import pytest
 import torchvision.transforms as transforms
 
 from pochitrain.cli.pochi import (
+    create_signal_handler,
     find_best_model,
     get_indexed_output_dir,
     main,
     setup_logging,
-    signal_handler,
     validate_config,
 )
 
@@ -43,8 +43,9 @@ class TestSignalHandler:
         # フラグを初期化
         pochi_module.training_interrupted = False
 
-        # シグナルハンドラーを呼び出し
-        signal_handler(2, None)
+        # シグナルハンドラーを生成して呼び出し
+        handler = create_signal_handler(debug=False)
+        handler(2, None)
 
         # フラグが設定されていることを確認
         assert pochi_module.training_interrupted is True

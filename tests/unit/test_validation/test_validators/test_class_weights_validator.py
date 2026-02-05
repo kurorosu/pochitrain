@@ -8,6 +8,7 @@ from unittest.mock import Mock
 from pochitrain.validation.validators.class_weights_validator import (
     ClassWeightsValidator,
 )
+from tests.unit.test_validation.conftest import assert_info_or_debug_called_with
 
 
 class TestClassWeightsValidator(unittest.TestCase):
@@ -88,7 +89,9 @@ class TestClassWeightsValidator(unittest.TestCase):
 
         # アサーション
         assert result is True
-        self.mock_logger.info.assert_called_once_with("クラス重み: なし（均等扱い）")
+        assert_info_or_debug_called_with(
+            self.mock_logger, "クラス重み: なし（均等扱い）"
+        )
 
     def test_class_weights_invalid_type_validation_fails(self):
         """class_weightsがリスト/タプル以外の場合はバリデーションが失敗することをテスト."""
@@ -160,7 +163,9 @@ class TestClassWeightsValidator(unittest.TestCase):
 
         # アサーション
         assert result is True
-        self.mock_logger.info.assert_called_once_with("クラス重み: [1.0, 2.5, 0.8]")
+        assert_info_or_debug_called_with(
+            self.mock_logger, "クラス重み: [1.0, 2.5, 0.8]"
+        )
 
     def test_class_weights_tuple_valid_validation_succeeds(self):
         """class_weightsがタプル形式で有効な場合はバリデーションが成功することをテスト."""
@@ -170,8 +175,8 @@ class TestClassWeightsValidator(unittest.TestCase):
 
         # アサーション
         assert result is True
-        self.mock_logger.info.assert_called_once_with(
-            "クラス重み: [1.0, 2.0, 1.5, 3.0]"
+        assert_info_or_debug_called_with(
+            self.mock_logger, "クラス重み: [1.0, 2.0, 1.5, 3.0]"
         )
 
     def test_class_weights_integer_values_validation_succeeds(self):
@@ -182,7 +187,7 @@ class TestClassWeightsValidator(unittest.TestCase):
 
         # アサーション
         assert result is True
-        self.mock_logger.info.assert_called_once_with("クラス重み: [1, 3]")
+        assert_info_or_debug_called_with(self.mock_logger, "クラス重み: [1, 3]")
 
     def test_class_weights_mixed_number_types_validation_succeeds(self):
         """class_weightsが整数と浮動小数点の混合で有効な場合はバリデーションが成功することをテスト."""
@@ -192,7 +197,7 @@ class TestClassWeightsValidator(unittest.TestCase):
 
         # アサーション
         assert result is True
-        self.mock_logger.info.assert_called_once_with("クラス重み: [1, 2.5, 3]")
+        assert_info_or_debug_called_with(self.mock_logger, "クラス重み: [1, 2.5, 3]")
 
 
 if __name__ == "__main__":

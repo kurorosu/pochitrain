@@ -80,11 +80,11 @@ class PochiTrainer:
 
         # ロガーの設定
         self.logger = self._setup_logger()
-        self.logger.info(f"使用デバイス: {self.device}")
+        self.logger.debug(f"使用デバイス: {self.device}")
         if self.cudnn_benchmark:
-            self.logger.info("cuDNN自動チューニング: 有効")
-        self.logger.info(f"ワークスペース: {self.current_workspace}")
-        self.logger.info(f"モデル保存先: {self.work_dir}")
+            self.logger.debug("cuDNN自動チューニング: 有効")
+        self.logger.debug(f"ワークスペース: {self.current_workspace}")
+        self.logger.debug(f"モデル保存先: {self.work_dir}")
 
         # チェックポイントストアの初期化
         self.checkpoint_store = CheckpointStore(self.work_dir, self.logger)
@@ -101,10 +101,10 @@ class PochiTrainer:
 
         # モデル情報の表示
         model_info = self.model.get_model_info()
-        self.logger.info(f"モデル: {model_info['model_name']}")
-        self.logger.info(f"クラス数: {model_info['num_classes']}")
-        self.logger.info(f"総パラメータ数: {model_info['total_params']:,}")
-        self.logger.info(f"訓練可能パラメータ数: {model_info['trainable_params']:,}")
+        self.logger.debug(f"モデル: {model_info['model_name']}")
+        self.logger.debug(f"クラス数: {model_info['num_classes']}")
+        self.logger.debug(f"総パラメータ数: {model_info['total_params']:,}")
+        self.logger.debug(f"訓練可能パラメータ数: {model_info['trainable_params']:,}")
 
         # 訓練状態の管理
         self.epoch = 0
@@ -219,7 +219,7 @@ class PochiTrainer:
         # 混同行列計算のためのクラス数を設定
         if num_classes:
             self.num_classes_for_cm = num_classes
-            self.logger.info(f"混同行列計算を有効化しました (クラス数: {num_classes})")
+            self.logger.debug(f"混同行列計算を有効化しました (クラス数: {num_classes})")
 
         # Early Stoppingの初期化
         if early_stopping_config is not None and early_stopping_config.get(
@@ -273,7 +273,7 @@ class PochiTrainer:
 
             # ログ出力
             if batch_idx % 100 == 0:
-                self.logger.info(
+                self.logger.debug(
                     f"エポック {self.epoch}, バッチ {batch_idx}/{len(train_loader)}, "
                     f"損失: {loss.item():.4f}, 精度: {100.0 * correct / total:.2f}%"
                 )
@@ -314,7 +314,7 @@ class PochiTrainer:
             epochs (int): エポック数
             stop_flag_callback (callable, optional): 停止フラグをチェックするコールバック関数
         """
-        self.logger.info(f"訓練を開始 - エポック数: {epochs}")
+        self.logger.debug(f"訓練を開始 - エポック数: {epochs}")
 
         # MetricsTrackerの初期化（ワークスペースがある場合のみ）
         tracker = None
@@ -346,7 +346,7 @@ class PochiTrainer:
                 )  # 現在の状態を保存
                 break
 
-            self.logger.info(f"エポック {epoch}/{epochs} を開始")
+            self.logger.debug(f"エポック {epoch}/{epochs} を開始")
 
             # 1エポック訓練
             train_metrics = self.train_epoch(train_loader)

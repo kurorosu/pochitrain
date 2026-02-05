@@ -80,7 +80,7 @@ class InferenceCSVExporter(BaseCSVExporter):
                 class_names,
             )
 
-        self.logger.info(f"推論結果をCSVに出力: {output_path}")
+        self.logger.debug(f"推論結果をCSVに出力: {output_path}")
         return output_path
 
     def _validate_data(
@@ -107,25 +107,6 @@ class InferenceCSVExporter(BaseCSVExporter):
 
     def _write_header(self, writer: Any, model_info: Optional[Dict[str, Any]]) -> None:
         """CSVのヘッダー部分を書き込み."""
-        # モデル情報をコメントとして追加
-        if model_info:
-            writer.writerow([f"# Model: {model_info.get('model_name', 'unknown')}"])
-            writer.writerow([f"# Classes: {model_info.get('num_classes', 'unknown')}"])
-            writer.writerow([f"# Device: {model_info.get('device', 'unknown')}"])
-            writer.writerow(
-                [f"# Model Path: {model_info.get('model_path', 'unknown')}"]
-            )
-
-            if model_info.get("best_accuracy") is not None:
-                writer.writerow(
-                    [f"# Best Accuracy: {model_info['best_accuracy']:.2f}%"]
-                )
-
-            if model_info.get("epoch") is not None:
-                writer.writerow([f"# Epoch: {model_info['epoch']}"])
-
-            writer.writerow([])  # 空行
-
         # カラムヘッダー
         writer.writerow(
             [
@@ -221,5 +202,5 @@ class InferenceCSVExporter(BaseCSVExporter):
                 for key, value in model_info.items():
                     writer.writerow([key, str(value)])
 
-        self.logger.info(f"推論サマリーをCSVに出力: {output_path}")
+        self.logger.debug(f"推論サマリーをCSVに出力: {output_path}")
         return output_path

@@ -116,9 +116,9 @@ class TestInferenceResultExporterExport:
             results_csv, summary_csv = exporter.export(**sample_data)
 
         assert results_csv.exists()
-        assert summary_csv.exists()
         assert results_csv.name == "inference_results.csv"
-        assert summary_csv.name == "inference_summary.csv"
+        # summary_filename=None (デフォルト) のため, サマリーCSVは出力されない
+        assert summary_csv is None
 
     def test_export_creates_workspace_lazily(self, tmp_path, sample_data):
         """export 時にワークスペースが遅延作成される."""
@@ -187,7 +187,7 @@ class TestInferenceResultExporterExport:
 
         # エラーがあってもCSV出力は成功
         assert results_csv.exists()
-        assert summary_csv.exists()
+        assert summary_csv is None
         # 警告ログが出力されている
         logger.warning.assert_any_call(
             "混同行列画像生成に失敗しました: matplotlib error"
@@ -213,7 +213,7 @@ class TestInferenceResultExporterExport:
             results_csv, summary_csv = exporter.export(**sample_data)
 
         assert results_csv.exists()
-        assert summary_csv.exists()
+        assert summary_csv is None
         logger.warning.assert_any_call(
             "クラス別精度レポート生成に失敗しました: sklearn error"
         )

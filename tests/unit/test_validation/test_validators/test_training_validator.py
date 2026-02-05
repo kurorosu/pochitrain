@@ -3,6 +3,7 @@
 import pytest
 
 from pochitrain.validation.validators.training_validator import TrainingValidator
+from tests.unit.test_validation.conftest import assert_info_or_debug_called_with
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ class TestEpochsValidation:
         result = validator.validate(config, mock_logger)
 
         assert result is True
-        mock_logger.info.assert_any_call("エポック数: 50")
+        assert_info_or_debug_called_with(mock_logger, "エポック数: 50")
 
 
 class TestBatchSizeValidation:
@@ -164,7 +165,7 @@ class TestBatchSizeValidation:
         result = validator.validate(config, mock_logger)
 
         assert result is True
-        mock_logger.info.assert_any_call("バッチサイズ: 32")
+        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 32")
 
 
 class TestModelNameValidation:
@@ -225,21 +226,21 @@ class TestModelNameValidation:
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
         result = validator.validate(config, mock_logger)
         assert result is True
-        mock_logger.info.assert_any_call("モデル名: resnet18")
+        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet18")
 
         # resnet34
         mock_logger.reset_mock()
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet34"}
         result = validator.validate(config, mock_logger)
         assert result is True
-        mock_logger.info.assert_any_call("モデル名: resnet34")
+        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet34")
 
         # resnet50
         mock_logger.reset_mock()
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet50"}
         result = validator.validate(config, mock_logger)
         assert result is True
-        mock_logger.info.assert_any_call("モデル名: resnet50")
+        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet50")
 
 
 class TestTrainingValidatorIntegration:
@@ -253,9 +254,9 @@ class TestTrainingValidatorIntegration:
         result = validator.validate(config, mock_logger)
 
         assert result is True
-        mock_logger.info.assert_any_call("エポック数: 100")
-        mock_logger.info.assert_any_call("バッチサイズ: 64")
-        mock_logger.info.assert_any_call("モデル名: resnet50")
+        assert_info_or_debug_called_with(mock_logger, "エポック数: 100")
+        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 64")
+        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet50")
 
     def test_multiple_invalid_parameters_failure(self, validator, mocker):
         """複数のパラメータが無効な場合、最初のエラーでバリデーション失敗."""
@@ -286,6 +287,6 @@ class TestTrainingValidatorIntegration:
         result = validator.validate(config, mock_logger)
 
         assert result is True
-        mock_logger.info.assert_any_call("エポック数: 1")
-        mock_logger.info.assert_any_call("バッチサイズ: 1")
-        mock_logger.info.assert_any_call("モデル名: resnet18")
+        assert_info_or_debug_called_with(mock_logger, "エポック数: 1")
+        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 1")
+        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet18")

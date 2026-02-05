@@ -87,9 +87,9 @@ class TensorRTInference:
             self.output_shape, dtype=torch.float32, device="cuda"
         )
 
-        logger.info(f"TensorRTエンジンを読み込み: {engine_path}")
-        logger.info(f"入力shape: {self.input_shape}")
-        logger.info(f"出力shape: {self.output_shape}")
+        logger.debug(f"TensorRTエンジンを読み込み: {engine_path}")
+        logger.debug(f"入力shape: {self.input_shape}")
+        logger.debug(f"出力shape: {self.output_shape}")
 
     def _get_binding_shape(self, binding_idx: int) -> Tuple[int, ...]:
         """バインディングのshapeを取得.
@@ -105,18 +105,27 @@ class TensorRTInference:
         shape = self.engine.get_tensor_shape(tensor_name)
         return tuple(shape)
 
-    def _infer_single(self, image: np.ndarray) -> np.ndarray:
-        """単一画像の推論を実行（内部用）.
+    def set_input(self, image: np.ndarray) -> None:
+        """入力を設定（GPUへの転送を含む）.
 
         Args:
             image: 入力画像 (1, channels, height, width)
+        """
+        self._d_input.copy_(torch.from_numpy(image))
+
+    def execute(self) -> None:
+        """純粋な推論実行（計測対象）.
+
+        GPU上のバッファに対して計算命令のみを行う.
+        """
+        self.context.execute_v2([self._d_input.data_ptr(), self._d_output.data_ptr()])
+
+    def get_output(self) -> np.ndarray:
+        """推論結果を取得（GPUからの取得転送を含む）.
 
         Returns:
             出力ロジット (1, num_classes)
         """
-        self._d_input.copy_(torch.from_numpy(image))
-        self.context.execute_v2([self._d_input.data_ptr(), self._d_output.data_ptr()])
-        torch.cuda.synchronize()
         return self._d_output.cpu().numpy()
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -134,7 +143,9 @@ class TensorRTInference:
 
         for i in range(batch_size):
             image = images[i : i + 1].astype(np.float32)
-            logits = self._infer_single(image)
+            self.set_input(image)
+            self.execute()
+            logits = self.get_output()
             all_logits.append(logits)
 
         logits = np.concatenate(all_logits, axis=0)

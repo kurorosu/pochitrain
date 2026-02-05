@@ -3,6 +3,7 @@
 import pytest
 
 from pochitrain.validation.validators.optimizer_validator import OptimizerValidator
+from tests.unit.test_validation.conftest import assert_info_or_debug_called_with
 
 
 @pytest.fixture
@@ -103,8 +104,8 @@ def test_valid_adam_success(validator, mocker):
     result = validator.validate(config, mock_logger)
 
     assert result is True
-    mock_logger.info.assert_any_call("学習率: 0.001")
-    mock_logger.info.assert_any_call("最適化器: Adam")
+    assert_info_or_debug_called_with(mock_logger, "学習率: 0.001")
+    assert_info_or_debug_called_with(mock_logger, "最適化器: Adam")
 
 
 def test_valid_sgd_success(validator, mocker):
@@ -115,8 +116,8 @@ def test_valid_sgd_success(validator, mocker):
     result = validator.validate(config, mock_logger)
 
     assert result is True
-    mock_logger.info.assert_any_call("学習率: 0.1")
-    mock_logger.info.assert_any_call("最適化器: SGD")
+    assert_info_or_debug_called_with(mock_logger, "学習率: 0.1")
+    assert_info_or_debug_called_with(mock_logger, "最適化器: SGD")
 
 
 def test_learning_rate_boundary_values(validator, mocker):

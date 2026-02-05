@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
@@ -78,6 +78,11 @@ uv run pochi train
 uv run pochi train --config configs/my_custom_config.py
 ```
 
+デバッグログを有効化する場合:
+```bash
+uv run pochi train --debug
+```
+
 これだけで訓練が開始されます!
 
 ### 4. 結果の確認
@@ -101,7 +106,12 @@ uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth \
   --output results/
 ```
 
-推論完了時に平均処理時間 (ms/image) とスループット (images/sec) が表示されます.
+推論完了時に以下の情報が表示されます:
+- 入力解像度とチャンネル数
+- 精度 (%)
+- 純粋推論時間 (ms/image) とスループット (images/sec) — モデルの forward pass のみ
+- End-to-End全処理時間 (ms/image) とスループット — I/O・前処理・転送を含む実効性能
+- 計測詳細（ウォームアップ除外サンプル数）
 
 ### 6. 結果と出力
 
@@ -110,7 +120,14 @@ uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth \
 - `models/best_epoch*.pth`: ベストモデル
 - `training_metrics_*.csv`: 学習率や精度を含むメトリクス
 - `training_metrics_*.png`: 損失/精度グラフ（層別学習率が有効な場合は別グラフ）
-- `visualization/`: 層別学習率グラフ、勾配トレースなど
+- `visualization/`: 層別学習率グラフ, 勾配トレースなど
+
+推論結果は `work_dirs/<timestamp>/inference_results/` に保存されます。
+
+- `*_inference_results.csv`: 画像ごとの詳細結果（ファイルパス, 正解, 予測, 信頼度）
+- `*_inference_summary.txt`: 推論サマリー（精度, 推論時間, スループット等を日本語で出力）
+- `classification_report.csv`: クラス別精度レポート（precision, recall, f1-score）
+- `confusion_matrix.png`: 混同行列
 
 ### 7. 勾配トレースの可視化
 
@@ -365,6 +382,7 @@ uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx \
 
 | オプション | 説明 | デフォルト |
 |-----------|------|-----------|
+| `--debug` | デバッグログを有効化 | - |
 | `--data` | 推論データのパス | configの`val_data_root` |
 | `--output` | 結果の出力先ディレクトリ | モデルパスから自動決定 |
 
@@ -416,6 +434,7 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 
 | オプション | 説明 | デフォルト |
 |-----------|------|-----------|
+| `--debug` | デバッグログを有効化 | - |
 | `--data` | 推論データのパス | configの`val_data_root` |
 | `--output` | 結果の出力先ディレクトリ | エンジンパスから自動決定 |
 
@@ -441,6 +460,8 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 
 - グレースケールやRGBA画像は自動的にRGBに変換されます
 - クラス数は自動で検出されます
+- 推論では最初のバッチがウォームアップとして計測から除外されます
+- `--debug` フラグを付けると, 推論時のTransform内容やバッチ単位の処理時間など詳細ログが表示されます
 
 ## 📄 ライセンス
 

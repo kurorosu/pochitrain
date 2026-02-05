@@ -159,7 +159,7 @@ def save_confusion_matrix_image(
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    logger.info(f"混同行列画像保存: {output_path}")
+    logger.debug(f"混同行列画像保存: {output_path}")
     return output_path
 
 
@@ -247,7 +247,7 @@ def load_config_auto(model_path: Path) -> Dict[str, Any]:
         from pochitrain.utils.config_loader import ConfigLoader
 
         config = ConfigLoader.load_config(str(config_path))
-        logger.info(f"設定ファイルを読み込み: {config_path}")
+        logger.debug(f"設定ファイルを読み込み: {config_path}")
         return config
     except Exception as e:
         logger.error(f"設定ファイル読み込みエラー: {e}")
@@ -308,7 +308,7 @@ def write_inference_csv(
                 ]
             )
 
-    logger.info(f"結果を保存: {csv_path}")
+    logger.debug(f"詳細結果: {csv_path}")
     return csv_path
 
 
@@ -321,6 +321,8 @@ def write_inference_summary(
     avg_time_per_image: float,
     total_samples: int,
     warmup_samples: int,
+    avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
     filename: str = "inference_summary.txt",
     extra_info: Optional[Dict[str, Any]] = None,
 ) -> Path:
@@ -335,6 +337,8 @@ def write_inference_summary(
         avg_time_per_image: 平均推論時間 (ms/image)
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
+        avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
         filename: 出力ファイル名
         extra_info: 追加情報（任意）
 
@@ -349,10 +353,25 @@ def write_inference_summary(
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(f"モデル: {model_path}\n")
         f.write(f"データ: {data_path}\n")
+        if input_size:
+            f.write(f"入力解像度: {input_size[2]}x{input_size[1]} (WxH)\n")
+            f.write(f"入力チャンネル: {input_size[0]}\n")
         f.write(f"サンプル数: {num_samples}\n")
         f.write(f"精度: {accuracy:.2f}%\n")
-        f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image\n")
-        f.write(f"スループット: {throughput:.1f} images/sec\n")
+        f.write(f"平均推論時間: {avg_time_per_image:.2f} ms/image (純粋推論のみ)\n")
+        f.write(f"スループット: {throughput:.1f} images/sec (純粋推論ベース)\n")
+
+        if avg_total_time_per_image is not None:
+            total_throughput = (
+                1000 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0
+            )
+            f.write(
+                f"平均全処理時間: {avg_total_time_per_image:.2f} ms/image (End-to-End)\n"
+            )
+            f.write(
+                f"スループット: {total_throughput:.1f} images/sec (実効性能ベース)\n"
+            )
+
         f.write(
             f"計測サンプル数: {total_samples} (ウォームアップ除外: {warmup_samples})\n"
         )
@@ -361,7 +380,7 @@ def write_inference_summary(
             for key, value in extra_info.items():
                 f.write(f"{key}: {value}\n")
 
-    logger.info(f"サマリーを保存: {summary_path}")
+    logger.debug(f"サマリー: {summary_path}")
     return summary_path
 
 
@@ -442,7 +461,7 @@ def save_classification_report(
             ]
         )
 
-    logger.info(f"クラス別精度レポート保存: {csv_path}")
+    logger.debug(f"クラス別精度レポート保存: {csv_path}")
     return csv_path
 
 
@@ -452,6 +471,8 @@ def log_inference_result(
     avg_time_per_image: float,
     total_samples: int,
     warmup_samples: int,
+    avg_total_time_per_image: Optional[float] = None,
+    input_size: Optional[Tuple[int, int, int]] = None,
 ) -> None:
     """推論結果をログに出力する.
 
@@ -461,14 +482,35 @@ def log_inference_result(
         avg_time_per_image: 平均推論時間 (ms/image)
         total_samples: 計測サンプル数
         warmup_samples: ウォームアップ除外サンプル数
+        avg_total_time_per_image: 平均全処理時間 (ms/image, I/O・転送等すべて含む)
+        input_size: 入力サイズ (C, H, W)
     """
     accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
     throughput = 1000 / avg_time_per_image if avg_time_per_image > 0 else 0
 
-    logger.info("推論完了")
-    logger.info(f"精度: {correct}/{num_samples} ({accuracy:.2f}%)")
+    logger.info(f"推論画像枚数: {num_samples}枚")
+    if input_size:
+        logger.info(
+            f"入力解像度: {input_size[2]}x{input_size[1]} (WxH), チャンネル数: {input_size[0]}"
+        )
+    logger.info(f"精度: {accuracy:.2f}%")
+
     logger.info(
-        f"平均推論時間: {avg_time_per_image:.2f} ms/image "
-        f"(計測: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚)"
+        f"平均推論時間: {avg_time_per_image:.2f} ms/image, 計測範囲: 純粋推論のみ (転送・I/O除外)"
     )
-    logger.info(f"スループット: {throughput:.1f} images/sec")
+    logger.info(
+        f"スループット: {throughput:.1f} images/sec, 計測範囲: 純粋推論のみ (転送・I/O除外)"
+    )
+
+    if avg_total_time_per_image is not None:
+        total_throughput = (
+            1000 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0
+        )
+        logger.info(
+            f"平均全処理時間: {avg_total_time_per_image:.2f} ms/image, 計測範囲: 全処理 (I/O・前処理・転送・推論・後処理込み)"
+        )
+        logger.info(
+            f"スループット: {total_throughput:.1f} images/sec, 計測範囲: 全処理 (I/O・前処理・転送・推論・後処理込み)"
+        )
+
+    logger.info(f"計測詳細: {total_samples}枚, ウォームアップ除外: {warmup_samples}枚")

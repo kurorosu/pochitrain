@@ -36,7 +36,6 @@ class LoggerManager:
     Attributes:
         _loggers (Dict[str, logging.Logger]): 管理されているロガーの辞書
         _default_level (LogLevel): デフォルトのログレベル
-        _format_string (str): ログフォーマット文字列
     """
 
     _instance: Optional["LoggerManager"] = None
@@ -54,14 +53,16 @@ class LoggerManager:
             return
 
         self._default_level = LogLevel.INFO
-        self._format_string = (
-            "[%(asctime)s][%(log_color)s%(levelname)s%(reset)s]"
-            "[%(name)s][%(filename)s:%(lineno)d] %(message)s"
+        # 常にモジュール名・行数を表示するフォーマット
+        self._format = (
+            "%(asctime)s|%(log_color)s%(levelname)-5.5s%(reset)s|"
+            "%(module)-18s|%(lineno)03d| %(message)s"
         )
         self._date_format = "%Y-%m-%d %H:%M:%S"
         self._log_colors = {
             "DEBUG": "cyan",
             "INFO": "green",
+            "WARN": "yellow",
             "WARNING": "yellow",
             "ERROR": "red",
             "CRITICAL": "red,bg_white",
@@ -134,7 +135,7 @@ class LoggerManager:
         if COLORLOG_AVAILABLE:
             handler = colorlog.StreamHandler()
             formatter = colorlog.ColoredFormatter(
-                self._format_string,
+                self._format,
                 datefmt=self._date_format,
                 log_colors=self._log_colors,
             )
@@ -142,13 +143,10 @@ class LoggerManager:
             handler = logging.StreamHandler()
             # colorlogが利用できない場合は色情報を除去したフォーマット
             plain_format = (
-                "[%(asctime)s][%(levelname)s][%(name)s]"
-                "[%(filename)s:%(lineno)d] %(message)s"
+                "%(asctime)s|%(levelname)-5.5s|"
+                "%(module)-18s|%(lineno)03d| %(message)s"
             )
-            formatter = logging.Formatter(
-                plain_format,
-                datefmt=self._date_format,
-            )
+            formatter = logging.Formatter(plain_format, datefmt=self._date_format)
 
         handler.setFormatter(formatter)
         return handler
@@ -161,6 +159,13 @@ class LoggerManager:
             level (LogLevel): 新しいデフォルトレベル
         """
         self._default_level = level
+        self._update_existing_loggers_level()
+
+    def _update_existing_loggers_level(self) -> None:
+        """既存ロガーのレベル設定を更新する."""
+        log_level = getattr(logging, self._default_level.value)
+        for logger in self._loggers.values():
+            logger.setLevel(log_level)
 
     def set_logger_level(self, name: str, level: LogLevel) -> None:
         """

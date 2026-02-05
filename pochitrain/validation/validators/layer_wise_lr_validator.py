@@ -122,5 +122,5 @@ class LayerWiseLRValidator(BaseValidator):
                 "これらの設定は無視される可能性があります。"
             )
 
-        logger.info(f"層別学習率設定が有効です。設定された層数: {len(layer_rates)}")
+        logger.debug(f"層別学習率設定が有効です。設定された層数: {len(layer_rates)}")
         return True
