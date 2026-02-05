@@ -88,13 +88,6 @@ class InferenceResultExporter:
             output_dir=str(inference_workspace), logger=self.logger
         )
 
-        # 精度計算 (Evaluator 経由)
-        evaluator = Evaluator(
-            device=None,  # type: ignore[arg-type]
-            logger=self.logger,
-        )
-        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
-
         # 詳細結果のCSV出力
         results_csv = csv_exporter.export_results(
             image_paths=image_paths,
@@ -109,6 +102,11 @@ class InferenceResultExporter:
         # サマリーのCSV出力
         summary_csv = None
         if summary_filename:
+            evaluator = Evaluator(
+                device=None,  # type: ignore[arg-type]
+                logger=self.logger,
+            )
+            accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
             summary_csv = csv_exporter.export_summary(
                 accuracy_info=accuracy_info,
                 model_info=model_info,
@@ -120,13 +118,12 @@ class InferenceResultExporter:
 
         # 混同行列画像を自動生成
         try:
-            confusion_matrix_path = self.save_confusion_matrix_image(
+            self.save_confusion_matrix_image(
                 predicted_labels=predicted_labels,
                 true_labels=true_labels,
                 class_names=class_names,
                 cm_config=cm_config,
             )
-            self.logger.debug(f"混同行列画像も生成されました: {confusion_matrix_path}")
         except Exception as e:
             self.logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
@@ -134,13 +131,12 @@ class InferenceResultExporter:
         try:
             from ..utils.inference_utils import save_classification_report
 
-            report_path = save_classification_report(
+            save_classification_report(
                 predicted_labels=predicted_labels,
                 true_labels=true_labels,
                 class_names=class_names,
                 output_dir=inference_workspace,
             )
-            self.logger.debug(f"クラス別精度レポートも生成されました: {report_path}")
         except Exception as e:
             self.logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 

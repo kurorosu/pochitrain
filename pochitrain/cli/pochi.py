@@ -26,7 +26,6 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.logging.logger_manager import LogLevel
-from pochitrain.training import Evaluator
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
@@ -341,8 +340,6 @@ def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
     import time
 
-    import torch
-
     logger = setup_logging(debug=args.debug)
     logger.debug("=== pochitrain 推論モード ===")
 
@@ -356,7 +353,7 @@ def infer_command(args: argparse.Namespace) -> None:
         config_path = Path(args.config_path)
         try:
             config = ConfigLoader.load_config(str(config_path))
-            logger.info(f"設定ファイルを読み込み: {config_path}")
+            logger.debug(f"設定ファイルを読み込み: {config_path}")
         except Exception as e:
             logger.error(f"設定ファイル読み込みエラー: {e}")
             return
@@ -375,7 +372,6 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.error("--data を指定するか、configにval_data_rootを設定してください")
         return
     validate_data_path(data_path)
-    logger.debug(f"推論データ: {data_path}")
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
@@ -386,10 +382,7 @@ def infer_command(args: argparse.Namespace) -> None:
         work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
         output_dir = str(work_dir / "inference_results")
 
-    logger.debug(f"推論結果出力先: {output_dir}")
-
     # 推論器作成
-    logger.debug("推論器を作成しています...")
     try:
         predictor = PochiPredictor(
             model_name=pochi_config.model_name,
@@ -397,7 +390,6 @@ def infer_command(args: argparse.Namespace) -> None:
             device=pochi_config.device,
             model_path=str(model_path),
         )
-        logger.debug("推論器の作成成功")
 
     except Exception as e:
         logger.error(f"推論器作成エラー: {e}")
@@ -417,7 +409,6 @@ def infer_command(args: argparse.Namespace) -> None:
             pin_memory=True,
         )
 
-        logger.debug(f"推論データ: {len(val_dataset)}枚の画像")
         logger.debug("使用されたTransform (設定ファイルから):")
         for i, transform in enumerate(pochi_config.val_transform.transforms):
             logger.debug(f"   {i+1}. {transform}")
@@ -470,8 +461,7 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.error(f"推論実行エラー: {e}")
         return
 
-    # CSV出力
-    logger.debug("結果をCSVに出力しています...")
+    # 結果出力
     try:
         from pochitrain.inference import InferenceResultExporter
         from pochitrain.utils.directory_manager import InferenceWorkspaceManager
@@ -501,19 +491,17 @@ def infer_command(args: argparse.Namespace) -> None:
             cm_config=cm_config,
         )
 
-        # 精度計算・表示
-        evaluator = Evaluator(device=torch.device(pochi_config.device), logger=logger)
-        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
-
-        # 共通のログ出力機能を使用
-        num_samples = int(accuracy_info["total_samples"])
+        # 精度計算 (ONNX/TRTと同じ方式で統一)
+        num_samples = len(predicted_labels)
+        correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
         avg_total_time_per_image = (
             e2e_total_time_ms / num_samples if num_samples > 0 else 0
         )
 
+        # 共通のログ出力機能を使用
         log_inference_result(
             num_samples=num_samples,
-            correct=int(accuracy_info["correct_predictions"]),
+            correct=correct,
             avg_time_per_image=metrics["avg_time_per_image"],
             total_samples=int(metrics["total_samples"]),
             warmup_samples=int(metrics["warmup_samples"]),
@@ -522,16 +510,13 @@ def infer_command(args: argparse.Namespace) -> None:
         )
 
         # 共通サマリー (TXT) の出力
+        accuracy = (correct / num_samples * 100) if num_samples > 0 else 0
         write_inference_summary(
             output_dir=results_csv.parent,  # 作成済みのワークスペースディレクトリを使用
             model_path=model_path,
             data_path=data_path,
             num_samples=num_samples,
-            accuracy=(
-                (int(accuracy_info["correct_predictions"]) / num_samples * 100)
-                if num_samples > 0
-                else 0
-            ),
+            accuracy=accuracy,
             avg_time_per_image=metrics["avg_time_per_image"],
             total_samples=int(metrics["total_samples"]),
             warmup_samples=int(metrics["warmup_samples"]),
@@ -541,8 +526,6 @@ def infer_command(args: argparse.Namespace) -> None:
         )
 
         logger.info("推論完了")
-
-        logger.debug(f"詳細結果: {results_csv}")
 
         # ワークスペース情報
         workspace_info = exporter.get_workspace_info()

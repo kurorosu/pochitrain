@@ -119,8 +119,11 @@ def main() -> None:
     # データセット作成（configのval_transformを使用）
     dataset = PochiImageDataset(str(data_path), transform=val_transform)
 
-    logger.debug(f"データセット: {len(dataset)}枚")
     logger.debug(f"クラス: {dataset.get_classes()}")
+    logger.debug("使用されたTransform (設定ファイルから):")
+    if hasattr(val_transform, "transforms"):
+        for i, t in enumerate(val_transform.transforms):
+            logger.debug(f"   {i+1}. {t}")
 
     # ONNX推論クラス作成
     logger.debug("ONNXセッションを作成中...")
@@ -272,26 +275,24 @@ def main() -> None:
     # 混同行列画像を生成
     cm_config = config.get("confusion_matrix_config", None)
     try:
-        cm_path = save_confusion_matrix_image(
+        save_confusion_matrix_image(
             predicted_labels=all_predictions,
             true_labels=all_true_labels,
             class_names=class_names,
             output_dir=output_dir,
             cm_config=cm_config,
         )
-        logger.debug(f"混同行列画像を生成しました: {cm_path}")
     except Exception as e:
         logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
     # クラス別精度レポートを生成
     try:
-        report_path = save_classification_report(
+        save_classification_report(
             predicted_labels=all_predictions,
             true_labels=all_true_labels,
             class_names=class_names,
             output_dir=output_dir,
         )
-        logger.debug(f"クラス別精度レポートを生成しました: {report_path}")
     except Exception as e:
         logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 
