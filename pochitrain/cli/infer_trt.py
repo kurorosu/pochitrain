@@ -96,7 +96,6 @@ def main() -> None:
     validate_model_path(engine_path)
 
     # TensorRT推論クラス作成（入力サイズ取得のため先に読み込む）
-    logger.debug("TensorRTエンジンを読み込み中...")
     inference = TensorRTInference(engine_path)
 
     # config自動検出・読み込み
@@ -125,8 +124,6 @@ def main() -> None:
     # transformの決定（configのval_transformを使用、なければエンジンから自動取得）
     if "val_transform" in config:
         transform = config["val_transform"]
-        input_size_str = "config指定"
-        logger.debug("val_transformを設定ファイルから取得")
     else:
         # エンジンから入力サイズを自動取得
         engine_input_shape = inference.get_input_shape()
@@ -134,19 +131,20 @@ def main() -> None:
         height = engine_input_shape[2]
         width = engine_input_shape[3]
         transform = get_basic_transforms(image_size=height, is_training=False)
-        input_size_str = f"{height}x{width} (エンジンから自動取得)"
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
     logger.debug(f"エンジン: {engine_path}")
     logger.debug(f"データ: {data_path}")
-    logger.debug(f"入力サイズ: {input_size_str}")
     logger.debug(f"出力先: {output_dir}")
 
     # データセット作成
     dataset = PochiImageDataset(str(data_path), transform=transform)
 
-    logger.debug(f"データセット: {len(dataset)}枚")
     logger.debug(f"クラス: {dataset.get_classes()}")
+    logger.debug("使用されたTransform:")
+    if hasattr(transform, "transforms"):
+        for i, t in enumerate(transform.transforms):
+            logger.debug(f"   {i+1}. {t}")
 
     # ウォームアップ（最初の1枚で10回実行）
     logger.debug("ウォームアップ中...")
@@ -269,26 +267,24 @@ def main() -> None:
     # 混同行列画像を生成
     cm_config = config.get("confusion_matrix_config", None)
     try:
-        cm_path = save_confusion_matrix_image(
+        save_confusion_matrix_image(
             predicted_labels=all_predictions,
             true_labels=all_true_labels,
             class_names=class_names,
             output_dir=output_dir,
             cm_config=cm_config,
         )
-        logger.debug(f"混同行列画像を生成しました: {cm_path}")
     except Exception as e:
         logger.warning(f"混同行列画像生成に失敗しました: {e}")
 
     # クラス別精度レポートを生成
     try:
-        report_path = save_classification_report(
+        save_classification_report(
             predicted_labels=all_predictions,
             true_labels=all_true_labels,
             class_names=class_names,
             output_dir=output_dir,
         )
-        logger.debug(f"クラス別精度レポートを生成しました: {report_path}")
     except Exception as e:
         logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
 
