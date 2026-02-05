@@ -88,13 +88,6 @@ class InferenceResultExporter:
             output_dir=str(inference_workspace), logger=self.logger
         )
 
-        # 精度計算 (Evaluator 経由)
-        evaluator = Evaluator(
-            device=None,  # type: ignore[arg-type]
-            logger=self.logger,
-        )
-        accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
-
         # 詳細結果のCSV出力
         results_csv = csv_exporter.export_results(
             image_paths=image_paths,
@@ -109,6 +102,11 @@ class InferenceResultExporter:
         # サマリーのCSV出力
         summary_csv = None
         if summary_filename:
+            evaluator = Evaluator(
+                device=None,  # type: ignore[arg-type]
+                logger=self.logger,
+            )
+            accuracy_info = evaluator.calculate_accuracy(predicted_labels, true_labels)
             summary_csv = csv_exporter.export_summary(
                 accuracy_info=accuracy_info,
                 model_info=model_info,
