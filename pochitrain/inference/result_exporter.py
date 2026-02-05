@@ -52,16 +52,16 @@ class InferenceResultExporter:
         class_names: List[str],
         model_info: Dict[str, Any],
         results_filename: str = "inference_results.csv",
-        summary_filename: str = "inference_summary.csv",
+        summary_filename: Optional[str] = None,
         cm_config: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Path, Path]:
+    ) -> Tuple[Path, Optional[Path]]:
         """推論結果を一括エクスポート.
 
         実行内容:
         1. ワークスペース確保 (遅延作成)
         2. 精度計算 (Evaluator 経由)
         3. 詳細結果CSV出力 (InferenceCSVExporter 経由)
-        4. サマリーCSV出力
+        4. サマリーCSV出力 (summary_filename が指定されている場合のみ)
         5. モデル情報JSON保存
         6. 混同行列画像生成
         7. クラス別精度レポート生成
@@ -74,11 +74,11 @@ class InferenceResultExporter:
             class_names: クラス名のリスト
             model_info: モデル情報の辞書
             results_filename: 詳細結果CSVファイル名
-            summary_filename: サマリーCSVファイル名
+            summary_filename: サマリーCSVファイル名 (None の場合は出力スキップ)
             cm_config: 混同行列可視化設定
 
         Returns:
-            Tuple[Path, Path]: (詳細結果CSVパス, サマリーCSVパス)
+            Tuple[Path, Optional[Path]]: (詳細結果CSVパス, サマリーCSVパス)
         """
         # 推論ワークスペースを確保(遅延作成)
         inference_workspace = self._ensure_workspace()
@@ -107,11 +107,13 @@ class InferenceResultExporter:
         )
 
         # サマリーのCSV出力
-        summary_csv = csv_exporter.export_summary(
-            accuracy_info=accuracy_info,
-            model_info=model_info,
-            filename=summary_filename,
-        )
+        summary_csv = None
+        if summary_filename:
+            summary_csv = csv_exporter.export_summary(
+                accuracy_info=accuracy_info,
+                model_info=model_info,
+                filename=summary_filename,
+            )
 
         # モデル情報もJSONで保存
         self.workspace_manager.save_model_info(model_info)
