@@ -5,6 +5,7 @@ from typing import Any
 import optuna
 from torch.utils.data import DataLoader
 
+from pochitrain.config.pochi_config import PochiConfig
 from pochitrain.optimization.interfaces import IObjectiveFunction, IParamSuggestor
 
 
@@ -16,7 +17,7 @@ class ClassificationObjective(IObjectiveFunction):
 
     def __init__(
         self,
-        base_config: dict[str, Any],
+        base_config: PochiConfig,
         param_suggestor: IParamSuggestor,
         train_loader: DataLoader,
         val_loader: DataLoader,
@@ -26,7 +27,7 @@ class ClassificationObjective(IObjectiveFunction):
         """初期化.
 
         Args:
-            base_config: ベース設定（model_name, num_classes等）
+            base_config: ベース設定（PochiConfig dataclass）
             param_suggestor: パラメータサジェスター
             train_loader: 訓練データローダー
             val_loader: 検証データローダー
@@ -57,10 +58,10 @@ class ClassificationObjective(IObjectiveFunction):
 
         # トレーナーを作成（ワークスペースは作成しない）
         trainer = PochiTrainer(
-            model_name=self._base_config.get("model_name", "resnet18"),
-            num_classes=self._base_config["num_classes"],
+            model_name=self._base_config.model_name,
+            num_classes=self._base_config.num_classes,
             device=self._device,
-            pretrained=self._base_config.get("pretrained", True),
+            pretrained=self._base_config.pretrained,
             create_workspace=False,  # Optuna最適化中はワークスペース不要
         )
 
@@ -68,19 +69,19 @@ class ClassificationObjective(IObjectiveFunction):
         trainer.setup_training(
             learning_rate=suggested_params.get(
                 "learning_rate",
-                self._base_config.get("learning_rate", 0.001),
+                self._base_config.learning_rate,
             ),
             optimizer_name=suggested_params.get(
                 "optimizer",
-                self._base_config.get("optimizer", "Adam"),
+                self._base_config.optimizer,
             ),
             scheduler_name=suggested_params.get(
                 "scheduler",
-                self._base_config.get("scheduler"),
+                self._base_config.scheduler,
             ),
             scheduler_params=suggested_params.get(
                 "scheduler_params",
-                self._base_config.get("scheduler_params"),
+                self._base_config.scheduler_params,
             ),
             enable_layer_wise_lr=suggested_params.get("enable_layer_wise_lr", False),
             layer_wise_lr_config=suggested_params.get("layer_wise_lr_config"),

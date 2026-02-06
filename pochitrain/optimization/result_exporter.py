@@ -1,5 +1,6 @@
 """最適化結果エクスポーター実装（SRP: 単一責任原則）."""
 
+import dataclasses
 import json
 import pprint
 from datetime import datetime
@@ -8,6 +9,7 @@ from typing import Any
 
 import optuna
 
+from pochitrain.config.pochi_config import PochiConfig
 from pochitrain.optimization.interfaces import IResultExporter
 
 
@@ -135,16 +137,18 @@ class ConfigExporter(IResultExporter):
     Compositionパターンを使用してTransformSerializerとDictFormatterに依存.
     """
 
+    _SKIP_FIELDS = {"optuna"}
+
     def __init__(
         self,
-        base_config: dict[str, Any],
+        base_config: PochiConfig,
         transform_serializer: TransformSerializer | None = None,
         dict_formatter: DictFormatter | None = None,
     ) -> None:
         """初期化.
 
         Args:
-            base_config: ベース設定(最適化対象外のパラメータを含む)
+            base_config: ベース設定（PochiConfig dataclass）
             transform_serializer: Transformシリアライザー（デフォルトで生成）
             dict_formatter: 辞書フォーマッター（デフォルトで生成）
         """
@@ -172,9 +176,6 @@ class ConfigExporter(IResultExporter):
 
         config_file = output_dir / "optimized_config.py"
 
-        # ベース設定と最適パラメータをマージ
-        merged_config = {**self._base_config, **best_params}
-
         # Python設定ファイルを生成
         lines = [
             '"""Optuna最適化済み設定ファイル.',
@@ -197,26 +198,34 @@ class ConfigExporter(IResultExporter):
         lines.append("# === ベース設定(最適化対象外) ===")
 
         # ベース設定のうち、最適化対象外のものを出力
-        transform_lines = []
-        for key, value in self._base_config.items():
-            if key not in best_params:
-                # transformは専用の処理で出力（明示的なキー名指定）
-                if key in ("train_transform", "val_transform"):
-                    transform_lines.append(
-                        f"{key} = {self._transform_serializer.serialize(value)}"
-                    )
-                    continue
-                # callableは出力しない（transformチェック後に行う）
-                if callable(value):
-                    continue
-                # モジュールオブジェクトは出力しない
-                if isinstance(value, type(json)):
-                    continue
-                # 辞書型は整形して出力
-                if isinstance(value, dict):
-                    lines.append(f"{key} = {self._dict_formatter.format(value)}")
-                else:
-                    lines.append(f"{key} = {repr(value)}")
+        transform_lines: list[str] = []
+        for field_info in dataclasses.fields(self._base_config):
+            key = field_info.name
+            if key in best_params or key in self._SKIP_FIELDS:
+                continue
+            value = getattr(self._base_config, key)
+            # transformは専用の処理で出力（明示的なキー名指定）
+            if key in ("train_transform", "val_transform"):
+                transform_lines.append(
+                    f"{key} = {self._transform_serializer.serialize(value)}"
+                )
+                continue
+            # callableは出力しない（transformチェック後に行う）
+            if callable(value):
+                continue
+            # モジュールオブジェクトは出力しない
+            if isinstance(value, type(json)):
+                continue
+            # sub-dataclassは辞書に変換して整形
+            if dataclasses.is_dataclass(value) and not isinstance(value, type):
+                lines.append(
+                    f"{key} = {self._dict_formatter.format(dataclasses.asdict(value))}"
+                )
+            # 辞書型は整形して出力
+            elif isinstance(value, dict):
+                lines.append(f"{key} = {self._dict_formatter.format(value)}")
+            else:
+                lines.append(f"{key} = {repr(value)}")
 
         # transform設定を最後に追加
         if transform_lines:
