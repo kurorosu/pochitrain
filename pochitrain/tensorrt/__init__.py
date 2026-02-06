@@ -1,4 +1,4 @@
-"""TensorRT推論機能を提供するモジュール."""
+"""TensorRT推論・変換機能を提供するモジュール."""
 
 from .inference import TensorRTInference
 

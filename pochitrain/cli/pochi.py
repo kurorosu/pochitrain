@@ -681,10 +681,164 @@ def optimize_command(args: argparse.Namespace) -> None:
     logger.info(f"  uv run pochi train --config {output_dir}/optimized_config.py")
 
 
+def convert_command(args: argparse.Namespace) -> None:
+    """TensorRTエンジン変換サブコマンドの実行."""
+    logger = setup_logging(debug=args.debug)
+    logger.debug("=== pochitrain TensorRT変換モード ===")
+
+    # TensorRTの利用可否チェック
+    try:
+        from pochitrain.tensorrt.converter import TensorRTConverter
+        from pochitrain.tensorrt.inference import check_tensorrt_availability
+    except ImportError:
+        logger.error(
+            "TensorRTがインストールされていません. "
+            "TensorRT SDKをインストールしてください."
+        )
+        return
+
+    if not check_tensorrt_availability():
+        logger.error(
+            "TensorRTが利用できません. " "TensorRT SDKをインストールしてください."
+        )
+        return
+
+    # ONNXモデルパス確認
+    onnx_path = Path(args.onnx_path)
+    if not onnx_path.exists():
+        logger.error(f"ONNXモデルが見つかりません: {onnx_path}")
+        return
+
+    # 精度モードの決定
+    if args.int8:
+        precision = "int8"
+    elif args.fp16:
+        precision = "fp16"
+    else:
+        precision = "fp32"
+
+    # 出力パスの決定
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        stem = onnx_path.stem
+        if precision != "fp32":
+            stem = f"{stem}_{precision}"
+        output_path = onnx_path.with_name(f"{stem}.engine")
+
+    logger.info(f"ONNX: {onnx_path}")
+    logger.info(f"精度: {precision.upper()}")
+    logger.info(f"出力: {output_path}")
+
+    # INT8の場合はキャリブレータを準備
+    calibrator = None
+    if precision == "int8":
+        from pochitrain.tensorrt.calibrator import create_int8_calibrator
+
+        # 設定ファイル読み込み（キャリブレーションデータとtransformの取得）
+        config = None
+        if args.config_path:
+            config_path = Path(args.config_path)
+            try:
+                config = ConfigLoader.load_config(str(config_path))
+                logger.debug(f"設定ファイルを読み込み: {config_path}")
+            except Exception as e:
+                logger.error(f"設定ファイル読み込みエラー: {e}")
+                return
+        else:
+            # ONNXモデルパスからconfig自動検出
+            config = load_config_auto(onnx_path)
+
+        # キャリブレーションデータパスの決定
+        if args.calib_data:
+            calib_data_root = args.calib_data
+        elif config.get("val_data_root"):
+            calib_data_root = config["val_data_root"]
+            logger.debug(f"キャリブレーションデータをconfigから取得: {calib_data_root}")
+        else:
+            logger.error(
+                "--calib-data を指定するか, " "configにval_data_rootを設定してください"
+            )
+            return
+
+        calib_data_path = Path(calib_data_root)
+        if not calib_data_path.exists():
+            logger.error(f"キャリブレーションデータが見つかりません: {calib_data_path}")
+            return
+
+        # transformの取得
+        if "val_transform" not in config:
+            logger.error(
+                "configにval_transformが設定されていません. "
+                "INT8キャリブレーションにはval_transformが必要です."
+            )
+            return
+        transform = config["val_transform"]
+
+        # 入力サイズの取得 (ONNXモデルから)
+        try:
+            import onnx
+
+            onnx_model = onnx.load(str(onnx_path))
+            input_tensor = onnx_model.graph.input[0]
+            input_dims = input_tensor.type.tensor_type.shape.dim
+            # shape: [batch, channels, height, width]
+            input_shape = tuple(d.dim_value for d in input_dims[1:])
+            logger.debug(f"ONNX入力形状: {input_shape}")
+        except Exception as e:
+            logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
+            return
+
+        # キャリブレーションキャッシュパスの決定
+        cache_file = str(output_path.with_suffix(".cache"))
+
+        max_calib_samples = args.calib_samples
+
+        logger.info(
+            f"キャリブレーション設定: "
+            f"データ={calib_data_root}, "
+            f"最大サンプル数={max_calib_samples}"
+        )
+
+        try:
+            calibrator = create_int8_calibrator(
+                data_root=calib_data_root,
+                transform=transform,
+                input_shape=input_shape,
+                batch_size=args.calib_batch_size,
+                max_samples=max_calib_samples,
+                cache_file=cache_file,
+            )
+        except Exception as e:
+            logger.error(f"キャリブレータ作成エラー: {e}")
+            return
+
+    # 変換実行
+    try:
+        converter = TensorRTConverter(
+            onnx_path=onnx_path,
+            workspace_size=args.workspace_size,
+        )
+        engine_path = converter.convert(
+            output_path=output_path,
+            precision=precision,
+            calibrator=calibrator,
+        )
+        logger.info(f"変換完了: {engine_path}")
+
+    except Exception as e:
+        logger.error(f"TensorRT変換エラー: {e}")
+        return
+
+    # 使い方のヒント
+    logger.info("推論するには:")
+    logger.info(f"  uv run infer-trt {engine_path}")
+
+
 def main() -> None:
     """メイン関数."""
     parser = argparse.ArgumentParser(
-        description="pochitrain - 統合CLI（訓練・推論・最適化）",
+        description="pochitrain - 統合CLI（訓練・推論・最適化・変換）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -706,6 +860,15 @@ def main() -> None:
 
   # ハイパーパラメータ最適化
   uv run pochi optimize --config configs/pochi_train_config.py
+
+  # TensorRT変換（INT8量子化）
+  uv run pochi convert model.onnx --int8
+
+  # TensorRT変換（FP16）
+  uv run pochi convert model.onnx --fp16
+
+  # TensorRT変換（キャリブレーションデータ指定）
+  uv run pochi convert model.onnx --int8 --calib-data data/val
         """,
     )
 
@@ -752,6 +915,56 @@ def main() -> None:
         help="結果出力ディレクトリ (default: work_dirs/optuna_results)",
     )
 
+    # TensorRT変換サブコマンド
+    convert_parser = subparsers.add_parser(
+        "convert", help="ONNXモデルをTensorRTエンジンに変換"
+    )
+    convert_parser.add_argument("onnx_path", help="ONNXモデルファイルパス (.onnx)")
+    convert_parser.add_argument(
+        "--fp16",
+        action="store_true",
+        help="FP16精度で変換",
+    )
+    convert_parser.add_argument(
+        "--int8",
+        action="store_true",
+        help="INT8精度で変換 (キャリブレーションが必要)",
+    )
+    convert_parser.add_argument(
+        "--output",
+        "-o",
+        help="出力エンジンファイルパス (default: 入力ファイルと同じ場所に.engine拡張子)",
+    )
+    convert_parser.add_argument(
+        "--config-path",
+        "-c",
+        help="設定ファイルパス (INT8時にval_transformとデータパスを取得, "
+        "省略時はONNXパスから自動検出)",
+    )
+    convert_parser.add_argument(
+        "--calib-data",
+        help="キャリブレーションデータディレクトリ "
+        "(INT8時に使用, 省略時はconfigのval_data_rootを使用)",
+    )
+    convert_parser.add_argument(
+        "--calib-samples",
+        type=int,
+        default=500,
+        help="キャリブレーションサンプル数 (default: 500)",
+    )
+    convert_parser.add_argument(
+        "--calib-batch-size",
+        type=int,
+        default=1,
+        help="キャリブレーションバッチサイズ (default: 1)",
+    )
+    convert_parser.add_argument(
+        "--workspace-size",
+        type=int,
+        default=1 << 30,
+        help="TensorRTワークスペースサイズ (bytes, default: 1GB)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "train":
@@ -760,6 +973,8 @@ def main() -> None:
         infer_command(args)
     elif args.command == "optimize":
         optimize_command(args)
+    elif args.command == "convert":
+        convert_command(args)
     else:
         parser.print_help()
         sys.exit(1)
