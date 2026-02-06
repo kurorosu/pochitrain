@@ -606,7 +606,7 @@ def optimize_command(args: argparse.Namespace) -> None:
 
     # 目的関数を作成
     objective = ClassificationObjective(
-        base_config=pochi_config.to_dict(),
+        base_config=pochi_config,
         param_suggestor=param_suggestor,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -659,7 +659,7 @@ def optimize_command(args: argparse.Namespace) -> None:
     json_exporter.export(best_params, best_value, study, str(output_dir))
 
     # Python設定ファイル形式でエクスポート
-    config_exporter = ConfigExporter(pochi_config.to_dict())
+    config_exporter = ConfigExporter(pochi_config)
     config_exporter.export(best_params, best_value, study, str(output_dir))
 
     # 統計情報とパラメータ重要度をエクスポート
