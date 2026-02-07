@@ -30,14 +30,21 @@
 |------------|----|----- |--------|
 | `epochs` | int | エポック数 | 任意の正整数 |
 | `learning_rate` | float | 学習率 | 0.0 ~ 1.0 |
-| `optimizer` | str | 最適化器 | `'Adam'`, `'SGD'` |
+| `optimizer` | str | 最適化器 | `'Adam'`, `'AdamW'`, `'SGD'` |
+
+### メトリクス・可視化設定
+
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `enable_metrics_export` | bool | メトリクスのCSV出力とグラフ生成を有効化 | `True` |
 
 ### その他設定
 
-| パラメータ | 型 | 説明 |
-|------------|----|----- |
-| `work_dir` | str | 作業ディレクトリ |
-| `device` | str/None | デバイス（Noneで自動選択） |
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `work_dir` | str | 作業ディレクトリ | `"work_dirs"` |
+| `device` | str/None | デバイス（Noneで自動選択） | `None` |
+| `cudnn_benchmark` | bool | cuDNN自動チューニング（固定サイズ入力で高速化） | `False` |
 
 ## スケジューラー設定
 
@@ -193,6 +200,66 @@ scheduler_params = {
 }
 ```
 
+## Early Stopping設定
+
+過学習を自動検知して訓練を早期終了する機能です.
+
+### 基本設定
+
+```python
+early_stopping = {
+    "enabled": False,       # Early Stoppingを有効化
+    "patience": 30,         # 改善なしの許容エポック数
+    "min_delta": 3.0,       # この値以上の変化がないと改善と見なさない
+    "monitor": "val_accuracy",  # 監視メトリクス
+}
+```
+
+### パラメータ
+
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `enabled` | bool | Early Stoppingの有効/無効 | `False` |
+| `patience` | int | 改善なしの許容エポック数 | `30` |
+| `min_delta` | float | 改善と見なす最小変化量 (0.0なら少しでも良くなれば改善扱い) | `3.0` |
+| `monitor` | str | 監視メトリクス | `"val_accuracy"` |
+
+`monitor` の選択肢:
+- `"val_accuracy"`: 検証精度を監視 (値が増加すれば改善)
+- `"val_loss"`: 検証損失を監視 (値が減少すれば改善)
+
+## 勾配トレース設定
+
+訓練中の各層の勾配推移を記録・可視化する機能です.
+
+### 基本設定
+
+```python
+enable_gradient_tracking = True  # デフォルトOFF (計算コスト考慮)
+gradient_tracking_config = {
+    "record_frequency": 1,                     # 記録頻度 (1 = 毎エポック)
+    "exclude_patterns": ["fc\\.", "\\.bias"],   # 除外する層名パターン (正規表現)
+    "group_by_block": True,                     # ResNetブロック単位で集約
+    "aggregation_method": "median",             # 集約方法
+}
+```
+
+### パラメータ
+
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `enable_gradient_tracking` | bool | 勾配トレースの有効/無効 | `False` |
+| `record_frequency` | int | 記録頻度 (エポック単位) | `1` |
+| `exclude_patterns` | list[str] | 除外する層名の正規表現パターン | `["fc\\.", "\\.bias"]` |
+| `group_by_block` | bool | ResNetブロック単位で集約 (layer1.*, layer2.* など) | `True` |
+| `aggregation_method` | str | 集約方法 | `"median"` |
+
+`aggregation_method` の選択肢:
+- `"median"`: 中央値
+- `"mean"`: 平均値
+- `"max"`: 最大値
+- `"rms"`: 二乗平均平方根
+
 ## 損失関数設定
 
 ### 基本設定（自動重み）
@@ -296,6 +363,53 @@ std = [0.25, 0.25, 0.25]
 mean = [0.485, 0.485, 0.485]  # グレースケール寄り
 std = [0.229, 0.229, 0.229]
 ```
+
+## 混同行列設定
+
+推論時に出力される混同行列の表示をカスタマイズできます.
+
+### 基本設定
+
+```python
+confusion_matrix_config = {
+    "title": "Confusion Matrix",    # タイトル
+    "xlabel": "Predicted Label",    # x軸ラベル
+    "ylabel": "True Label",         # y軸ラベル
+    "fontsize": 14,                 # セル内数値のフォントサイズ
+    "title_fontsize": 16,           # タイトルのフォントサイズ
+    "label_fontsize": 12,           # 軸ラベルのフォントサイズ
+    "figsize": (8, 6),              # 図のサイズ (幅, 高さ)
+    "cmap": "Blues",                # カラーマップ
+}
+```
+
+### 日本語表示の例
+
+```python
+confusion_matrix_config = {
+    "title": "混同行列",
+    "xlabel": "予測ラベル",
+    "ylabel": "実際ラベル",
+    "fontsize": 14,
+    "title_fontsize": 16,
+    "label_fontsize": 12,
+    "figsize": (8, 6),
+    "cmap": "Blues",
+}
+```
+
+### パラメータ
+
+| パラメータ | 型 | 説明 | デフォルト |
+|------------|----|----- |------------|
+| `title` | str | グラフタイトル | `"Confusion Matrix"` |
+| `xlabel` | str | x軸ラベル | `"Predicted Label"` |
+| `ylabel` | str | y軸ラベル | `"True Label"` |
+| `fontsize` | int | セル内数値のフォントサイズ | `14` |
+| `title_fontsize` | int | タイトルのフォントサイズ | `16` |
+| `label_fontsize` | int | 軸ラベルのフォントサイズ | `12` |
+| `figsize` | tuple | 図のサイズ (幅, 高さ) | `(8, 6)` |
+| `cmap` | str | matplotlib カラーマップ名 | `"Blues"` |
 
 ## 設定例
 
@@ -427,7 +541,7 @@ scheduler_params = {
 
 ## Optunaハイパーパラメータ最適化設定
 
-v1.1.0より, Optuna設定を`pochi_train_config.py`に統合しました. `pochi.py optimize`コマンドで使用されます.
+v1.1.0より, Optuna設定を`pochi_train_config.py`に統合しました. `pochi optimize`コマンドで使用されます.
 
 ### 基本設定
 
@@ -531,7 +645,7 @@ search_space = {
 ### 最適化の実行
 
 ```bash
-python pochi.py optimize --config configs/pochi_train_config.py
+uv run pochi optimize --config configs/pochi_train_config.py
 ```
 
 ### 出力ファイル
