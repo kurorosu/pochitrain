@@ -754,6 +754,41 @@ def convert_command(args: argparse.Namespace) -> None:
     logger.info(f"精度: {precision.upper()}")
     logger.info(f"出力: {output_path}")
 
+    # 入力サイズの取得 (--input-size または ONNXモデルから)
+    # 動的シェイプONNXの変換時に全精度で必要
+    input_shape = None
+    if args.input_size:
+        input_shape = (3, args.input_size[0], args.input_size[1])
+        logger.debug(f"CLI指定の入力形状: {input_shape}")
+    else:
+        try:
+            import onnx
+
+            onnx_model = onnx.load(str(onnx_path))
+            input_tensor = onnx_model.graph.input[0]
+            input_dims = input_tensor.type.tensor_type.shape.dim
+
+            # 動的シェイプの検出 (dim_value=0 は動的次元)
+            dynamic_dims = [
+                d.dim_param for d in input_dims[1:] if d.dim_value == 0 and d.dim_param
+            ]
+            if any(d.dim_value == 0 for d in input_dims[1:]):
+                dynamic_info = (
+                    f" (動的次元: {', '.join(dynamic_dims)})" if dynamic_dims else ""
+                )
+                logger.error(
+                    f"ONNXモデルに動的シェイプが含まれています{dynamic_info}. "
+                    "--input-size で入力サイズを明示的に指定してください. "
+                    "例: --input-size 224 224"
+                )
+                return
+        except ImportError:
+            logger.debug(
+                "onnxパッケージが未インストールのため動的シェイプ検出をスキップ"
+            )
+        except Exception as e:
+            logger.debug(f"ONNX動的シェイプ検出中にエラー: {e}")
+
     # INT8の場合はキャリブレータを準備
     calibrator = None
     if precision == "int8":
@@ -799,41 +834,19 @@ def convert_command(args: argparse.Namespace) -> None:
             return
         transform = config["val_transform"]
 
-        # 入力サイズの取得 (--input-size または ONNXモデルから)
-        if args.input_size:
-            input_shape = (3, args.input_size[0], args.input_size[1])
-            logger.debug(f"CLI指定の入力形状: {input_shape}")
+        # INT8キャリブレータ用の入力形状を決定
+        if input_shape is not None:
+            calib_input_shape = input_shape
         else:
+            # 静的ONNXからキャリブレータ用の入力形状を取得
             try:
                 import onnx
 
                 onnx_model = onnx.load(str(onnx_path))
                 input_tensor = onnx_model.graph.input[0]
                 input_dims = input_tensor.type.tensor_type.shape.dim
-                # shape: [batch, channels, height, width]
-                input_shape = tuple(d.dim_value for d in input_dims[1:])
-
-                # 動的シェイプの検出 (dim_value=0 は動的次元)
-                dynamic_dims = [
-                    d.dim_param
-                    for d in input_dims[1:]
-                    if d.dim_value == 0 and d.dim_param
-                ]
-                if any(d.dim_value == 0 for d in input_dims[1:]):
-                    dynamic_info = (
-                        f" (動的次元: {', '.join(dynamic_dims)})"
-                        if dynamic_dims
-                        else ""
-                    )
-                    logger.error(
-                        f"ONNXモデルに動的シェイプが含まれています{dynamic_info}. "
-                        f"検出された形状: {input_shape}. "
-                        "--input-size で入力サイズを明示的に指定してください. "
-                        "例: --input-size 224 224"
-                    )
-                    return
-
-                logger.debug(f"ONNX入力形状: {input_shape}")
+                calib_input_shape = tuple(d.dim_value for d in input_dims[1:])
+                logger.debug(f"ONNX入力形状: {calib_input_shape}")
             except Exception as e:
                 logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
                 return
@@ -853,7 +866,7 @@ def convert_command(args: argparse.Namespace) -> None:
             calibrator = create_int8_calibrator(
                 data_root=calib_data_root,
                 transform=transform,
-                input_shape=input_shape,
+                input_shape=calib_input_shape,
                 batch_size=args.calib_batch_size,
                 max_samples=max_calib_samples,
                 cache_file=cache_file,
@@ -872,6 +885,7 @@ def convert_command(args: argparse.Namespace) -> None:
             output_path=output_path,
             precision=precision,
             calibrator=calibrator,
+            input_shape=input_shape,
         )
         logger.info(f"変換完了: {engine_path}")
 
@@ -1000,7 +1014,7 @@ def main() -> None:
         nargs=2,
         type=int,
         metavar=("HEIGHT", "WIDTH"),
-        help="入力画像サイズ (動的シェイプONNXモデルのINT8変換時に必要)",
+        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要)",
     )
     convert_parser.add_argument(
         "--calib-samples",

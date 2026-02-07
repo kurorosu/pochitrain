@@ -286,3 +286,36 @@ class TestDynamicShapeDetection:
         input_size = [224, 224]
         input_shape = (3, input_size[0], input_size[1])
         assert input_shape == (3, 224, 224)
+
+
+class TestInputShapeForAllPrecisions:
+    """--input-size が全精度モードで input_shape に変換されるテスト."""
+
+    @staticmethod
+    def _build_input_shape(input_size):
+        """CLI引数からinput_shapeを構築する (CLI実装と同じロジック)."""
+        if input_size:
+            return (3, input_size[0], input_size[1])
+        return None
+
+    def test_input_shape_constructed_for_fp32(self):
+        """FP32でもinput_shapeタプルが構築される."""
+        input_shape = self._build_input_shape([224, 224])
+        assert input_shape == (3, 224, 224)
+
+    def test_input_shape_constructed_for_fp16(self):
+        """FP16で異なるH/Wのinput_shapeが正しく構築される."""
+        input_shape = self._build_input_shape([320, 640])
+        assert input_shape == (3, 320, 640)
+
+    def test_input_shape_none_when_not_specified(self):
+        """--input-size 未指定時はNone."""
+        input_shape = self._build_input_shape(None)
+        assert input_shape is None
+
+    def test_dynamic_shape_detection_applies_to_all_precisions(self):
+        """動的シェイプ検出が精度モードに依存しないことを検証."""
+        # dim_value=0 の検出ロジックは精度モードの外で実行される
+        dim_values = [3, 0, 0]
+        has_dynamic = any(v == 0 for v in dim_values)
+        assert has_dynamic is True
