@@ -73,6 +73,21 @@ class TestFindBestModel:
         # 最大エポック番号のモデルが選択されることを確認
         assert result.name == "best_epoch30.pth"
 
+    def test_find_best_model_cross_digit_boundary(self, tmp_path):
+        """桁が変わるエポック番号でも正しく数値比較されることを確認."""
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+
+        # best_epoch9.pth と best_epoch10.pth が共存するケース
+        (models_dir / "best_epoch9.pth").touch()
+        (models_dir / "best_epoch10.pth").touch()
+
+        result = find_best_model(str(tmp_path))
+
+        # 文字列比較だと "best_epoch9" > "best_epoch10" になるが,
+        # 数値比較で epoch 10 が選択されることを確認
+        assert result.name == "best_epoch10.pth"
+
     def test_find_best_model_no_models_dir(self, tmp_path):
         """モデルディレクトリがない場合にエラーを発生させることを確認."""
         with pytest.raises(
@@ -225,17 +240,37 @@ class TestMainArgumentParsing:
         args = parser.parse_args(["train"])
         assert args.config == "configs/pochi_train_config.py"
 
-    def test_infer_parser_required_args(self):
-        """inferサブコマンドの必須引数を確認."""
+    def test_infer_parser_positional_model_path(self):
+        """inferサブコマンドの位置引数model_pathを確認."""
+        with patch("sys.argv", ["pochi", "infer", "model.pth"]):
+            parser = argparse.ArgumentParser()
+            parser.add_argument("--debug", action="store_true")
+            subparsers = parser.add_subparsers(dest="command")
+            infer_parser = subparsers.add_parser("infer")
+            infer_parser.add_argument("model_path", help="モデルファイルパス")
+            infer_parser.add_argument("--data", "-d")
+            infer_parser.add_argument("--config-path", "-c")
+            infer_parser.add_argument("--output", "-o")
+
+            args = parser.parse_args(["infer", "model.pth"])
+            assert args.model_path == "model.pth"
+            assert args.data is None
+            assert args.config_path is None
+            assert args.output is None
+
+    def test_infer_parser_with_optional_args(self):
+        """inferサブコマンドのオプション引数を確認."""
         parser = argparse.ArgumentParser()
+        parser.add_argument("--debug", action="store_true")
         subparsers = parser.add_subparsers(dest="command")
         infer_parser = subparsers.add_parser("infer")
-        infer_parser.add_argument("--model-path", "-m", required=True)
-        infer_parser.add_argument("--data", "-d", required=True)
-        infer_parser.add_argument("--config-path", "-c", required=True)
+        infer_parser.add_argument("model_path", help="モデルファイルパス")
+        infer_parser.add_argument("--data", "-d")
+        infer_parser.add_argument("--config-path", "-c")
+        infer_parser.add_argument("--output", "-o")
 
         args = parser.parse_args(
-            ["infer", "-m", "model.pth", "-d", "data/val", "-c", "config.py"]
+            ["infer", "model.pth", "-d", "data/val", "-c", "config.py"]
         )
         assert args.model_path == "model.pth"
         assert args.data == "data/val"

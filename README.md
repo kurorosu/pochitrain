@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
@@ -12,6 +12,7 @@ A tiny but clever CNN pipeline for images — as friendly as Pochi!
 ## 📚 ドキュメント
 
 - [設定ファイルガイド](configs/docs/configuration.md) - 詳細な設定方法とカスタマイズ
+- [TensorRT変換ガイド](pochitrain/tensorrt/docs/conversion_guide.md) - 動的シェイプ対応と精度モード別の変換手順
 
 ## 🚀 クイックスタート
 
@@ -431,6 +432,11 @@ uv run pochi convert best_epoch40.onnx --int8
 uv run pochi convert best_epoch40.onnx --int8 --calib-data data/val --calib-samples 300
 ```
 
+動的シェイプONNXモデルを変換 (入力サイズの明示指定が必要):
+```bash
+uv run pochi convert best_epoch40.onnx --fp16 --input-size 512 512
+```
+
 #### 3. TensorRT推論の実行
 
 基本的な使い方（config・データパスはエンジンパスから自動検出）:
@@ -455,9 +461,10 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 | `--output` | 出力エンジンファイルパス | `<入力ファイル名>.engine` |
 | `--config-path` | 設定ファイルパス (INT8時にtransformとデータパスを取得) | ONNXパスから自動検出 |
 | `--calib-data` | キャリブレーションデータディレクトリ | configの`val_data_root` |
-| `--calib-samples` | キャリブレーションサンプル数 | `500` |
-| `--calib-batch-size` | キャリブレーションバッチサイズ | `1` |
-| `--workspace-size` | TensorRTワークスペースサイズ (bytes) | `1GB` |
+| `--input-size` | 入力画像サイズ H W (動的シェイプONNXモデルの変換時に必要) | - |
+| `--calib-samples` | キャリブレーションサンプル数 (1以上) | `500` |
+| `--calib-batch-size` | キャリブレーションバッチサイズ (1以上) | `1` |
+| `--workspace-size` | TensorRTワークスペースサイズ bytes (1以上) | `1GB` |
 
 **infer-trt:**
 

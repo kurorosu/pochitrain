@@ -1,8 +1,12 @@
-"""TensorRT推論機能を提供するモジュール."""
+"""TensorRT推論機能を提供するモジュール.
+
+単一入力・単一出力のCNN分類モデル (ResNet等) のみをサポートする.
+マルチ入出力モデルには対応していない.
+"""
 
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -30,12 +34,15 @@ def check_tensorrt_availability() -> bool:
 class TensorRTInference:
     """TensorRTエンジンを使用した高速推論クラス.
 
-    PyTorch CUDAテンソルをバッファとして使用するため、pycudaは不要.
+    単一入力・単一出力のCNN分類モデル専用.
+    PyTorch CUDAテンソルをバッファとして使用するため, pycudaは不要.
 
     Attributes:
         engine_path: TensorRTエンジンファイルパス
         engine: TensorRTエンジン
         context: TensorRT実行コンテキスト
+        input_name: 入力テンソル名
+        output_name: 出力テンソル名
     """
 
     def __init__(self, engine_path: Path) -> None:
@@ -47,7 +54,7 @@ class TensorRTInference:
         Raises:
             ImportError: TensorRTがインストールされていない場合
             FileNotFoundError: エンジンファイルが見つからない場合
-            RuntimeError: エンジンの読み込みに失敗した場合
+            RuntimeError: エンジンの読み込みまたはI/Oバインディング解決に失敗した場合
         """
         if not check_tensorrt_availability():
             raise ImportError(
@@ -75,9 +82,14 @@ class TensorRTInference:
 
         self.context = self.engine.create_execution_context()
 
-        # 入出力shape取得
-        self.input_shape = self._get_binding_shape(0)
-        self.output_shape = self._get_binding_shape(1)
+        # 名前ベースで入出力バインディングを解決
+        bindings = self._resolve_io_bindings(trt)
+        self.input_name: str = bindings["input"]
+        self.output_name: str = bindings["output"]
+
+        # 入出力shape取得（名前ベース）
+        self.input_shape = tuple(self.engine.get_tensor_shape(self.input_name))
+        self.output_shape = tuple(self.engine.get_tensor_shape(self.output_name))
 
         # PyTorch CUDAテンソルをバッファとして確保
         self._d_input = torch.empty(
@@ -88,22 +100,48 @@ class TensorRTInference:
         )
 
         logger.debug(f"TensorRTエンジンを読み込み: {engine_path}")
-        logger.debug(f"入力shape: {self.input_shape}")
-        logger.debug(f"出力shape: {self.output_shape}")
+        logger.debug(f"入力: {self.input_name}, shape: {self.input_shape}")
+        logger.debug(f"出力: {self.output_name}, shape: {self.output_shape}")
 
-    def _get_binding_shape(self, binding_idx: int) -> Tuple[int, ...]:
-        """バインディングのshapeを取得.
+    def _resolve_io_bindings(self, trt: object) -> Dict[str, str]:
+        """名前ベースで入出力バインディングを解決する.
+
+        インデックス順序に依存せず, TensorIOMode で入力・出力を判定する.
+        単一入力・単一出力のみサポートし, それ以外はエラーとする.
 
         Args:
-            binding_idx: バインディングインデックス
+            trt: tensorrt モジュール
 
         Returns:
-            shape のタプル
+            {"input": 入力テンソル名, "output": 出力テンソル名}
+
+        Raises:
+            RuntimeError: 入力または出力が1つでない場合
         """
-        # TensorRT 10.x API
-        tensor_name = self.engine.get_tensor_name(binding_idx)
-        shape = self.engine.get_tensor_shape(tensor_name)
-        return tuple(shape)
+        input_names = []
+        output_names = []
+
+        for i in range(self.engine.num_io_tensors):
+            name = self.engine.get_tensor_name(i)
+            mode = self.engine.get_tensor_mode(name)
+
+            if mode == trt.TensorIOMode.INPUT:  # type: ignore[attr-defined]
+                input_names.append(name)
+            elif mode == trt.TensorIOMode.OUTPUT:  # type: ignore[attr-defined]
+                output_names.append(name)
+
+        if len(input_names) != 1:
+            raise RuntimeError(
+                f"単一入力のみサポートしていますが, "
+                f"{len(input_names)}個の入力が検出されました: {input_names}"
+            )
+        if len(output_names) != 1:
+            raise RuntimeError(
+                f"単一出力のみサポートしていますが, "
+                f"{len(output_names)}個の出力が検出されました: {output_names}"
+            )
+
+        return {"input": input_names[0], "output": output_names[0]}
 
     def set_input(self, image: np.ndarray) -> None:
         """入力を設定（GPUへの転送を含む）.
@@ -117,8 +155,18 @@ class TensorRTInference:
         """純粋な推論実行（計測対象）.
 
         GPU上のバッファに対して計算命令のみを行う.
+        バインディング順序に依存せず, 名前ベースで正しいバッファを渡す.
         """
-        self.context.execute_v2([self._d_input.data_ptr(), self._d_output.data_ptr()])
+        # execute_v2はバインディングインデックス順のポインタリストを要求するため,
+        # 各インデックスのテンソル名から入力/出力を判定して正しい順序で渡す
+        buffers = []
+        for i in range(self.engine.num_io_tensors):
+            name = self.engine.get_tensor_name(i)
+            if name == self.input_name:
+                buffers.append(self._d_input.data_ptr())
+            else:
+                buffers.append(self._d_output.data_ptr())
+        self.context.execute_v2(buffers)
 
     def get_output(self) -> np.ndarray:
         """推論結果を取得（GPUからの取得転送を含む）.

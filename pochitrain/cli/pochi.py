@@ -8,6 +8,7 @@ pochitrain 統一CLI エントリーポイント.
 import argparse
 import dataclasses
 import logging
+import re
 import signal
 import sys
 import time
@@ -38,6 +39,24 @@ from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
+
+
+def positive_int(value: str) -> int:
+    """argparse用の正の整数バリデーション.
+
+    Args:
+        value (str): コマンドライン引数の文字列値
+
+    Returns:
+        int: 変換された正の整数
+
+    Raises:
+        argparse.ArgumentTypeError: 値が1未満の場合
+    """
+    int_value = int(value)
+    if int_value < 1:
+        raise argparse.ArgumentTypeError(f"1以上の整数を指定してください: {value}")
+    return int_value
 
 
 def create_signal_handler(debug: bool = False) -> Any:
@@ -111,7 +130,12 @@ def find_best_model(work_dir: str) -> Path:
         )
 
     # 最新のモデルを選択（エポック番号が最大のもの）
-    best_model = max(model_files, key=lambda x: x.name)
+    best_model = max(
+        model_files,
+        key=lambda x: (
+            int(m.group(1)) if (m := re.search(r"best_epoch(\d+)", x.name)) else 0
+        ),
+    )
     return best_model
 
 
@@ -730,6 +754,41 @@ def convert_command(args: argparse.Namespace) -> None:
     logger.info(f"精度: {precision.upper()}")
     logger.info(f"出力: {output_path}")
 
+    # 入力サイズの取得 (--input-size または ONNXモデルから)
+    # 動的シェイプONNXの変換時に全精度で必要
+    input_shape = None
+    if args.input_size:
+        input_shape = (3, args.input_size[0], args.input_size[1])
+        logger.debug(f"CLI指定の入力形状: {input_shape}")
+    else:
+        try:
+            import onnx
+
+            onnx_model = onnx.load(str(onnx_path))
+            input_tensor = onnx_model.graph.input[0]
+            input_dims = input_tensor.type.tensor_type.shape.dim
+
+            # 動的シェイプの検出 (dim_value=0 は動的次元)
+            dynamic_dims = [
+                d.dim_param for d in input_dims[1:] if d.dim_value == 0 and d.dim_param
+            ]
+            if any(d.dim_value == 0 for d in input_dims[1:]):
+                dynamic_info = (
+                    f" (動的次元: {', '.join(dynamic_dims)})" if dynamic_dims else ""
+                )
+                logger.error(
+                    f"ONNXモデルに動的シェイプが含まれています{dynamic_info}. "
+                    "--input-size で入力サイズを明示的に指定してください. "
+                    "例: --input-size 224 224"
+                )
+                return
+        except ImportError:
+            logger.debug(
+                "onnxパッケージが未インストールのため動的シェイプ検出をスキップ"
+            )
+        except Exception as e:
+            logger.debug(f"ONNX動的シェイプ検出中にエラー: {e}")
+
     # INT8の場合はキャリブレータを準備
     calibrator = None
     if precision == "int8":
@@ -775,19 +834,22 @@ def convert_command(args: argparse.Namespace) -> None:
             return
         transform = config["val_transform"]
 
-        # 入力サイズの取得 (ONNXモデルから)
-        try:
-            import onnx
+        # INT8キャリブレータ用の入力形状を決定
+        if input_shape is not None:
+            calib_input_shape = input_shape
+        else:
+            # 静的ONNXからキャリブレータ用の入力形状を取得
+            try:
+                import onnx
 
-            onnx_model = onnx.load(str(onnx_path))
-            input_tensor = onnx_model.graph.input[0]
-            input_dims = input_tensor.type.tensor_type.shape.dim
-            # shape: [batch, channels, height, width]
-            input_shape = tuple(d.dim_value for d in input_dims[1:])
-            logger.debug(f"ONNX入力形状: {input_shape}")
-        except Exception as e:
-            logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
-            return
+                onnx_model = onnx.load(str(onnx_path))
+                input_tensor = onnx_model.graph.input[0]
+                input_dims = input_tensor.type.tensor_type.shape.dim
+                calib_input_shape = tuple(d.dim_value for d in input_dims[1:])
+                logger.debug(f"ONNX入力形状: {calib_input_shape}")
+            except Exception as e:
+                logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
+                return
 
         # キャリブレーションキャッシュパスの決定
         cache_file = str(output_path.with_suffix(".cache"))
@@ -804,7 +866,7 @@ def convert_command(args: argparse.Namespace) -> None:
             calibrator = create_int8_calibrator(
                 data_root=calib_data_root,
                 transform=transform,
-                input_shape=input_shape,
+                input_shape=calib_input_shape,
                 batch_size=args.calib_batch_size,
                 max_samples=max_calib_samples,
                 cache_file=cache_file,
@@ -823,6 +885,7 @@ def convert_command(args: argparse.Namespace) -> None:
             output_path=output_path,
             precision=precision,
             calibrator=calibrator,
+            input_shape=input_shape,
         )
         logger.info(f"変換完了: {engine_path}")
 
@@ -947,22 +1010,29 @@ def main() -> None:
         "(INT8時に使用, 省略時はconfigのval_data_rootを使用)",
     )
     convert_parser.add_argument(
-        "--calib-samples",
+        "--input-size",
+        nargs=2,
         type=int,
+        metavar=("HEIGHT", "WIDTH"),
+        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要)",
+    )
+    convert_parser.add_argument(
+        "--calib-samples",
+        type=positive_int,
         default=500,
-        help="キャリブレーションサンプル数 (default: 500)",
+        help="キャリブレーションサンプル数 (default: 500, 1以上)",
     )
     convert_parser.add_argument(
         "--calib-batch-size",
-        type=int,
+        type=positive_int,
         default=1,
-        help="キャリブレーションバッチサイズ (default: 1)",
+        help="キャリブレーションバッチサイズ (default: 1, 1以上)",
     )
     convert_parser.add_argument(
         "--workspace-size",
-        type=int,
+        type=positive_int,
         default=1 << 30,
-        help="TensorRTワークスペースサイズ (bytes, default: 1GB)",
+        help="TensorRTワークスペースサイズ (bytes, default: 1GB, 1以上)",
     )
 
     args = parser.parse_args()

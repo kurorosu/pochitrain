@@ -2,6 +2,8 @@
 
 PochiImageDatasetからキャリブレーションデータを供給し,
 TensorRT INT8量子化に必要なスケールファクタを計算する.
+
+単一入力のCNN分類モデル (ResNet等) のみをサポートする.
 """
 
 import logging
@@ -9,7 +11,6 @@ import os
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Sized, cast
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
@@ -90,6 +91,7 @@ def _create_calibrator_class() -> type:
 
         IInt8EntropyCalibrator2を継承し, PochiImageDatasetから
         キャリブレーションデータを供給する.
+        単一入力のCNN分類モデル専用.
 
         PyTorch CUDAテンソルをGPUバッファとして使用するため, pycudaは不要.
 
@@ -154,12 +156,24 @@ def _create_calibrator_class() -> type:
         def get_batch(self, names: List[str]) -> Optional[List[int]]:
             """次のキャリブレーションバッチを供給する.
 
+            単一入力のみサポート. TensorRTから渡されるnamesが1つでない場合は
+            RuntimeErrorを送出する.
+
             Args:
                 names: テンソル名のリスト (TensorRT APIから渡される)
 
             Returns:
                 GPUバッファポインタのリスト, またはデータ終了時にNone
+
+            Raises:
+                RuntimeError: 入力テンソルが1つでない場合
             """
+            if len(names) != 1:
+                raise RuntimeError(
+                    f"単一入力のみサポートしていますが, "
+                    f"{len(names)}個の入力が要求されました: {names}"
+                )
+
             try:
                 batch_images, _ = next(self._data_iter)
             except StopIteration:

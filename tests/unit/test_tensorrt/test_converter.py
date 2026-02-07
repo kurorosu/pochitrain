@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from pochitrain.tensorrt.converter import TensorRTConverter
 from pochitrain.tensorrt.inference import check_tensorrt_availability
 
 
@@ -73,3 +74,54 @@ class TestTensorRTConverterConvert:
                 precision="int8",
                 calibrator=None,
             )
+
+
+class TestResolveDynamicShape:
+    """_resolve_dynamic_shape のテスト (TensorRT不要)."""
+
+    def test_all_dynamic_with_input_shape(self):
+        """全動的次元がinput_shapeで正しく解決される."""
+        shape = (-1, 3, -1, -1)
+        input_shape = (3, 224, 224)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, input_shape)
+        assert result == (1, 3, 224, 224)
+
+    def test_non_square_input_shape(self):
+        """非正方形の入力サイズが正しく解決される."""
+        shape = (-1, 3, -1, -1)
+        input_shape = (3, 320, 640)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, input_shape)
+        assert result == (1, 3, 320, 640)
+
+    def test_batch_only_dynamic_with_input_shape(self):
+        """バッチ次元のみ動的な場合, input_shapeありで正しく解決される."""
+        shape = (-1, 3, 224, 224)
+        input_shape = (3, 224, 224)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, input_shape)
+        assert result == (1, 3, 224, 224)
+
+    def test_batch_only_dynamic_without_input_shape(self):
+        """バッチ次元のみ動的な場合, input_shapeなしでも正しく解決される."""
+        shape = (-1, 3, 224, 224)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, None)
+        assert result == (1, 3, 224, 224)
+
+    def test_static_batch_dynamic_spatial(self):
+        """静的バッチ+動的空間次元がinput_shapeで解決される."""
+        shape = (1, 3, -1, -1)
+        input_shape = (3, 256, 256)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, input_shape)
+        assert result == (1, 3, 256, 256)
+
+    def test_fully_static_shape(self):
+        """完全に静的なshapeはそのまま返される."""
+        shape = (1, 3, 224, 224)
+        input_shape = (3, 224, 224)
+        result = TensorRTConverter._resolve_dynamic_shape(shape, input_shape)
+        assert result == (1, 3, 224, 224)
+
+    def test_spatial_dynamic_without_input_shape_raises(self):
+        """空間次元が動的でinput_shapeなしの場合, ValueErrorが発生する."""
+        shape = (-1, 3, -1, -1)
+        with pytest.raises(ValueError, match="input_shapeが指定されていません"):
+            TensorRTConverter._resolve_dynamic_shape(shape, None)
