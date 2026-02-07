@@ -24,7 +24,7 @@ class TestConvertArgumentParsing:
         parser.add_argument("--config-path", "-c")
         parser.add_argument("--calib-data")
         parser.add_argument(
-            "--input-size", nargs=2, type=int, metavar=("HEIGHT", "WIDTH")
+            "--input-size", nargs=2, type=positive_int, metavar=("HEIGHT", "WIDTH")
         )
         parser.add_argument("--calib-samples", type=positive_int, default=500)
         parser.add_argument("--calib-batch-size", type=positive_int, default=1)
@@ -239,7 +239,7 @@ class TestInputSizeOption:
         parser = argparse.ArgumentParser()
         parser.add_argument("onnx_path")
         parser.add_argument(
-            "--input-size", nargs=2, type=int, metavar=("HEIGHT", "WIDTH")
+            "--input-size", nargs=2, type=positive_int, metavar=("HEIGHT", "WIDTH")
         )
         return parser
 
@@ -260,6 +260,30 @@ class TestInputSizeOption:
         parser = self._build_parser()
         args = parser.parse_args(["model.onnx", "--input-size", "320", "640"])
         assert args.input_size == [320, 640]
+
+    def test_input_size_zero_rejected(self):
+        """--input-size 0 224 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--input-size", "0", "224"])
+
+    def test_input_size_negative_rejected(self):
+        """--input-size -1 224 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--input-size", "-1", "224"])
+
+    def test_input_size_second_value_zero_rejected(self):
+        """--input-size 224 0 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--input-size", "224", "0"])
+
+    def test_input_size_both_zero_rejected(self):
+        """--input-size 0 0 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--input-size", "0", "0"])
 
 
 class TestDynamicShapeDetection:
