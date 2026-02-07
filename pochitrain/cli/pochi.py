@@ -799,19 +799,44 @@ def convert_command(args: argparse.Namespace) -> None:
             return
         transform = config["val_transform"]
 
-        # 入力サイズの取得 (ONNXモデルから)
-        try:
-            import onnx
+        # 入力サイズの取得 (--input-size または ONNXモデルから)
+        if args.input_size:
+            input_shape = (3, args.input_size[0], args.input_size[1])
+            logger.debug(f"CLI指定の入力形状: {input_shape}")
+        else:
+            try:
+                import onnx
 
-            onnx_model = onnx.load(str(onnx_path))
-            input_tensor = onnx_model.graph.input[0]
-            input_dims = input_tensor.type.tensor_type.shape.dim
-            # shape: [batch, channels, height, width]
-            input_shape = tuple(d.dim_value for d in input_dims[1:])
-            logger.debug(f"ONNX入力形状: {input_shape}")
-        except Exception as e:
-            logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
-            return
+                onnx_model = onnx.load(str(onnx_path))
+                input_tensor = onnx_model.graph.input[0]
+                input_dims = input_tensor.type.tensor_type.shape.dim
+                # shape: [batch, channels, height, width]
+                input_shape = tuple(d.dim_value for d in input_dims[1:])
+
+                # 動的シェイプの検出 (dim_value=0 は動的次元)
+                dynamic_dims = [
+                    d.dim_param
+                    for d in input_dims[1:]
+                    if d.dim_value == 0 and d.dim_param
+                ]
+                if any(d.dim_value == 0 for d in input_dims[1:]):
+                    dynamic_info = (
+                        f" (動的次元: {', '.join(dynamic_dims)})"
+                        if dynamic_dims
+                        else ""
+                    )
+                    logger.error(
+                        f"ONNXモデルに動的シェイプが含まれています{dynamic_info}. "
+                        f"検出された形状: {input_shape}. "
+                        "--input-size で入力サイズを明示的に指定してください. "
+                        "例: --input-size 224 224"
+                    )
+                    return
+
+                logger.debug(f"ONNX入力形状: {input_shape}")
+            except Exception as e:
+                logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
+                return
 
         # キャリブレーションキャッシュパスの決定
         cache_file = str(output_path.with_suffix(".cache"))
@@ -969,6 +994,13 @@ def main() -> None:
         "--calib-data",
         help="キャリブレーションデータディレクトリ "
         "(INT8時に使用, 省略時はconfigのval_data_rootを使用)",
+    )
+    convert_parser.add_argument(
+        "--input-size",
+        nargs=2,
+        type=int,
+        metavar=("HEIGHT", "WIDTH"),
+        help="入力画像サイズ (動的シェイプONNXモデルのINT8変換時に必要)",
     )
     convert_parser.add_argument(
         "--calib-samples",
