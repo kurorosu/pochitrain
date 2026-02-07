@@ -1012,9 +1012,9 @@ def main() -> None:
     convert_parser.add_argument(
         "--input-size",
         nargs=2,
-        type=int,
+        type=positive_int,
         metavar=("HEIGHT", "WIDTH"),
-        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要)",
+        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要, 1以上)",
     )
     convert_parser.add_argument(
         "--calib-samples",
