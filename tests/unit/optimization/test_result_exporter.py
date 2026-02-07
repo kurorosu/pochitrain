@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from pochitrain.config.pochi_config import PochiConfig
 from pochitrain.optimization.result_exporter import (
     ConfigExporter,
     JsonResultExporter,
@@ -99,11 +100,19 @@ class TestConfigExporter:
 
     def test_export_creates_optimized_config_py(self) -> None:
         """optimized_config.pyが作成されることをテスト."""
-        base_config = {
-            "model_name": "resnet18",
-            "num_classes": 10,
-            "epochs": 50,
-        }
+        base_config = PochiConfig(
+            model_name="resnet18",
+            num_classes=10,
+            device="cpu",
+            epochs=50,
+            batch_size=32,
+            learning_rate=0.001,
+            optimizer="Adam",
+            train_data_root="data/train",
+            train_transform=MagicMock(),
+            val_transform=MagicMock(),
+            enable_layer_wise_lr=False,
+        )
         exporter = ConfigExporter(base_config)
 
         mock_study = MagicMock()

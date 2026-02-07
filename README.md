@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
@@ -223,7 +223,7 @@ predictions, confidences = trainer.predict(test_loader)
 - **ハイパーパラメータ最適化**: Optunaによる自動パラメータ探索
 - **Early Stopping**: 過学習を自動検知して訓練を早期終了
 - **クラス別精度レポート**: 推論時にクラスごとの精度を詳細出力
-- **TensorRT推論**: ONNXモデルをTensorRTエンジンに変換し高速推論
+- **TensorRT推論**: ONNXモデルをTensorRTエンジンに変換し高速推論 (FP32/FP16/INT8量子化対応)
 
 ## 📋 要件
 
@@ -411,8 +411,24 @@ uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 5
 
 #### 2. TensorRTエンジンのビルド
 
+FP32で変換:
 ```bash
-trtexec --onnx=best_epoch40.onnx --saveEngine=model.engine
+uv run pochi convert best_epoch40.onnx
+```
+
+FP16で変換:
+```bash
+uv run pochi convert best_epoch40.onnx --fp16
+```
+
+INT8量子化で変換 (キャリブレーションデータを自動取得):
+```bash
+uv run pochi convert best_epoch40.onnx --int8
+```
+
+キャリブレーションデータを明示的に指定:
+```bash
+uv run pochi convert best_epoch40.onnx --int8 --calib-data data/val --calib-samples 300
 ```
 
 #### 3. TensorRT推論の実行
@@ -429,6 +445,19 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 ```
 
 ### コマンドオプション
+
+**pochi convert:**
+
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--fp16` | FP16精度で変換 | - |
+| `--int8` | INT8精度で変換 (キャリブレーション必要) | - |
+| `--output` | 出力エンジンファイルパス | `<入力ファイル名>.engine` |
+| `--config-path` | 設定ファイルパス (INT8時にtransformとデータパスを取得) | ONNXパスから自動検出 |
+| `--calib-data` | キャリブレーションデータディレクトリ | configの`val_data_root` |
+| `--calib-samples` | キャリブレーションサンプル数 | `500` |
+| `--calib-batch-size` | キャリブレーションバッチサイズ | `1` |
+| `--workspace-size` | TensorRTワークスペースサイズ (bytes) | `1GB` |
 
 **infer-trt:**
 
