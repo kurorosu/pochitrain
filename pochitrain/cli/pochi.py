@@ -8,6 +8,7 @@ pochitrain 統一CLI エントリーポイント.
 import argparse
 import dataclasses
 import logging
+import re
 import signal
 import sys
 import time
@@ -111,7 +112,12 @@ def find_best_model(work_dir: str) -> Path:
         )
 
     # 最新のモデルを選択（エポック番号が最大のもの）
-    best_model = max(model_files, key=lambda x: x.name)
+    best_model = max(
+        model_files,
+        key=lambda x: (
+            int(m.group(1)) if (m := re.search(r"best_epoch(\d+)", x.name)) else 0
+        ),
+    )
     return best_model
 
 
