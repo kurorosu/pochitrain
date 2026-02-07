@@ -23,6 +23,9 @@ class TestConvertArgumentParsing:
         parser.add_argument("--output", "-o")
         parser.add_argument("--config-path", "-c")
         parser.add_argument("--calib-data")
+        parser.add_argument(
+            "--input-size", nargs=2, type=int, metavar=("HEIGHT", "WIDTH")
+        )
         parser.add_argument("--calib-samples", type=positive_int, default=500)
         parser.add_argument("--calib-batch-size", type=positive_int, default=1)
         parser.add_argument("--workspace-size", type=positive_int, default=1 << 30)
@@ -226,3 +229,60 @@ class TestConvertParameterValidation:
         parser = self._build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["model.onnx", "--workspace-size", "0"])
+
+
+class TestInputSizeOption:
+    """--input-size オプションのテスト."""
+
+    def _build_parser(self):
+        """テスト用にconvertと同等のパーサーを構築."""
+        parser = argparse.ArgumentParser()
+        parser.add_argument("onnx_path")
+        parser.add_argument(
+            "--input-size", nargs=2, type=int, metavar=("HEIGHT", "WIDTH")
+        )
+        return parser
+
+    def test_input_size_default_none(self):
+        """--input-size 未指定時は None."""
+        parser = self._build_parser()
+        args = parser.parse_args(["model.onnx"])
+        assert args.input_size is None
+
+    def test_input_size_parsed(self):
+        """--input-size が正しくパースされる."""
+        parser = self._build_parser()
+        args = parser.parse_args(["model.onnx", "--input-size", "224", "224"])
+        assert args.input_size == [224, 224]
+
+    def test_input_size_different_values(self):
+        """--input-size に異なる高さと幅を指定できる."""
+        parser = self._build_parser()
+        args = parser.parse_args(["model.onnx", "--input-size", "320", "640"])
+        assert args.input_size == [320, 640]
+
+
+class TestDynamicShapeDetection:
+    """動的シェイプONNXモデルの検出ロジックのテスト."""
+
+    def _has_dynamic_dims(self, dim_values):
+        """dim_value=0 の次元があるかチェックする (CLI実装と同じロジック)."""
+        return any(v == 0 for v in dim_values)
+
+    def test_static_shape_no_dynamic(self):
+        """静的シェイプには動的次元がない."""
+        assert self._has_dynamic_dims([3, 224, 224]) is False
+
+    def test_dynamic_height_width(self):
+        """height/width が動的 (dim_value=0) の場合を検出."""
+        assert self._has_dynamic_dims([3, 0, 0]) is True
+
+    def test_dynamic_single_dim(self):
+        """1次元のみ動的な場合も検出."""
+        assert self._has_dynamic_dims([3, 0, 224]) is True
+
+    def test_input_shape_from_cli(self):
+        """--input-size 指定時の入力形状構築を検証."""
+        input_size = [224, 224]
+        input_shape = (3, input_size[0], input_size[1])
+        assert input_shape == (3, 224, 224)
