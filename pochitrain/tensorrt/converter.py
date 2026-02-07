@@ -6,7 +6,7 @@ FP32, FP16, INT8の各精度モードに対応.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from pochitrain.logging import LoggerManager
 from pochitrain.tensorrt.inference import check_tensorrt_availability
@@ -52,11 +52,54 @@ class TensorRTConverter:
 
         self.workspace_size = workspace_size
 
+    @staticmethod
+    def _resolve_dynamic_shape(
+        shape: Tuple[int, ...],
+        input_shape: Optional[Tuple[int, ...]] = None,
+    ) -> Tuple[int, ...]:
+        """動的次元を解決してOptimization Profile用の形状を返す.
+
+        Args:
+            shape: TensorRTネットワーク入力のshape (-1が動的次元)
+            input_shape: 入力画像形状 (channels, height, width).
+                指定時は動的な空間次元をこの値で解決する.
+                None の場合, バッチ次元のみ1に固定し,
+                空間次元に動的次元があればValueErrorを送出する.
+
+        Returns:
+            解決済みの形状タプル
+
+        Raises:
+            ValueError: input_shape未指定で空間次元に動的次元がある場合
+        """
+        resolved = list(shape)
+
+        # batch次元 (index 0): 動的なら1に固定
+        if resolved[0] == -1:
+            resolved[0] = 1
+
+        # 空間次元 (index 1以降): input_shapeで解決
+        spatial_dims = resolved[1:]
+        has_dynamic_spatial = any(d == -1 for d in spatial_dims)
+
+        if has_dynamic_spatial:
+            if input_shape is None:
+                raise ValueError(
+                    "動的な空間次元が検出されましたが, input_shapeが指定されていません. "
+                    "--input-size で入力サイズを指定してください."
+                )
+            for i, d in enumerate(spatial_dims):
+                if d == -1:
+                    resolved[i + 1] = input_shape[i]
+
+        return tuple(resolved)
+
     def convert(
         self,
         output_path: Path,
         precision: str = "fp32",
         calibrator: Optional[object] = None,
+        input_shape: Optional[Tuple[int, ...]] = None,
     ) -> Path:
         """ONNXモデルをTensorRTエンジンに変換する.
 
@@ -64,6 +107,8 @@ class TensorRTConverter:
             output_path: 出力エンジンファイルパス (.engine)
             precision: 精度モード ("fp32", "fp16", "int8")
             calibrator: INT8キャリブレータ (precision="int8"の場合に必須)
+            input_shape: 入力画像形状 (channels, height, width).
+                動的シェイプONNXモデルのOptimization Profile設定に使用.
 
         Returns:
             生成されたエンジンファイルパス
@@ -127,12 +172,11 @@ class TensorRTConverter:
             # 動的次元 (-1) があるかチェック
             if any(d == -1 for d in shape):
                 has_dynamic = True
-                # 動的次元をバッチサイズ1に固定
-                static_shape = tuple(1 if d == -1 else d for d in shape)
-                profile.set_shape(inp.name, static_shape, static_shape, static_shape)
+                resolved = self._resolve_dynamic_shape(tuple(shape), input_shape)
+                profile.set_shape(inp.name, resolved, resolved, resolved)
                 logger.debug(
                     f"動的入力を検出: {inp.name}, "
-                    f"shape={tuple(shape)} -> {static_shape}"
+                    f"shape={tuple(shape)} -> {resolved}"
                 )
         if has_dynamic:
             config.add_optimization_profile(profile)
