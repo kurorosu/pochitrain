@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from pochitrain.cli.pochi import positive_int
+
 
 class TestConvertArgumentParsing:
     """convert サブコマンドの引数パースのテスト."""
@@ -21,9 +23,9 @@ class TestConvertArgumentParsing:
         parser.add_argument("--output", "-o")
         parser.add_argument("--config-path", "-c")
         parser.add_argument("--calib-data")
-        parser.add_argument("--calib-samples", type=int, default=500)
-        parser.add_argument("--calib-batch-size", type=int, default=1)
-        parser.add_argument("--workspace-size", type=int, default=1 << 30)
+        parser.add_argument("--calib-samples", type=positive_int, default=500)
+        parser.add_argument("--calib-batch-size", type=positive_int, default=1)
+        parser.add_argument("--workspace-size", type=positive_int, default=1 << 30)
         parser.add_argument("--debug", action="store_true")
         return parser
 
@@ -173,3 +175,54 @@ class TestConvertOutputPathDecision:
         onnx_path = Path("work_dirs/20260206_001/models/model.onnx")
         result = self._decide_output_path(None, onnx_path, "int8")
         assert result == Path("work_dirs/20260206_001/models/model_int8.engine")
+
+
+class TestPositiveIntValidation:
+    """正の整数バリデーション関数のテスト."""
+
+    def test_positive_int_valid(self):
+        """正の整数を正しく変換する."""
+        assert positive_int("1") == 1
+        assert positive_int("100") == 100
+        assert positive_int("500") == 500
+
+    def test_positive_int_zero_raises_error(self):
+        """0を指定するとArgumentTypeErrorが発生する."""
+        with pytest.raises(argparse.ArgumentTypeError, match="1以上の整数を指定"):
+            positive_int("0")
+
+    def test_positive_int_negative_raises_error(self):
+        """負の値を指定するとArgumentTypeErrorが発生する."""
+        with pytest.raises(argparse.ArgumentTypeError, match="1以上の整数を指定"):
+            positive_int("-1")
+
+
+class TestConvertParameterValidation:
+    """convert サブコマンドのパラメータバリデーションテスト."""
+
+    def _build_parser(self):
+        """テスト用にconvertと同等のパーサーを構築."""
+        parser = argparse.ArgumentParser()
+        parser.add_argument("onnx_path")
+        parser.add_argument("--calib-samples", type=positive_int, default=500)
+        parser.add_argument("--calib-batch-size", type=positive_int, default=1)
+        parser.add_argument("--workspace-size", type=positive_int, default=1 << 30)
+        return parser
+
+    def test_calib_samples_zero_rejected(self):
+        """--calib-samples 0 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--calib-samples", "0"])
+
+    def test_calib_batch_size_negative_rejected(self):
+        """--calib-batch-size に負の値がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--calib-batch-size", "-1"])
+
+    def test_workspace_size_zero_rejected(self):
+        """--workspace-size 0 がパース時にエラーとなる."""
+        parser = self._build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["model.onnx", "--workspace-size", "0"])
