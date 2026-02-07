@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Sized, cast
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
