@@ -103,8 +103,10 @@ class TensorRTInference:
         self.context.set_tensor_address(self.input_name, self._d_input.data_ptr())
         self.context.set_tensor_address(self.output_name, self._d_output.data_ptr())
 
-        # CUDAストリームを取得・保持
-        self._stream = torch.cuda.current_stream()
+        # 非デフォルトCUDAストリームを作成・保持
+        # デフォルトストリーム(stream 0)を使うと, execute_async_v3内部で
+        # 毎回cudaStreamSynchronize()が追加呼び出しされ性能低下するため
+        self._stream = torch.cuda.Stream()
 
         logger.debug(f"TensorRTエンジンを読み込み: {engine_path}")
         logger.debug(f"入力: {self.input_name}, shape: {self.input_shape}")
@@ -156,7 +158,8 @@ class TensorRTInference:
         Args:
             image: 入力画像 (1, channels, height, width)
         """
-        self._d_input.copy_(torch.from_numpy(image))
+        with torch.cuda.stream(self._stream):
+            self._d_input.copy_(torch.from_numpy(image))
 
     def execute(self) -> None:
         """純粋な推論実行（計測対象）.
@@ -172,6 +175,7 @@ class TensorRTInference:
         Returns:
             出力ロジット (1, num_classes)
         """
+        self._stream.synchronize()
         return self._d_output.cpu().numpy()
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
