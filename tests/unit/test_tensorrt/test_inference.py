@@ -31,6 +31,23 @@ class _MockTensorIOMode(Enum):
     OUTPUT = 1
 
 
+class TestExecute:
+    """execute メソッドの単体テスト (TensorRT不要)."""
+
+    def test_calls_execute_async_v3_with_stream(self):
+        """execute()がexecute_async_v3を正しいストリームポインタで呼ぶ."""
+        instance = object.__new__(TensorRTInference)
+        instance.context = MagicMock()
+
+        mock_stream = MagicMock()
+        mock_stream.cuda_stream = 12345
+        instance._stream = mock_stream
+
+        instance.execute()
+
+        instance.context.execute_async_v3.assert_called_once_with(12345)
+
+
 class TestResolveIoBindings:
     """_resolve_io_bindings メソッドの単体テスト (TensorRT不要)."""
 

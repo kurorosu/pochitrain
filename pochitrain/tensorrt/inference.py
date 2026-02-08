@@ -99,6 +99,15 @@ class TensorRTInference:
             self.output_shape, dtype=torch.float32, device="cuda"
         )
 
+        # 名前ベースでテンソルアドレスを事前設定（execute時のループ不要）
+        self.context.set_tensor_address(self.input_name, self._d_input.data_ptr())
+        self.context.set_tensor_address(self.output_name, self._d_output.data_ptr())
+
+        # 非デフォルトCUDAストリームを作成・保持
+        # デフォルトストリーム(stream 0)を使うと, execute_async_v3内部で
+        # 毎回cudaStreamSynchronize()が追加呼び出しされ性能低下するため
+        self._stream = torch.cuda.Stream()
+
         logger.debug(f"TensorRTエンジンを読み込み: {engine_path}")
         logger.debug(f"入力: {self.input_name}, shape: {self.input_shape}")
         logger.debug(f"出力: {self.output_name}, shape: {self.output_shape}")
@@ -149,24 +158,16 @@ class TensorRTInference:
         Args:
             image: 入力画像 (1, channels, height, width)
         """
-        self._d_input.copy_(torch.from_numpy(image))
+        with torch.cuda.stream(self._stream):
+            self._d_input.copy_(torch.from_numpy(image))
 
     def execute(self) -> None:
         """純粋な推論実行（計測対象）.
 
         GPU上のバッファに対して計算命令のみを行う.
-        バインディング順序に依存せず, 名前ベースで正しいバッファを渡す.
+        テンソルアドレスは__init__で事前設定済みのため, ストリーム指定のみで実行する.
         """
-        # execute_v2はバインディングインデックス順のポインタリストを要求するため,
-        # 各インデックスのテンソル名から入力/出力を判定して正しい順序で渡す
-        buffers = []
-        for i in range(self.engine.num_io_tensors):
-            name = self.engine.get_tensor_name(i)
-            if name == self.input_name:
-                buffers.append(self._d_input.data_ptr())
-            else:
-                buffers.append(self._d_output.data_ptr())
-        self.context.execute_v2(buffers)
+        self.context.execute_async_v3(self._stream.cuda_stream)
 
     def get_output(self) -> np.ndarray:
         """推論結果を取得（GPUからの取得転送を含む）.
@@ -174,6 +175,7 @@ class TensorRTInference:
         Returns:
             出力ロジット (1, num_classes)
         """
+        self._stream.synchronize()
         return self._d_output.cpu().numpy()
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
