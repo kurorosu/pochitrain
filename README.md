@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
@@ -20,7 +20,7 @@ A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
 ### 1. データの準備
 
-以下のフォルダ構造でデータを準備してください：
+以下のフォルダ構造でデータを準備してください:
 
 ```
 data/
@@ -46,12 +46,12 @@ data/
 
 ### 2. 設定ファイルの編集
 
-`configs/pochi_train_config.py` を編集してください：
+`configs/pochi_train_config.py` を編集してください:
 
 ```python
 # モデル設定
 model_name = 'resnet18'  # 'resnet18', 'resnet34', 'resnet50'
-num_classes = 10  # 分類クラス数（自動で設定されます）
+num_classes = 10  # 分類クラス数 (自動で設定されます)
 pretrained = True  # 事前学習済みモデルを使用
 
 # データ設定
@@ -88,14 +88,14 @@ uv run pochi train --debug
 
 ### 4. 結果の確認
 
-訓練結果は `work_dirs/` に保存されます：
+訓練結果は `work_dirs/` に保存されます:
 
 - `best_model.pth`: 最高精度のモデル
 - `checkpoint_epoch_*.pth`: 各エポックのチェックポイント
 
 ### 5. 推論の実行
 
-基本的な推論（config・データパスはモデルパスから自動検出）:
+基本的な推論 (config・データパスはモデルパスから自動検出):
 ```bash
 uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth
 ```
@@ -112,22 +112,22 @@ uv run pochi infer work_dirs/20251018_001/models/best_epoch40.pth \
 - 精度 (%)
 - 純粋推論時間 (ms/image) とスループット (images/sec) — モデルの forward pass のみ
 - End-to-End全処理時間 (ms/image) とスループット — I/O・前処理・転送を含む実効性能
-- 計測詳細（ウォームアップ除外サンプル数）
+- 計測詳細 (ウォームアップ除外サンプル数)
 
 ### 6. 結果と出力
 
-訓練結果は `work_dirs/<timestamp>` に保存されます。
+訓練結果は `work_dirs/<timestamp>` に保存されます.
 
 - `models/best_epoch*.pth`: ベストモデル
 - `training_metrics_*.csv`: 学習率や精度を含むメトリクス
-- `training_metrics_*.png`: 損失/精度グラフ（層別学習率が有効な場合は別グラフ）
+- `training_metrics_*.png`: 損失/精度グラフ (層別学習率が有効な場合は別グラフ)
 - `visualization/`: 層別学習率グラフ, 勾配トレースなど
 
-推論結果は `work_dirs/<timestamp>/inference_results/` に保存されます。
+推論結果は `work_dirs/<timestamp>/inference_results/` に保存されます.
 
-- `*_inference_results.csv`: 画像ごとの詳細結果（ファイルパス, 正解, 予測, 信頼度）
-- `*_inference_summary.txt`: 推論サマリー（精度, 推論時間, スループット等を日本語で出力）
-- `classification_report.csv`: クラス別精度レポート（precision, recall, f1-score）
+- `*_inference_results.csv`: 画像ごとの詳細結果 (ファイルパス, 正解, 予測, 信頼度)
+- `*_inference_summary.txt`: 推論サマリー (精度, 推論時間, スループット等を日本語で出力)
+- `classification_report.csv`: クラス別精度レポート (precision, recall, f1-score)
 - `confusion_matrix.png`: 混同行列
 
 ### 7. 勾配トレースの可視化
@@ -139,9 +139,9 @@ uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
 ```
 
 出力されるグラフ:
-- 時系列プロット（全層/前半層/後半層）
+- 時系列プロット (全層/前半層/後半層)
 - ヒートマップ
-- 統計情報（初期vs最終、安定性、最大値、最小値）
+- 統計情報 (初期vs最終, 安定性, 最大値, 最小値)
 - エポックスナップショット
 
 ## 📖 詳細な使用方法
@@ -357,7 +357,7 @@ uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
 
 ### ONNX推論の実行
 
-エクスポートしたONNXモデルで推論（config・データパスはモデルパスから自動検出）:
+エクスポートしたONNXモデルで推論 (config・データパスはモデルパスから自動検出):
 ```bash
 uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx
 ```
@@ -389,14 +389,14 @@ uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx \
 
 ## ⚡ TensorRT高速推論
 
-ONNXモデルをTensorRTエンジンに変換し、ネイティブTensorRTで高速推論を行う機能です。ONNX Runtimeと比較して約5倍高速な推論が可能です。
+ONNXモデルをTensorRTエンジンに変換し, ネイティブTensorRTで高速推論を行う機能です. 環境によってはONNX Runtimeと比較して数倍高速な推論が可能です.
 
 ### 前提条件
 
-TensorRT SDKのインストールが必要です。
+TensorRT SDKのインストールが必要です.
 
 1. [NVIDIA TensorRT](https://developer.nvidia.com/tensorrt)からSDKをダウンロード
-2. SDKをインストール後、`trtexec`がPATHに通っていることを確認
+2. SDKをインストール後, `trtexec`がPATHに通っていることを確認
 3. Python APIをインストール:
 ```bash
 uv pip install <TensorRT_SDK_PATH>/python/tensorrt-10.x.x-cpXX-none-win_amd64.whl
@@ -439,7 +439,7 @@ uv run pochi convert best_epoch40.onnx --fp16 --input-size 512 512
 
 #### 3. TensorRT推論の実行
 
-基本的な使い方（config・データパスはエンジンパスから自動検出）:
+基本的な使い方 (config・データパスはエンジンパスから自動検出):
 ```bash
 uv run infer-trt work_dirs/20251018_001/models/model.engine
 ```
@@ -476,12 +476,12 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 
 ### 注意事項
 
-- TensorRTエンジンはGPUアーキテクチャ固有です（異なるGPUでは再ビルドが必要）
-- `uv sync`を実行するとTensorRTがアンインストールされます。その場合は再度`uv pip install`でインストールしてください
+- TensorRTエンジンはGPUアーキテクチャ固有です (異なるGPUでは再ビルドが必要)
+- `uv sync`を実行するとTensorRTがアンインストールされます. その場合は再度`uv pip install`でインストールしてください
 
 ## 🔧 設定オプション
 
-設定ファイル（`configs/pochi_train_config.py`）で以下の項目を調整できます：
+設定ファイル (`configs/pochi_train_config.py`) で以下の項目を調整できます:
 
 | 項目 | 説明 | デフォルト |
 |------|------|-----------|
@@ -501,4 +501,4 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 
 ## 📄 ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。
+このプロジェクトはMITライセンスの下で公開されています.

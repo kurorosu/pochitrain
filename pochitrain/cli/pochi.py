@@ -758,6 +758,7 @@ def convert_command(args: argparse.Namespace) -> None:
     # 動的シェイプONNXの変換時に全精度で必要
     input_shape = None
     if args.input_size:
+        # チャンネル数は RGB (C=3) 固定. pochitrain は RGB 画像のみ対応.
         input_shape = (3, args.input_size[0], args.input_size[1])
         logger.debug(f"CLI指定の入力形状: {input_shape}")
     else:
@@ -1012,9 +1013,9 @@ def main() -> None:
     convert_parser.add_argument(
         "--input-size",
         nargs=2,
-        type=int,
+        type=positive_int,
         metavar=("HEIGHT", "WIDTH"),
-        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要)",
+        help="入力画像サイズ (動的シェイプONNXモデルの変換時に必要, 1以上)",
     )
     convert_parser.add_argument(
         "--calib-samples",

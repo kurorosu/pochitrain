@@ -2,8 +2,8 @@
 
 ## 概要
 
-`configs/pochi_train_config.py` は、pochitrainの訓練用設定を管理するPythonファイルです。
-`importlib.util`を使用してPythonコードとして読み込まれるため、関数やオブジェクトを直接定義できます。
+`configs/pochi_train_config.py` は, pochitrainの訓練用設定を管理するPythonファイルです.
+`importlib.util`を使用してPythonコードとして読み込まれるため, 関数やオブジェクトを直接定義できます.
 
 ## 基本設定
 
@@ -20,7 +20,7 @@
 | パラメータ | 型 | 説明 |
 |------------|----|----- |
 | `train_data_root` | str | 訓練データのパス |
-| `val_data_root` | str/None | 検証データのパス（Noneで検証なし） |
+| `val_data_root` | str/None | 検証データのパス (Noneで検証なし) |
 | `batch_size` | int | バッチサイズ |
 | `num_workers` | int | データローダーのワーカー数 |
 
@@ -43,8 +43,8 @@
 | パラメータ | 型 | 説明 | デフォルト |
 |------------|----|----- |------------|
 | `work_dir` | str | 作業ディレクトリ | `"work_dirs"` |
-| `device` | str/None | デバイス（Noneで自動選択） | `None` |
-| `cudnn_benchmark` | bool | cuDNN自動チューニング（固定サイズ入力で高速化） | `False` |
+| `device` | str/None | デバイス (Noneで自動選択) | `None` |
+| `cudnn_benchmark` | bool | cuDNN自動チューニング (固定サイズ入力で高速化) | `False` |
 
 ## スケジューラー設定
 
@@ -87,7 +87,7 @@ scheduler = "CosineAnnealingLR"
 scheduler_params = {"T_max": 50}
 ```
 
-- `T_max`: 最大エポック数（コサイン周期の半分）
+- `T_max`: 最大エポック数 (コサイン周期の半分)
 
 #### ExponentialLR
 学習率を指数的に減衰
@@ -97,8 +97,8 @@ scheduler = "ExponentialLR"
 scheduler_params = {"gamma": 0.95}
 ```
 
-- `gamma`: 毎エポックの減衰率（0 < gamma < 1）
-- 例：`gamma=0.95` ならエポックごとに 0.95 倍
+- `gamma`: 毎エポックの減衰率 (0 < gamma < 1)
+- 例: `gamma=0.95` ならエポックごとに 0.95 倍
 
 #### LinearLR
 指定したイテレーション数で線形に減衰
@@ -112,9 +112,9 @@ scheduler_params = {
 }
 ```
 
-- `start_factor`: 減衰開始時の係数（通常 1.0）
-- `end_factor`: 減衰終了時の係数（終了時の学習率は `learning_rate * end_factor`）
-- `total_iters`: 線形減衰を行う総ステップ数（pochitrain ではエポック数想定）
+- `start_factor`: 減衰開始時の係数 (通常 1.0)
+- `end_factor`: 減衰終了時の係数 (終了時の学習率は `learning_rate * end_factor`)
+- `total_iters`: 線形減衰を行う総ステップ数 (pochitrain ではエポック数想定)
 
 #### スケジューラーなし
 
@@ -123,10 +123,10 @@ scheduler = None
 scheduler_params = None
 ```
 
-## 層別学習率（Layer-wise Learning Rates）
+## 層別学習率 (Layer-wise Learning Rates)
 
 ### 概要
-層（パラメータグループ）ごとに異なる学習率を設定し、微調整や段階的な学習制御を可能にする機能です。事前学習済みモデルの前段を保守的に更新し、後段を積極的に学習させる **Discriminative Fine-tuning** などに有効です。
+層 (パラメータグループ) ごとに異なる学習率を設定し, 微調整や段階的な学習制御を可能にする機能です. 事前学習済みモデルの前段を保守的に更新し, 後段を積極的に学習させる **Discriminative Fine-tuning** などに有効です.
 
 ### 基本設定
 ```python
@@ -149,13 +149,13 @@ layer_wise_lr_config = {
 
 ### パラメータ
 - `enable_layer_wise_lr`: 層別学習率機能の有効/無効
-- `layer_rates`: 層名（正規表現対応）と学習率を保持する辞書。記述順にマッチングされるため、より具体的な層名を先に書く
+- `layer_rates`: 層名 (正規表現対応) と学習率を保持する辞書. 記述順にマッチングされるため, より具体的な層名を先に書く
 - `graph_config.use_log_scale`: 層別学習率グラフを対数スケールで表示するか
 
 ### 動作
-- 層別学習率が有効でも、CSV の `learning_rate` カラムには設定した値が固定出力される
-- 実際の各層の学習率は `lr_<layer_name>` カラムとして CSV に記録され、専用グラフにも描画される
-- 正答率グラフには学習率を描画せず、層別学習率専用グラフが生成される
+- 層別学習率が有効でも, CSV の `learning_rate` カラムには設定した値が固定出力される
+- 実際の各層の学習率は `lr_<layer_name>` カラムとして CSV に記録され, 専用グラフにも描画される
+- 正答率グラフには学習率を描画せず, 層別学習率専用グラフが生成される
 
 ### スケジューラーとの併用例
 ```python
@@ -262,7 +262,7 @@ gradient_tracking_config = {
 
 ## 損失関数設定
 
-### 基本設定（自動重み）
+### 基本設定 (自動重み)
 
 ```python
 class_weights = None  # 自動的にバランスを調整
@@ -270,7 +270,7 @@ class_weights = None  # 自動的にバランスを調整
 
 ### クラス重みの手動設定
 
-不均衡データセット用にクラス毎の重みを設定できます：
+不均衡データセット用にクラス毎の重みを設定できます:
 
 ```python
 class_weights = [1.0, 2.0, 1.5, 0.8]  # 4クラスの例
@@ -283,20 +283,20 @@ class_weights = [1.0, 2.0, 1.5, 0.8]  # 4クラスの例
 ### 使用例
 
 ```python
-# 少数クラス（クラス1）を重視する場合
+# 少数クラス (クラス1) を重視する場合
 class_weights = [1.0, 3.0, 1.0, 1.0]
 
-# 多数クラス（クラス0）の影響を抑える場合
+# 多数クラス (クラス0) の影響を抑える場合
 class_weights = [0.5, 1.0, 1.0, 1.0]
 ```
 
-## データ変換（Transform）設定
+## データ変換 (Transform) 設定
 
 ### 重要な注意点
 
-⚠️ **transformは必須です。未設定（None）の場合はエラーになります**
+⚠️ **transformは必須です. 未設定 (None) の場合はエラーになります**
 
-transformを設定しない場合、PIL Imageがそのままの状態で返されるため、PyTorchのテンソルに変換されずに訓練時にエラーが発生します。最低限でも `transforms.ToTensor()` を含む変換を設定してください。
+transformを設定しない場合, PIL Imageがそのままの状態で返されるため, PyTorchのテンソルに変換されずに訓練時にエラーが発生します. 最低限でも `transforms.ToTensor()` を含む変換を設定してください.
 
 ### 基本パラメータ
 
@@ -307,15 +307,15 @@ std = [0.229, 0.224, 0.225]   # ImageNet標準値
 
 ### 訓練用変換の例
 
-#### 最小限構成（必須設定）
+#### 最小限構成 (必須設定)
 ```python
 train_transform = transforms.Compose([
-    transforms.ToTensor(),  # 必須：PIL Image → PyTorchテンソルに変換
-    transforms.Normalize(mean=mean, std=std),  # 推奨：正規化
+    transforms.ToTensor(),  # 必須: PIL Image → PyTorchテンソルに変換
+    transforms.Normalize(mean=mean, std=std),  # 推奨: 正規化
 ])
 ```
 
-**重要**: `transforms.ToTensor()` は必須です。これがないとPIL ImageがPyTorchテンソルに変換されず、訓練時にエラーが発生します。
+**重要**: `transforms.ToTensor()` は必須です. これがないとPIL ImageがPyTorchテンソルに変換されず, 訓練時にエラーが発生します.
 
 #### データ拡張あり
 ```python
@@ -340,19 +340,21 @@ val_transform = transforms.Compose([
 ])
 ```
 
-#### リサイズなし（最小限構成）
+#### リサイズなし (最小限構成)
 ```python
 val_transform = transforms.Compose([
-    transforms.ToTensor(),  # 必須：PIL Image → PyTorchテンソルに変換
-    transforms.Normalize(mean=mean, std=std),  # 推奨：正規化
+    transforms.ToTensor(),  # 必須: PIL Image → PyTorchテンソルに変換
+    transforms.Normalize(mean=mean, std=std),  # 推奨: 正規化
 ])
 ```
 
-**注意**: 検証用変換でも `transforms.ToTensor()` は必須です。
+**注意**: 検証用変換でも `transforms.ToTensor()` は必須です.
 
 ## カスタム正規化
 
-### グレースケール画像用
+### グレースケール寄りのRGB画像用
+pochitrain はグレースケールやRGBA画像を自動的にRGBに変換するため, チャンネル数は常に3です.
+元がグレースケールの画像 (RGBに変換済み) には以下の正規化が適しています.
 ```python
 mean = [0.5, 0.5, 0.5]
 std = [0.25, 0.25, 0.25]
@@ -360,7 +362,7 @@ std = [0.25, 0.25, 0.25]
 
 ### 医用画像用
 ```python
-mean = [0.485, 0.485, 0.485]  # グレースケール寄り
+mean = [0.485, 0.485, 0.485]  # グレースケール寄りのRGB
 std = [0.229, 0.229, 0.229]
 ```
 
@@ -413,7 +415,7 @@ confusion_matrix_config = {
 
 ## 設定例
 
-### 高速訓練用（軽量設定）
+### 高速訓練用 (軽量設定)
 ```python
 model_name = "resnet18"
 batch_size = 32
@@ -429,7 +431,7 @@ train_transform = transforms.Compose([
 ])
 ```
 
-### 高精度狙い（重訓練設定）
+### 高精度狙い (重訓練設定)
 ```python
 model_name = "resnet50"
 batch_size = 16
@@ -517,7 +519,7 @@ scheduler_params = {
    ```
    ValueError: サポートされていないスケジューラー: CustomLR
    ```
-   → 対応スケジューラー（StepLR, MultiStepLR, CosineAnnealingLR, ExponentialLR, LinearLR）を使用
+   → 対応スケジューラー (StepLR, MultiStepLR, CosineAnnealingLR, ExponentialLR, LinearLR) を使用
 
 3. **Transform設定エラー**
    → `torchvision.transforms`のインポートを確認
@@ -530,14 +532,14 @@ scheduler_params = {
 
 5. **層別学習率グラフが見づらい**
    → `graph_config["use_log_scale"]` を調整
-     - 学習率差が大きい場合: `True`（対数）
-     - 学習率差が小さい場合: `False`（線形）
+     - 学習率差が大きい場合: `True` (対数)
+     - 学習率差が小さい場合: `False` (線形)
 
 ### パフォーマンス最適化
 
 - **num_workers**: CPUコア数の1/2〜1倍に設定
 - **batch_size**: GPUメモリに応じて調整
-- **pin_memory**: GPU使用時は`True`に設定（現在は自動）
+- **pin_memory**: GPU使用時は`True`に設定 (現在は自動)
 
 ## Optunaハイパーパラメータ最適化設定
 
