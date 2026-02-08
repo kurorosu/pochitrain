@@ -1,25 +1,23 @@
-# Core dependencies
-torch>=1.8.0
-torchvision>=0.9.0
-numpy>=1.19.0
-pillow>=8.0.0
+# torch, torchvision, numpy は環境に合わせて手動インストール
+# 例 (Jetson / JetPack):
+#   pip install torch torchvision (NVIDIA提供のホイールを使用)
+#   pip install numpy
+# torch
+# torchvision
+# numpy
 
 # Data processing
+pandas>=2.0.0
+pillow>=8.0.0
 scikit-learn>=0.24.0
-matplotlib>=3.3.0
-japanize-matplotlib>=1.1.0
+matplotlib>=3.10.8
+matplotlib-fontja>=1.1.0
 
 # Configuration and logging
 pyyaml>=5.4.0
 colorlog>=6.0.0
+rich>=13.0.0
 
-# Optional dependencies for rich output
-rich>=10.0.0
-
-# Development dependencies
-pytest>=6.0.0
-pytest-mock>=3.6.0
-flake8>=3.8.0
-black>=21.0.0
-isort>=5.8.0
-pydocstyle>=6.0.0
+# Hyperparameter optimization
+optuna>=3.5.0
+plotly>=5.0.0
