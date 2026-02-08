@@ -77,6 +77,10 @@ pochi convert dynamic_model.onnx --int8 --calib-data data/val --input-size 224 2
 | Optimization Profile | batch=1, H/W は `--input-size` の値 |
 | 制限事項 | 推論時は指定サイズのみ対応 |
 
+> **Note**: `--input-size` は HEIGHT WIDTH の 2 値のみを受け取る.
+> チャンネル数は RGB (C=3) 固定であり, 内部で `input_shape = (3, HEIGHT, WIDTH)` として構築される.
+> pochitrain は RGB 3 チャンネル画像のみ対応しているため, グレースケールや 4 チャンネル画像は非対応.
+
 ### パターン 3: 完全静的 ONNX (バッチも固定)
 
 全次元が固定の ONNX モデル. Optimization Profile の設定不要.
