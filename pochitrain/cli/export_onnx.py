@@ -14,6 +14,7 @@ from pathlib import Path
 
 import torch
 
+from pochitrain.cli.arg_types import positive_int
 from pochitrain.logging import LoggerManager
 from pochitrain.onnx import OnnxExporter
 from pochitrain.utils import ConfigLoader
@@ -61,10 +62,10 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         nargs=2,
-        type=int,
+        type=positive_int,
         required=True,
         metavar=("HEIGHT", "WIDTH"),
-        help="入力画像サイズ（必須）",
+        help="入力画像サイズ（必須, 1以上）",
     )
     parser.add_argument(
         "--output",
@@ -147,7 +148,7 @@ def main() -> None:
     logger.info(f"モデル: {model_name}")
     logger.info(f"クラス数: {num_classes}")
     logger.info(f"入力サイズ: {input_size[0]}x{input_size[1]}")
-    logger.info(f"デバイス: {device}")
+    logger.info(f"エクスポートデバイス: {device}")
     logger.info(f"出力先: {output_path}")
 
     # エクスポーター作成

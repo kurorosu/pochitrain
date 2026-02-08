@@ -26,6 +26,7 @@ from pochitrain import (
     PochiTrainer,
     create_data_loaders,
 )
+from pochitrain.cli.arg_types import positive_int
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
@@ -39,24 +40,6 @@ from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
-
-
-def positive_int(value: str) -> int:
-    """argparse用の正の整数バリデーション.
-
-    Args:
-        value (str): コマンドライン引数の文字列値
-
-    Returns:
-        int: 変換された正の整数
-
-    Raises:
-        argparse.ArgumentTypeError: 値が1未満の場合
-    """
-    int_value = int(value)
-    if int_value < 1:
-        raise argparse.ArgumentTypeError(f"1以上の整数を指定してください: {value}")
-    return int_value
 
 
 def create_signal_handler(debug: bool = False) -> Any:

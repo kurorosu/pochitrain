@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from pochitrain.cli.pochi import positive_int
+from pochitrain.cli.arg_types import positive_int
 
 
 class TestConvertArgumentParsing:
