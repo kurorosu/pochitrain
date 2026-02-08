@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 import numpy as np
 import onnxruntime as ort
@@ -112,9 +112,9 @@ class OnnxInference:
         if self.io_binding:
             # GPUからCPUへ結果を取得（D2H転送が発生）
             outputs = self.io_binding.copy_outputs_to_cpu()
-            return outputs[0]
+            return cast(np.ndarray, outputs[0])
         else:
-            return self._temp_cpu_outputs[0]
+            return cast(np.ndarray, self._temp_cpu_outputs[0])
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """推論を一括実行（互換性および簡易用）.
