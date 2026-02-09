@@ -112,6 +112,15 @@ class TensorRTInference:
         logger.debug(f"入力: {self.input_name}, shape: {self.input_shape}")
         logger.debug(f"出力: {self.output_name}, shape: {self.output_shape}")
 
+    @property
+    def stream(self) -> torch.cuda.Stream:
+        """CUDAストリームを取得.
+
+        Returns:
+            推論に使用するCUDAストリーム
+        """
+        return self._stream
+
     def _resolve_io_bindings(self, trt: object) -> Dict[str, str]:
         """名前ベースで入出力バインディングを解決する.
 
