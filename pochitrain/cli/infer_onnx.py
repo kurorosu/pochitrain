@@ -11,10 +11,11 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -107,17 +108,29 @@ def main() -> None:
 
     # configからパラメータ取得
     batch_size = config.get("batch_size", 1)
+    num_workers = config.get("num_workers", 0)
+    pin_memory = config.get("pin_memory", True)
     use_gpu = config.get("device", "cpu") == "cuda"
     val_transform = config["val_transform"]
 
     logger.debug(f"モデル: {model_path}")
     logger.debug(f"データ: {data_path}")
     logger.debug(f"バッチサイズ: {batch_size}")
+    logger.debug(f"ワーカー数: {num_workers}")
     logger.debug(f"GPU使用: {use_gpu}")
     logger.debug(f"出力先: {output_dir}")
 
     # データセット作成（configのval_transformを使用）
     dataset = PochiImageDataset(str(data_path), transform=val_transform)
+
+    # DataLoader作成
+    data_loader: DataLoader[Any] = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
 
     logger.debug(f"クラス: {dataset.get_classes()}")
     logger.debug("使用されたTransform (設定ファイルから):")
@@ -163,26 +176,13 @@ def main() -> None:
     total_samples = 0
     warmup_samples = 0
 
-    num_batches = (len(dataset) + batch_size - 1) // batch_size
-
     # GPU時間計測用のCUDA Event
     if use_gpu:
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
 
-    for batch_idx in range(num_batches):
-        start_idx = batch_idx * batch_size
-        end_idx = min(start_idx + batch_size, len(dataset))
-
-        batch_images = []
-        batch_labels = []
-        for i in range(start_idx, end_idx):
-            image, label = dataset[i]
-            assert isinstance(image, torch.Tensor)
-            batch_images.append(image.numpy())
-            batch_labels.append(label)
-
-        images_np = np.stack(batch_images).astype(np.float32)
+    for batch_idx, (images, labels) in enumerate(data_loader):
+        images_np = images.numpy().astype(np.float32)
 
         if batch_idx == 0:
             # 最初のバッチは計測対象外（ウォームアップ）
@@ -190,7 +190,7 @@ def main() -> None:
             inference.run_pure()
             logits = inference.get_output()
             predicted, confidence = post_process_logits(logits)
-            warmup_samples = len(batch_images)
+            warmup_samples = len(images)
         else:
             # 推論時間計測
             inference.set_input(images_np)  # 転送（計測外）
@@ -210,11 +210,11 @@ def main() -> None:
             predicted, confidence = post_process_logits(logits)
 
             total_inference_time_ms += inference_time_ms
-            total_samples += len(batch_images)
+            total_samples += len(images)
 
         all_predictions.extend(predicted.tolist())
         all_confidences.extend(confidence.tolist())
-        all_true_labels.extend(batch_labels)
+        all_true_labels.extend(labels.tolist())
 
     # 全処理計測の終了
     e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000

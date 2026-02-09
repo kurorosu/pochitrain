@@ -11,10 +11,11 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -133,12 +134,26 @@ def main() -> None:
         transform = get_basic_transforms(image_size=height, is_training=False)
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
+    # configからパラメータ取得
+    num_workers = config.get("num_workers", 0)
+    pin_memory = config.get("pin_memory", True)
+
     logger.debug(f"エンジン: {engine_path}")
     logger.debug(f"データ: {data_path}")
+    logger.debug(f"ワーカー数: {num_workers}")
     logger.debug(f"出力先: {output_dir}")
 
     # データセット作成
     dataset = PochiImageDataset(str(data_path), transform=transform)
+
+    # DataLoader作成（TensorRTはbatch_size=1のみ対応）
+    data_loader: DataLoader[Any] = DataLoader(
+        dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
 
     logger.debug(f"クラス: {dataset.get_classes()}")
     logger.debug("使用されたTransform:")
@@ -180,10 +195,8 @@ def main() -> None:
     total_inference_time_ms = 0.0
     total_samples = 0
 
-    for i in range(len(dataset)):
-        image, label = dataset[i]
-        assert isinstance(image, torch.Tensor)
-        image_np = image.numpy()[np.newaxis, ...].astype(np.float32)
+    for i, (image, label) in enumerate(data_loader):
+        image_np = image.numpy().astype(np.float32)
 
         if i == 0:
             # 最初の1枚は計測対象外（ウォームアップ済みだが念のため）
@@ -207,7 +220,7 @@ def main() -> None:
 
         all_predictions.append(int(predicted[0]))
         all_confidences.append(float(confidence[0]))
-        all_true_labels.append(label)
+        all_true_labels.append(label.item())
 
     # 全処理計測の終了
     e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
