@@ -195,10 +195,10 @@ def main() -> None:
             # 推論時間計測
             inference.set_input(image_np)  # 転送（計測外）
 
-            start_event.record(inference._stream)
+            start_event.record(inference.stream)
             inference.execute()  # 純粋推論のみを計測
-            end_event.record(inference._stream)
-            inference._stream.synchronize()
+            end_event.record(inference.stream)
+            inference.stream.synchronize()
             total_inference_time_ms += start_event.elapsed_time(end_event)
             total_samples += 1
 

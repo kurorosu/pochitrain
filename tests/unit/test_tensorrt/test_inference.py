@@ -48,6 +48,26 @@ class TestExecute:
         instance.context.execute_async_v3.assert_called_once_with(12345)
 
 
+class TestStreamProperty:
+    """stream プロパティの単体テスト (TensorRT不要)."""
+
+    def test_stream_returns_internal_stream(self):
+        """stream プロパティが _stream と同じオブジェクトを返す."""
+        instance = object.__new__(TensorRTInference)
+        mock_stream = MagicMock()
+        instance._stream = mock_stream
+
+        assert instance.stream is mock_stream
+
+    def test_stream_is_readonly(self):
+        """stream プロパティが読み取り専用である."""
+        instance = object.__new__(TensorRTInference)
+        instance._stream = MagicMock()
+
+        with pytest.raises(AttributeError):
+            instance.stream = MagicMock()
+
+
 class TestResolveIoBindings:
     """_resolve_io_bindings メソッドの単体テスト (TensorRT不要)."""
 
