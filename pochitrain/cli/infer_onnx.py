@@ -20,7 +20,10 @@ from torch.utils.data import DataLoader
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
-from pochitrain.pochi_dataset import PochiImageDataset
+from pochitrain.pochi_dataset import (
+    FastInferenceDataset,
+    convert_transform_for_fast_inference,
+)
 from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
@@ -113,6 +116,10 @@ def main() -> None:
     use_gpu = config.get("device", "cpu") == "cuda"
     val_transform = config["val_transform"]
 
+    # FastInferenceDataset向けにtransformを変換
+    # ToTensor() → ConvertImageDtype(float32) に置き換え
+    fast_transform = convert_transform_for_fast_inference(val_transform)
+
     logger.debug(f"モデル: {model_path}")
     logger.debug(f"データ: {data_path}")
     logger.debug(f"バッチサイズ: {batch_size}")
@@ -120,8 +127,8 @@ def main() -> None:
     logger.debug(f"GPU使用: {use_gpu}")
     logger.debug(f"出力先: {output_dir}")
 
-    # データセット作成（configのval_transformを使用）
-    dataset = PochiImageDataset(str(data_path), transform=val_transform)
+    # データセット作成（高速推論用データセット）
+    dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
 
     # DataLoader作成
     data_loader: DataLoader[Any] = DataLoader(
@@ -133,9 +140,9 @@ def main() -> None:
     )
 
     logger.debug(f"クラス: {dataset.get_classes()}")
-    logger.debug("使用されたTransform (設定ファイルから):")
-    if hasattr(val_transform, "transforms"):
-        for i, t in enumerate(val_transform.transforms):
+    logger.debug("使用されたTransform (高速推論用):")
+    if hasattr(fast_transform, "transforms"):
+        for i, t in enumerate(fast_transform.transforms):
             logger.debug(f"   {i+1}. {t}")
 
     # ONNX推論クラス作成
@@ -146,7 +153,7 @@ def main() -> None:
     logger.debug("ウォームアップ中...")
     warmup_image, _ = dataset[0]
     assert isinstance(warmup_image, torch.Tensor)
-    warmup_np = warmup_image.numpy()[np.newaxis, ...].astype(np.float32)
+    warmup_np = warmup_image.numpy()[np.newaxis, ...]
     for _ in range(10):
         inference.run(warmup_np)
 
@@ -182,7 +189,7 @@ def main() -> None:
         end_event = torch.cuda.Event(enable_timing=True)
 
     for batch_idx, (images, labels) in enumerate(data_loader):
-        images_np = images.numpy().astype(np.float32)
+        images_np = images.numpy()
 
         if batch_idx == 0:
             # 最初のバッチは計測対象外（ウォームアップ）

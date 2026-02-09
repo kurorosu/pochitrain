@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision.io import ImageReadMode, decode_image
 
 
 class PochiImageDataset(Dataset):
@@ -114,6 +115,58 @@ class PochiImageDataset(Dataset):
             List[str]: ファイルパスのリスト
         """
         return [str(path) for path in self.image_paths]
+
+
+class FastInferenceDataset(PochiImageDataset):
+    """推論CLI専用の高速画像データセット.
+
+    torchvision.io.decode_image を使用してPIL経由のオーバーヘッドを排除する.
+    decode_image は直接テンソルを返すため, ToTensor() は不要.
+    代わりに ConvertImageDtype + Normalize で前処理を行う.
+
+    Args:
+        root: データのルートディレクトリ
+        transform: データ変換関数 (ConvertImageDtype + Normalize 等, ToTensor不要)
+        extensions: 許可する拡張子
+    """
+
+    def __getitem__(self, index: int) -> Tuple[Tensor, int]:
+        """指定されたインデックスのデータを返す."""
+        image_path = self.image_paths[index]
+        label = self.labels[index]
+
+        image = decode_image(str(image_path), mode=ImageReadMode.RGB)
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
+
+
+def convert_transform_for_fast_inference(
+    transform: Callable[..., Any],
+) -> transforms.Compose:
+    """configのval_transformをFastInferenceDataset向けに変換.
+
+    ToTensor() を ConvertImageDtype(float32) に置き換える.
+    decode_image は直接テンソルを返すため, ToTensor() は不要.
+
+    Args:
+        transform: configのval_transform (Compose)
+
+    Returns:
+        FastInferenceDataset向けのtransform
+    """
+    new_transforms = []
+    if hasattr(transform, "transforms"):
+        for t in transform.transforms:
+            if isinstance(t, transforms.ToTensor):
+                new_transforms.append(transforms.ConvertImageDtype(torch.float32))
+            else:
+                new_transforms.append(t)
+    else:
+        new_transforms.append(transforms.ConvertImageDtype(torch.float32))
+    return transforms.Compose(new_transforms)
 
 
 def get_basic_transforms(

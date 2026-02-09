@@ -19,7 +19,11 @@ from torch.utils.data import DataLoader
 
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
-from pochitrain.pochi_dataset import PochiImageDataset, get_basic_transforms
+from pochitrain.pochi_dataset import (
+    FastInferenceDataset,
+    convert_transform_for_fast_inference,
+    get_basic_transforms,
+)
 from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
@@ -134,6 +138,9 @@ def main() -> None:
         transform = get_basic_transforms(image_size=height, is_training=False)
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
+    # FastInferenceDataset向けにtransformを変換
+    fast_transform = convert_transform_for_fast_inference(transform)
+
     # configからパラメータ取得
     num_workers = config.get("num_workers", 0)
     pin_memory = config.get("pin_memory", True)
@@ -143,8 +150,8 @@ def main() -> None:
     logger.debug(f"ワーカー数: {num_workers}")
     logger.debug(f"出力先: {output_dir}")
 
-    # データセット作成
-    dataset = PochiImageDataset(str(data_path), transform=transform)
+    # データセット作成（高速推論用データセット）
+    dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
 
     # DataLoader作成（TensorRTはbatch_size=1のみ対応）
     data_loader: DataLoader[Any] = DataLoader(
@@ -156,16 +163,16 @@ def main() -> None:
     )
 
     logger.debug(f"クラス: {dataset.get_classes()}")
-    logger.debug("使用されたTransform:")
-    if hasattr(transform, "transforms"):
-        for i, t in enumerate(transform.transforms):
+    logger.debug("使用されたTransform (高速推論用):")
+    if hasattr(fast_transform, "transforms"):
+        for i, t in enumerate(fast_transform.transforms):
             logger.debug(f"   {i+1}. {t}")
 
     # ウォームアップ（最初の1枚で10回実行）
     logger.debug("ウォームアップ中...")
     image, _ = dataset[0]
     assert isinstance(image, torch.Tensor)
-    image_np = image.numpy()[np.newaxis, ...].astype(np.float32)
+    image_np = image.numpy()[np.newaxis, ...]
     for _ in range(10):
         inference.run(image_np)
 
@@ -196,7 +203,7 @@ def main() -> None:
     total_samples = 0
 
     for i, (image, label) in enumerate(data_loader):
-        image_np = image.numpy().astype(np.float32)
+        image_np = image.numpy()
 
         if i == 0:
             # 最初の1枚は計測対象外（ウォームアップ済みだが念のため）
