@@ -170,6 +170,17 @@ class TensorRTInference:
         with torch.cuda.stream(self._stream):
             self._d_input.copy_(torch.from_numpy(image))
 
+    def set_input_gpu(self, tensor: torch.Tensor) -> None:
+        """GPU上のテンソルを直接入力として設定.
+
+        GPU-to-GPUコピーのみ行い, CPU経由のH2D転送をスキップする.
+
+        Args:
+            tensor: GPU上のfloat32テンソル (1, channels, height, width)
+        """
+        with torch.cuda.stream(self._stream):
+            self._d_input.copy_(tensor)
+
     def execute(self) -> None:
         """純粋な推論実行（計測対象）.
 

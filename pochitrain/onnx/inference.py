@@ -6,6 +6,7 @@ from typing import List, Tuple, cast
 
 import numpy as np
 import onnxruntime as ort
+import torch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.utils.inference_utils import post_process_logits
@@ -89,6 +90,32 @@ class OnnxInference:
         else:
             # CPUの場合は単純に保持
             self._temp_cpu_images = images
+
+    def set_input_gpu(self, tensor: torch.Tensor) -> None:
+        """GPU上のテンソルを直接入力として設定.
+
+        io_binding.bind_input() でGPUメモリを直接バインドし,
+        CPU→GPU転送 (H2D) をスキップする.
+
+        Args:
+            tensor: GPU上のfloat32テンソル (batch, channels, height, width)
+
+        Raises:
+            RuntimeError: GPU モードでない場合
+        """
+        if not self.io_binding:
+            raise RuntimeError("GPU入力はGPUモード時のみ使用可能です")
+
+        tensor = tensor.contiguous()
+        self.io_binding.bind_input(
+            name=self.input_name,
+            device_type="cuda",
+            device_id=0,
+            element_type=np.float32,
+            shape=tuple(tensor.shape),
+            buffer_ptr=tensor.data_ptr(),
+        )
+        self.io_binding.bind_output(self.output_name, "cuda")
 
     def run_pure(self) -> None:
         """純粋な推論実行（計測対象）.

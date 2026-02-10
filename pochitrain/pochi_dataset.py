@@ -165,6 +165,138 @@ class FastInferenceDataset(PochiImageDataset):
         return image, label
 
 
+class GpuInferenceDataset(FastInferenceDataset):
+    """GPU推論専用の高速画像データセット.
+
+    decode_image で画像をデコードし, uint8テンソルをそのまま返す.
+    GPU上での正規化は gpu_normalize() で別途実行する.
+    transform は適用しない (Resize等が必要な場合のみ指定可能).
+
+    Args:
+        root: データのルートディレクトリ
+        transform: リサイズ等のCPU上テンソル変換 (Normalize, ConvertImageDtype は不要)
+        extensions: 許可する拡張子
+    """
+
+    def __getitem__(self, index: int) -> Tuple[Tensor, int]:
+        """指定されたインデックスのデータを返す."""
+        image_path = self.image_paths[index]
+        label = self.labels[index]
+
+        image = decode_image(str(image_path), mode=ImageReadMode.RGB)
+
+        if self.transform:
+            try:
+                image = self.transform(image)
+            except Exception as e:
+                if not FastInferenceDataset._transform_error_logged:
+                    logger.error(
+                        f"GpuInferenceDataset で transform 実行に失敗しました: {e}. "
+                        "PochiImageDataset への切替を検討してください."
+                    )
+                    FastInferenceDataset._transform_error_logged = True
+                raise
+
+        return image, label
+
+
+def extract_normalize_params(
+    transform: Callable[..., Any],
+) -> Tuple[List[float], List[float]]:
+    """Compose内のNormalizeからmean, stdを抽出する.
+
+    Args:
+        transform: configのval_transform (Compose or 単体transform)
+
+    Returns:
+        (mean, std) のタプル
+
+    Raises:
+        ValueError: Normalizeが見つからない場合
+    """
+    if hasattr(transform, "transforms"):
+        for t in transform.transforms:
+            if isinstance(t, transforms.Normalize):
+                return list(t.mean), list(t.std)
+    elif isinstance(transform, transforms.Normalize):
+        return list(transform.mean), list(transform.std)
+    raise ValueError("transformにNormalizeが含まれていません")
+
+
+def build_gpu_preprocess_transform(
+    transform: Callable[..., Any],
+) -> Optional[transforms.Compose]:
+    """configのval_transformからGpuInferenceDataset向けのtransformを構築.
+
+    Normalize, ToTensor, ConvertImageDtype を除外し,
+    Resize / CenterCrop 等のテンソル互換transformのみを残す.
+    PIL専用transformが含まれる場合はNoneを返す.
+
+    Args:
+        transform: configのval_transform
+
+    Returns:
+        GpuInferenceDataset向けのtransform. PIL専用transform時はNone.
+        残すtransformが無い場合は空のCompose (transforms=[]) を返す.
+    """
+    _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
+    _SKIP_TRANSFORMS = (
+        transforms.ToTensor,
+        transforms.Normalize,
+        transforms.ConvertImageDtype,
+    )
+
+    new_transforms: List[Any] = []
+    if hasattr(transform, "transforms"):
+        for t in transform.transforms:
+            if isinstance(t, _PIL_ONLY_TRANSFORMS):
+                logger.warning(
+                    f"PIL専用transform {type(t).__name__} が含まれています. "
+                    "GpuInferenceDatasetは使用できないため, フォールバックします."
+                )
+                return None
+            elif isinstance(t, _SKIP_TRANSFORMS):
+                continue
+            else:
+                new_transforms.append(t)
+    else:
+        if isinstance(transform, _PIL_ONLY_TRANSFORMS):
+            return None
+        elif not isinstance(transform, _SKIP_TRANSFORMS):
+            new_transforms.append(transform)
+
+    return transforms.Compose(new_transforms)
+
+
+def gpu_normalize(
+    images: Tensor,
+    mean: List[float],
+    std: List[float],
+) -> Tensor:
+    """CPU uint8テンソルをGPU上でfloat変換+正規化する.
+
+    decode_imageが返すuint8テンソルを受け取り,
+    GPUへ転送後にfloat32変換と正規化を一括で行う.
+    mean*255, std*255 でpre-scaledして除算を1回に削減する.
+
+    Args:
+        images: uint8テンソル (C,H,W) or (N,C,H,W)
+        mean: 正規化の平均値 (例: [0.485, 0.456, 0.406])
+        std: 正規化の標準偏差 (例: [0.229, 0.224, 0.225])
+
+    Returns:
+        正規化済みfloat32 CUDAテンソル (N,C,H,W)
+    """
+    if images.dim() == 3:
+        images = images.unsqueeze(0)
+
+    mean_255 = torch.tensor(mean, device="cuda").view(1, 3, 1, 1) * 255.0
+    std_255 = torch.tensor(std, device="cuda").view(1, 3, 1, 1) * 255.0
+
+    gpu = images.cuda()
+    return (gpu.to(torch.float32) - mean_255) / std_255
+
+
 def convert_transform_for_fast_inference(
     transform: Callable[..., Any],
 ) -> Optional[transforms.Compose]:
