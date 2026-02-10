@@ -22,6 +22,7 @@ from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
 from pochitrain.pochi_dataset import (
     FastInferenceDataset,
+    PochiImageDataset,
     convert_transform_for_fast_inference,
 )
 from pochitrain.utils import (
@@ -118,6 +119,7 @@ def main() -> None:
 
     # FastInferenceDataset向けにtransformを変換
     # ToTensor() → ConvertImageDtype(float32) に置き換え
+    # PIL専用transformが含まれる場合はNoneが返り, PochiImageDatasetにフォールバック
     fast_transform = convert_transform_for_fast_inference(val_transform)
 
     logger.debug(f"モデル: {model_path}")
@@ -127,8 +129,13 @@ def main() -> None:
     logger.debug(f"GPU使用: {use_gpu}")
     logger.debug(f"出力先: {output_dir}")
 
-    # データセット作成（高速推論用データセット）
-    dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
+    # データセット作成
+    dataset: PochiImageDataset
+    if fast_transform is not None:
+        dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
+    else:
+        logger.info("PochiImageDatasetにフォールバックします")
+        dataset = PochiImageDataset(str(data_path), transform=val_transform)
 
     # DataLoader作成
     data_loader: DataLoader[Any] = DataLoader(
@@ -139,10 +146,12 @@ def main() -> None:
         pin_memory=pin_memory,
     )
 
+    # 使用されたtransformをログ出力
+    active_transform = fast_transform if fast_transform is not None else val_transform
     logger.debug(f"クラス: {dataset.get_classes()}")
-    logger.debug("使用されたTransform (高速推論用):")
-    if hasattr(fast_transform, "transforms"):
-        for i, t in enumerate(fast_transform.transforms):
+    logger.debug("使用されたTransform:")
+    if hasattr(active_transform, "transforms"):
+        for i, t in enumerate(active_transform.transforms):
             logger.debug(f"   {i+1}. {t}")
 
     # ONNX推論クラス作成

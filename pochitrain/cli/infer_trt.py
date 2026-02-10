@@ -21,6 +21,7 @@ from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.pochi_dataset import (
     FastInferenceDataset,
+    PochiImageDataset,
     convert_transform_for_fast_inference,
     get_basic_transforms,
 )
@@ -139,6 +140,7 @@ def main() -> None:
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
     # FastInferenceDataset向けにtransformを変換
+    # PIL専用transformが含まれる場合はNoneが返り, PochiImageDatasetにフォールバック
     fast_transform = convert_transform_for_fast_inference(transform)
 
     # configからパラメータ取得
@@ -150,8 +152,13 @@ def main() -> None:
     logger.debug(f"ワーカー数: {num_workers}")
     logger.debug(f"出力先: {output_dir}")
 
-    # データセット作成（高速推論用データセット）
-    dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
+    # データセット作成
+    dataset: PochiImageDataset
+    if fast_transform is not None:
+        dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
+    else:
+        logger.info("PochiImageDatasetにフォールバックします")
+        dataset = PochiImageDataset(str(data_path), transform=transform)
 
     # DataLoader作成（TensorRTはbatch_size=1のみ対応）
     data_loader: DataLoader[Any] = DataLoader(
@@ -162,10 +169,12 @@ def main() -> None:
         pin_memory=pin_memory,
     )
 
+    # 使用されたtransformをログ出力
+    active_transform = fast_transform if fast_transform is not None else transform
     logger.debug(f"クラス: {dataset.get_classes()}")
-    logger.debug("使用されたTransform (高速推論用):")
-    if hasattr(fast_transform, "transforms"):
-        for i, t in enumerate(fast_transform.transforms):
+    logger.debug("使用されたTransform:")
+    if hasattr(active_transform, "transforms"):
+        for i, t in enumerate(active_transform.transforms):
             logger.debug(f"   {i+1}. {t}")
 
     # ウォームアップ（最初の1枚で10回実行）

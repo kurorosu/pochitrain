@@ -4,6 +4,7 @@ pochitrain.pochi_dataset: Pochiデータセット.
 カスタムデータセット用のシンプルなクラスと基本的なtransform
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -13,6 +14,10 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.io import ImageReadMode, decode_image
+
+from pochitrain.logging import LoggerManager
+
+logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 
 class PochiImageDataset(Dataset):
@@ -124,11 +129,18 @@ class FastInferenceDataset(PochiImageDataset):
     decode_image は直接テンソルを返すため, ToTensor() は不要.
     代わりに ConvertImageDtype + Normalize で前処理を行う.
 
+    Note:
+        本クラスはテンソル入力に対応した transform を前提とする.
+        PIL.Image を前提とする独自 transform を含む場合は実行時エラーとなる.
+        その場合は PochiImageDataset の利用を推奨する.
+
     Args:
         root: データのルートディレクトリ
         transform: データ変換関数 (ConvertImageDtype + Normalize 等, ToTensor不要)
         extensions: 許可する拡張子
     """
+
+    _transform_error_logged: bool = False
 
     def __getitem__(self, index: int) -> Tuple[Tensor, int]:
         """指定されたインデックスのデータを返す."""
@@ -138,34 +150,71 @@ class FastInferenceDataset(PochiImageDataset):
         image = decode_image(str(image_path), mode=ImageReadMode.RGB)
 
         if self.transform:
-            image = self.transform(image)
+            try:
+                image = self.transform(image)
+            except Exception as e:
+                if not FastInferenceDataset._transform_error_logged:
+                    logger.error(
+                        f"FastInferenceDataset で transform 実行に失敗しました: {e}. "
+                        "PIL前提の transform が含まれている可能性があります. "
+                        "PochiImageDataset への切替を検討してください."
+                    )
+                    FastInferenceDataset._transform_error_logged = True
+                raise
 
         return image, label
 
 
 def convert_transform_for_fast_inference(
     transform: Callable[..., Any],
-) -> transforms.Compose:
+) -> Optional[transforms.Compose]:
     """configのval_transformをFastInferenceDataset向けに変換.
 
     ToTensor() を ConvertImageDtype(float32) に置き換える.
     decode_image は直接テンソルを返すため, ToTensor() は不要.
 
+    PIL専用のtransformが含まれている場合はNoneを返し,
+    呼び出し側でPochiImageDatasetへフォールバックさせる.
+
+    Composeでない単体transformの場合は, そのtransformを保持しつつ
+    ConvertImageDtype(float32) を末尾に追加する.
+
     Args:
-        transform: configのval_transform (Compose)
+        transform: configのval_transform (Compose or 単体transform)
 
     Returns:
-        FastInferenceDataset向けのtransform
+        FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    new_transforms = []
+    # PIL専用transform (テンソル入力では動作しない)
+    _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
+
+    new_transforms: List[Any] = []
     if hasattr(transform, "transforms"):
         for t in transform.transforms:
             if isinstance(t, transforms.ToTensor):
                 new_transforms.append(transforms.ConvertImageDtype(torch.float32))
+            elif isinstance(t, _PIL_ONLY_TRANSFORMS):
+                logger.warning(
+                    f"PIL専用transform {type(t).__name__} が含まれています. "
+                    "FastInferenceDatasetは使用できないため, "
+                    "PochiImageDatasetにフォールバックします."
+                )
+                return None
             else:
                 new_transforms.append(t)
     else:
-        new_transforms.append(transforms.ConvertImageDtype(torch.float32))
+        if isinstance(transform, transforms.ToTensor):
+            new_transforms.append(transforms.ConvertImageDtype(torch.float32))
+        elif isinstance(transform, _PIL_ONLY_TRANSFORMS):
+            logger.warning(
+                f"PIL専用transform {type(transform).__name__} が含まれています. "
+                "FastInferenceDatasetは使用できないため, "
+                "PochiImageDatasetにフォールバックします."
+            )
+            return None
+        else:
+            new_transforms.append(transform)
+            new_transforms.append(transforms.ConvertImageDtype(torch.float32))
     return transforms.Compose(new_transforms)
 
 
