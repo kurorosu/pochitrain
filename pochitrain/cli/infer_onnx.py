@@ -267,6 +267,26 @@ def main() -> None:
     logger.debug("ONNXセッションを作成中...")
     inference = OnnxInference(model_path, use_gpu=use_gpu)
 
+    # CUDA EP 不可時のフォールバック: OnnxInference が内部で use_gpu=False に
+    # 切り替えた場合, パイプラインとデータセットを再解決する
+    if use_gpu and not inference.use_gpu:
+        logger.warning("CUDA ExecutionProviderが利用できません.CPUに切り替えます.")
+        use_gpu = False
+        pipeline = _resolve_pipeline(args.pipeline, use_gpu, val_transform)
+        dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
+            pipeline, data_path, val_transform
+        )
+        use_gpu_pipeline = pipeline == "gpu"
+
+        # DataLoaderを再作成
+        data_loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
     # ウォームアップ（最初の1バッチで10回実行）
     logger.debug("ウォームアップ中...")
     warmup_image, _ = dataset[0]
