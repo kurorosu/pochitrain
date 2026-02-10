@@ -6,10 +6,16 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
-from pochitrain.pochi_dataset import PochiImageDataset, create_data_loaders
+from pochitrain.pochi_dataset import (
+    FastInferenceDataset,
+    PochiImageDataset,
+    convert_transform_for_fast_inference,
+    create_data_loaders,
+)
 
 
 class TestPochiImageDataset:
@@ -366,3 +372,197 @@ class TestDataLoaderCreation:
             assert train_loader is not None
             assert val_loader is not None
             assert len(classes) == 2
+
+
+class TestFastInferenceDataset:
+    """FastInferenceDatasetクラスのテスト"""
+
+    def create_test_dataset(self, temp_dir: str, structure: dict) -> Path:
+        """テスト用データセットを作成するヘルパーメソッド"""
+        base_path = Path(temp_dir)
+
+        for class_name, num_images in structure.items():
+            class_dir = base_path / class_name
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for i in range(num_images):
+                img = Image.new("RGB", (32, 32), color=(i * 50 % 255, 100, 150))
+                img_path = class_dir / f"image_{i}.jpg"
+                img.save(img_path)
+
+        return base_path
+
+    def test_returns_tensor(self):
+        """decode_imageによりテンソルが直接返されることを確認"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dataset_path = self.create_test_dataset(
+                temp_dir, {"class1": 2, "class2": 1}
+            )
+
+            transform = transforms.Compose(
+                [
+                    transforms.ConvertImageDtype(torch.float32),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+            dataset = FastInferenceDataset(str(dataset_path), transform=transform)
+
+            image, label = dataset[0]
+
+            assert isinstance(image, torch.Tensor)
+            assert image.dtype == torch.float32
+            assert image.shape[0] == 3  # RGB channels
+            assert isinstance(label, int)
+
+    def test_without_transform(self):
+        """transform無しでuint8テンソルが返されることを確認"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dataset_path = self.create_test_dataset(temp_dir, {"class1": 1})
+
+            dataset = FastInferenceDataset(str(dataset_path))
+
+            image, label = dataset[0]
+
+            assert isinstance(image, torch.Tensor)
+            assert image.dtype == torch.uint8
+            assert image.shape[0] == 3
+
+    def test_inherits_pochi_image_dataset(self):
+        """PochiImageDatasetの機能を継承していることを確認"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dataset_path = self.create_test_dataset(temp_dir, {"cat": 3, "dog": 2})
+
+            dataset = FastInferenceDataset(str(dataset_path))
+
+            assert isinstance(dataset, PochiImageDataset)
+            assert len(dataset) == 5
+            assert dataset.get_classes() == ["cat", "dog"]
+            assert dataset.get_class_counts() == {"cat": 3, "dog": 2}
+
+    def test_output_matches_pochi_image_dataset(self):
+        """PochiImageDatasetとFastInferenceDatasetで同等の出力を確認"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dataset_path = self.create_test_dataset(temp_dir, {"class1": 2})
+
+            pochi_transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+            fast_transform = transforms.Compose(
+                [
+                    transforms.ConvertImageDtype(torch.float32),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
+
+            pochi_ds = PochiImageDataset(str(dataset_path), transform=pochi_transform)
+            fast_ds = FastInferenceDataset(str(dataset_path), transform=fast_transform)
+
+            pochi_img, pochi_label = pochi_ds[0]
+            fast_img, fast_label = fast_ds[0]
+
+            assert pochi_label == fast_label
+            assert pochi_img.shape == fast_img.shape
+            assert torch.allclose(pochi_img, fast_img, atol=1e-5)
+
+
+class TestConvertTransformForFastInference:
+    """convert_transform_for_fast_inference関数のテスト"""
+
+    def test_replaces_to_tensor(self):
+        """ToTensorがConvertImageDtypeに置き換えられることを確認"""
+        original = transforms.Compose(
+            [
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+        result = convert_transform_for_fast_inference(original)
+
+        assert result is not None
+        assert len(result.transforms) == 3
+        assert isinstance(result.transforms[0], transforms.Resize)
+        assert isinstance(result.transforms[1], transforms.ConvertImageDtype)
+        assert isinstance(result.transforms[2], transforms.Normalize)
+
+    def test_preserves_non_to_tensor_transforms(self):
+        """ToTensor以外のtransformが維持されることを確認"""
+        original = transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+        result = convert_transform_for_fast_inference(original)
+
+        assert result is not None
+        assert len(result.transforms) == 4
+        assert isinstance(result.transforms[0], transforms.Resize)
+        assert isinstance(result.transforms[1], transforms.CenterCrop)
+        assert isinstance(result.transforms[2], transforms.ConvertImageDtype)
+        assert isinstance(result.transforms[3], transforms.Normalize)
+
+    def test_returns_none_for_pil_only_transform(self):
+        """PIL専用transformが含まれる場合にNoneを返すことを確認"""
+        original = transforms.Compose(
+            [
+                transforms.ToPILImage(),
+                transforms.Resize(224),
+                transforms.ToTensor(),
+            ]
+        )
+
+        result = convert_transform_for_fast_inference(original)
+
+        assert result is None
+
+    def test_no_compose_preserves_original(self):
+        """Composeでない単体入力の場合に元のtransformが保持されることを確認"""
+        result = convert_transform_for_fast_inference(transforms.Resize(224))
+
+        assert result is not None
+        assert len(result.transforms) == 2
+        assert isinstance(result.transforms[0], transforms.Resize)
+        assert isinstance(result.transforms[1], transforms.ConvertImageDtype)
+
+    def test_no_compose_to_tensor(self):
+        """単体ToTensorがConvertImageDtypeに置き換えられることを確認"""
+        result = convert_transform_for_fast_inference(transforms.ToTensor())
+
+        assert result is not None
+        assert len(result.transforms) == 1
+        assert isinstance(result.transforms[0], transforms.ConvertImageDtype)
+
+    def test_no_compose_pil_only_returns_none(self):
+        """単体PIL専用transformの場合にNoneを返すことを確認"""
+        result = convert_transform_for_fast_inference(transforms.ToPILImage())
+
+        assert result is None
+
+    def test_convert_dtype_is_float32(self):
+        """置き換えられたConvertImageDtypeがfloat32であることを確認"""
+        original = transforms.Compose([transforms.ToTensor()])
+
+        result = convert_transform_for_fast_inference(original)
+
+        assert result is not None
+        convert_dtype = result.transforms[0]
+        assert isinstance(convert_dtype, transforms.ConvertImageDtype)
+        assert convert_dtype.dtype == torch.float32

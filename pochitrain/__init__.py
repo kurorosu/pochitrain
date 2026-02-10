@@ -15,6 +15,7 @@ from .config import PochiConfig
 from .logging import LoggerManager
 from .models.pochi_models import PochiModel, create_model
 from .pochi_dataset import (
+    FastInferenceDataset,
     PochiImageDataset,
     create_data_loaders,
     get_basic_transforms,
@@ -40,6 +41,7 @@ __all__ = [
     "PochiPredictor",
     "PochiConfig",
     "PochiImageDataset",
+    "FastInferenceDataset",
     "PochiModel",
     "create_data_loaders",
     "get_basic_transforms",
