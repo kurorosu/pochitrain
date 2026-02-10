@@ -339,10 +339,10 @@ def main() -> None:
             else:
                 inference.set_input(image.numpy())
 
-            start_event.record(inference.stream)
+            start_event.record()
             inference.execute()  # 純粋推論のみを計測
-            end_event.record(inference.stream)
-            inference.stream.synchronize()
+            end_event.record()
+            torch.cuda.synchronize()
             total_inference_time_ms += start_event.elapsed_time(end_event)
             total_samples += 1
 
