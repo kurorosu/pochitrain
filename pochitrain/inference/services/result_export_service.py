@@ -1,7 +1,9 @@
 """推論結果の出力を担当するサービス層."""
 
+import json
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from pochitrain.logging import LoggerManager
 from pochitrain.utils import (
@@ -94,10 +96,48 @@ class ResultExportService:
                 f"分類レポートの保存に失敗しました, error: {exc}",
             )
 
+        model_info_path = self._write_model_info(
+            output_dir=request.output_dir,
+            model_info=request.model_info,
+            filename=request.model_info_filename,
+        )
+
         return ResultExportResult(
             results_csv_path=results_csv_path,
             summary_path=summary_path,
             confusion_matrix_path=confusion_matrix_path,
             classification_report_path=classification_report_path,
+            model_info_path=model_info_path,
             accuracy=accuracy,
         )
+
+    def _write_model_info(
+        self,
+        output_dir: Path,
+        model_info: Optional[dict[str, Any]],
+        filename: str,
+    ) -> Optional[Path]:
+        """モデル情報をJSONで保存する.
+
+        Args:
+            output_dir: 出力ディレクトリ.
+            model_info: モデル情報辞書.
+            filename: 保存ファイル名.
+
+        Returns:
+            保存ファイルパス. model_infoが未指定、または保存失敗時はNone.
+        """
+        if model_info is None:
+            return None
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        model_info_path = output_dir / filename
+        try:
+            with open(model_info_path, "w", encoding="utf-8") as f:
+                json.dump(model_info, f, ensure_ascii=False, indent=2)
+            return model_info_path
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning(
+                f"モデル情報JSONの保存に失敗しました, error: {exc}",
+            )
+            return None

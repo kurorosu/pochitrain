@@ -27,6 +27,8 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.cli.arg_types import positive_int
+from pochitrain.inference.services.result_export_service import ResultExportService
+from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
@@ -34,8 +36,8 @@ from pochitrain.utils import (
     log_inference_result,
     validate_data_path,
     validate_model_path,
-    write_inference_summary,
 )
+from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
@@ -470,9 +472,6 @@ def infer_command(args: argparse.Namespace) -> None:
 
     # 結果出力
     try:
-        from pochitrain.inference import InferenceResultExporter
-        from pochitrain.utils.directory_manager import InferenceWorkspaceManager
-
         # 混同行列設定を取得（設定ファイルにあれば使用）
         cm_config = (
             dataclasses.asdict(pochi_config.confusion_matrix_config)
@@ -480,23 +479,8 @@ def infer_command(args: argparse.Namespace) -> None:
             else None
         )
 
-        # InferenceResultExporter 経由で結果を出力
-        exporter = InferenceResultExporter(
-            workspace_manager=InferenceWorkspaceManager(output_dir),
-            logger=logger,
-        )
-        # results_csv のみ取得し, summary_csv は廃止
-        results_csv, _ = exporter.export(
-            image_paths=image_paths,
-            predicted_labels=predicted_labels,
-            true_labels=true_labels,
-            confidence_scores=confidence_scores,
-            class_names=class_names,
-            model_info=predictor.get_model_info(),
-            results_filename="pytorch_inference_results.csv",
-            summary_filename=None,  # サマリーCSVは廃止
-            cm_config=cm_config,
-        )
+        workspace_manager = InferenceWorkspaceManager(output_dir)
+        workspace_dir = workspace_manager.create_workspace()
 
         # 精度計算 (ONNX/TRTと同じ方式で統一)
         num_samples = len(predicted_labels)
@@ -516,26 +500,35 @@ def infer_command(args: argparse.Namespace) -> None:
             input_size=input_size,
         )
 
-        # 共通サマリー (TXT) の出力
-        accuracy = (correct / num_samples * 100) if num_samples > 0 else 0
-        write_inference_summary(
-            output_dir=results_csv.parent,  # 作成済みのワークスペースディレクトリを使用
-            model_path=model_path,
-            data_path=data_path,
-            num_samples=num_samples,
-            accuracy=accuracy,
-            avg_time_per_image=metrics["avg_time_per_image"],
-            total_samples=int(metrics["total_samples"]),
-            warmup_samples=int(metrics["warmup_samples"]),
-            avg_total_time_per_image=avg_total_time_per_image,
-            input_size=input_size,
-            filename="pytorch_inference_summary.txt",
+        export_service = ResultExportService(logger)
+        export_service.export(
+            ResultExportRequest(
+                output_dir=workspace_dir,
+                model_path=model_path,
+                data_path=data_path,
+                image_paths=image_paths,
+                predictions=predicted_labels,
+                true_labels=true_labels,
+                confidences=confidence_scores,
+                class_names=class_names,
+                num_samples=num_samples,
+                correct=correct,
+                avg_time_per_image=metrics["avg_time_per_image"],
+                total_samples=int(metrics["total_samples"]),
+                warmup_samples=int(metrics["warmup_samples"]),
+                avg_total_time_per_image=avg_total_time_per_image,
+                input_size=input_size,
+                results_filename="pytorch_inference_results.csv",
+                summary_filename="pytorch_inference_summary.txt",
+                model_info=predictor.get_model_info(),
+                cm_config=cm_config,
+            )
         )
 
         logger.info("推論完了")
 
         # ワークスペース情報
-        workspace_info = exporter.get_workspace_info()
+        workspace_info = workspace_manager.get_workspace_info()
         logger.info(
             f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
         )
