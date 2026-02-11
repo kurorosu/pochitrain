@@ -21,7 +21,9 @@ from pochitrain.inference.pipeline_strategy import (
 )
 from pochitrain.inference.services.execution_service import ExecutionService
 from pochitrain.inference.services.result_export_service import ResultExportService
+from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.inference.types.execution_types import ExecutionRequest
+from pochitrain.inference.types.orchestration_types import InferenceCliRequest
 from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -31,33 +33,14 @@ from pochitrain.pochi_dataset import (
     get_basic_transforms,
 )
 from pochitrain.utils import (
-    get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
-    validate_data_path,
     validate_model_path,
 )
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 PIPELINE_CHOICES = ("auto", "current", "fast", "gpu")
-
-
-def _resolve_pipeline(requested: str) -> str:
-    """--pipeline auto を実際のパイプライン名に解決する.
-
-    TensorRTは常にGPU推論のため, autoはgpuに解決される.
-
-    Args:
-        requested: ユーザー指定のパイプライン名
-
-    Returns:
-        解決後のパイプライン名 ("current", "fast", "gpu")
-    """
-    if requested == "auto":
-        return "gpu"
-    return requested
 
 
 def _create_dataset_and_params(
@@ -128,6 +111,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    orchestration_service = TensorRTInferenceService()
 
     manager = LoggerManager()
     level = LogLevel.DEBUG if args.debug else LogLevel.INFO
@@ -154,25 +138,20 @@ def main() -> None:
     # config自動検出・読み込み
     config = load_config_auto(engine_path)
 
-    # データパスの決定（--data指定 or configのval_data_root）
-    if args.data:
-        data_path = Path(args.data)
-    elif "val_data_root" in config:
-        data_path = Path(config["val_data_root"])
-        logger.debug(f"データパスをconfigから取得: {data_path}")
-    else:
-        logger.error("--data を指定するか、configにval_data_rootを設定してください")
+    cli_request = InferenceCliRequest(
+        model_path=engine_path,
+        data_path=Path(args.data) if args.data else None,
+        output_dir=Path(args.output) if args.output else None,
+        requested_pipeline=args.pipeline,
+    )
+    try:
+        resolved_paths = orchestration_service.resolve_paths(cli_request, config)
+    except ValueError as e:
+        logger.error(str(e))
         sys.exit(1)
-    validate_data_path(data_path)
 
-    # 出力ディレクトリの決定
-    if args.output:
-        output_dir = Path(args.output)
-        output_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        base_dir = get_default_output_base_dir(engine_path)
-        workspace_manager = InferenceWorkspaceManager(str(base_dir))
-        output_dir = workspace_manager.create_workspace()
+    data_path = resolved_paths.data_path
+    output_dir = resolved_paths.output_dir
 
     # transformの決定（configのval_transformを使用、なければエンジンから自動取得）
     if "val_transform" in config:
@@ -187,17 +166,16 @@ def main() -> None:
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
     # パイプライン解決
-    pipeline = _resolve_pipeline(args.pipeline)
-
-    # configからパラメータ取得
-    num_workers = config.get("num_workers", 0)
-    pin_memory = config.get("pin_memory", True)
+    pipeline = orchestration_service.resolve_pipeline(args.pipeline)
+    runtime_options = orchestration_service.resolve_runtime_options(config, pipeline)
+    num_workers = runtime_options.num_workers
+    pin_memory = runtime_options.pin_memory
 
     # データセット作成
     dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
         pipeline, data_path, val_transform
     )
-    use_gpu_pipeline = pipeline == "gpu"
+    use_gpu_pipeline = runtime_options.use_gpu_pipeline
 
     logger.debug(f"エンジン: {engine_path}")
     logger.debug(f"データ: {data_path}")
@@ -208,7 +186,7 @@ def main() -> None:
     # DataLoader作成（TensorRTはbatch_size=1のみ対応）
     data_loader: DataLoader[Any] = DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=runtime_options.batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -236,8 +214,7 @@ def main() -> None:
     try:
         # inference.input_shape から [batch, channel, height, width] を抽出
         shape = inference.input_shape
-        if len(shape) == 4:
-            input_size = (shape[1], shape[2], shape[3])
+        input_size = orchestration_service.resolve_input_size(shape)
     except Exception:
         pass
 

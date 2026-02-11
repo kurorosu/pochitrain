@@ -8,8 +8,13 @@ def test_public_api_exports_expected_symbols():
     expected = {
         "ExecutionService",
         "ResultExportService",
+        "OnnxInferenceService",
+        "TensorRTInferenceService",
         "ExecutionRequest",
         "ExecutionResult",
+        "InferenceCliRequest",
+        "InferenceResolvedPaths",
+        "InferenceRuntimeOptions",
         "ResultExportRequest",
         "ResultExportResult",
     }

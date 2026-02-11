@@ -12,11 +12,11 @@ pytest.importorskip("onnxruntime")
 from pochitrain.cli.infer_onnx import (
     _create_dataset_and_params as onnx_create_dataset_and_params,
 )
-from pochitrain.cli.infer_onnx import _resolve_pipeline as onnx_resolve_pipeline
 from pochitrain.cli.infer_trt import (
     _create_dataset_and_params as trt_create_dataset_and_params,
 )
-from pochitrain.cli.infer_trt import _resolve_pipeline as trt_resolve_pipeline
+from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
+from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.pochi_dataset import (
     FastInferenceDataset,
     GpuInferenceDataset,
@@ -157,9 +157,12 @@ class TestAutoResolutionDifference:
 
     def test_auto_behavior_difference_is_intended(self) -> None:
         """ONNXのautoはuse_gpu依存, TRTのautoは常にgpu."""
-        onnx_auto_cpu = onnx_resolve_pipeline("auto", use_gpu=False, val_transform=None)
-        onnx_auto_gpu = onnx_resolve_pipeline("auto", use_gpu=True, val_transform=None)
-        trt_auto = trt_resolve_pipeline("auto")
+        onnx_service = OnnxInferenceService()
+        trt_service = TensorRTInferenceService()
+
+        onnx_auto_cpu = onnx_service.resolve_pipeline("auto", use_gpu=False)
+        onnx_auto_gpu = onnx_service.resolve_pipeline("auto", use_gpu=True)
+        trt_auto = trt_service.resolve_pipeline("auto")
 
         assert onnx_auto_cpu == "fast"
         assert onnx_auto_gpu == "gpu"
