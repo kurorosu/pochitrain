@@ -262,20 +262,26 @@ uv sync --group dev
 
 ### Jetson環境で依存混在を避ける手順
 
-`numpy` / `scipy` / `matplotlib` の警告が出る場合は, system package と
-venv package が混在している可能性があります. 以下の手順で再作成してください.
+Jetson では `tensorrt` を system package から利用するため,
+`--system-site-packages` 付き venv を使います.
+このとき `numpy` / `scipy` が混在しやすいので, venv 側を優先するために
+再インストールを明示します.
 
 ```bash
-python3 -m venv .venv
+python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -e . --no-deps
-python -c "import numpy, scipy, matplotlib; print(numpy.__version__); print(scipy.__file__); print(matplotlib.__file__)"
+python -m pip install --force-reinstall --no-cache-dir "numpy==1.26.1" "scipy>=1.11.0"
+python -m pip check
+python -c "import numpy, scipy; print(numpy.__file__, numpy.__version__); print(scipy.__file__, scipy.__version__)"
 ```
 
-`scipy.__file__` と `matplotlib.__file__` が `.venv` 配下を指していれば,
-system package の混在は解消されています.
+`numpy.__file__` と `scipy.__file__` が `.venv` 配下を指していれば,
+混在は解消されています.
+`matplotlib` は Jetson では system package (`/usr/lib/...`) を使って問題ありません
+(必要なら `python -c "import matplotlib; print(matplotlib.__file__, matplotlib.__version__)"` で確認).
 
 ## 🔬 ハイパーパラメータ最適化
 

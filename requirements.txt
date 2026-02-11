@@ -7,13 +7,12 @@
 
 # Data processing
 # numpy/scipy は同じ環境・同じインストーラーで揃える
+# matplotlib は Jetson 環境では system パッケージを利用
 numpy==1.26.1
 pandas>=2.0.0
 pillow>=8.0.0
 scikit-learn>=0.24.0
 scipy>=1.11.0
-matplotlib>=3.10.8
-matplotlib-fontja>=1.1.0
 
 # Configuration and logging
 pyyaml>=5.4.0
