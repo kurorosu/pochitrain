@@ -146,8 +146,6 @@ class TestGpuFallbackReresolution:
 
     def test_main_fallback_uses_set_input_not_set_input_gpu(self, tmp_path):
         """フォールバック後にset_input_gpu()が呼ばれないことを確認."""
-        from unittest.mock import MagicMock
-
         from pochitrain.cli.infer_onnx import main
 
         model_path, data_path, output_dir = self._create_test_env(tmp_path)
