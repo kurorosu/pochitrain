@@ -18,17 +18,15 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from pochitrain.inference.pipeline_strategy import (
+    create_dataset_and_params as shared_create_dataset_and_params,
+)
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
 from pochitrain.pochi_dataset import (
-    FastInferenceDataset,
-    GpuInferenceDataset,
     PochiImageDataset,
-    build_gpu_preprocess_transform,
-    convert_transform_for_fast_inference,
     create_scaled_normalize_tensors,
-    extract_normalize_params,
     gpu_normalize,
 )
 from pochitrain.utils import (
@@ -84,64 +82,17 @@ def _create_dataset_and_params(
     data_path: Path,
     val_transform: Any,
 ) -> Tuple[PochiImageDataset, str, Optional[List[float]], Optional[List[float]]]:
-    """パイプラインに応じたデータセットを作成する.
+    """パイプライン別データセット生成を共通処理へ委譲する.
 
     Args:
-        pipeline: パイプライン名 ("current", "fast", "gpu")
-        data_path: データディレクトリパス
-        val_transform: configのval_transform
+        pipeline: パイプライン名.
+        data_path: 推論対象データディレクトリ.
+        val_transform: 検証用 transform.
 
     Returns:
-        (dataset, 実際のパイプライン名, mean, std) のタプル.
-        mean/stdはgpuパイプライン時のみ値を持つ.
+        データセット, 実際に適用されたパイプライン名, mean, std.
     """
-    mean: Optional[List[float]] = None
-    std: Optional[List[float]] = None
-
-    if pipeline == "gpu":
-        # GPU前処理: Normalize/ToTensor/ConvertDtypeを除外したtransformを構築
-        gpu_transform = build_gpu_preprocess_transform(val_transform)
-        if gpu_transform is None:
-            # PIL専用transformが含まれる場合はcurrentにフォールバック
-            logger.info(
-                "PIL専用transformが含まれるため, currentパイプラインにフォールバックします"
-            )
-            dataset: PochiImageDataset = PochiImageDataset(
-                str(data_path), transform=val_transform
-            )
-            return dataset, "current", None, None
-
-        try:
-            mean, std = extract_normalize_params(val_transform)
-        except ValueError:
-            logger.warning(
-                "Normalizeが見つからないため, fastパイプラインにフォールバックします"
-            )
-            fast_transform = convert_transform_for_fast_inference(val_transform)
-            if fast_transform is not None:
-                dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
-                return dataset, "fast", None, None
-            dataset = PochiImageDataset(str(data_path), transform=val_transform)
-            return dataset, "current", None, None
-
-        dataset = GpuInferenceDataset(
-            str(data_path),
-            transform=gpu_transform if gpu_transform.transforms else None,
-        )
-        return dataset, "gpu", mean, std
-
-    if pipeline == "fast":
-        fast_transform = convert_transform_for_fast_inference(val_transform)
-        if fast_transform is not None:
-            dataset = FastInferenceDataset(str(data_path), transform=fast_transform)
-            return dataset, "fast", None, None
-        logger.info("PochiImageDatasetにフォールバックします")
-        dataset = PochiImageDataset(str(data_path), transform=val_transform)
-        return dataset, "current", None, None
-
-    # current
-    dataset = PochiImageDataset(str(data_path), transform=val_transform)
-    return dataset, "current", None, None
+    return shared_create_dataset_and_params(pipeline, data_path, val_transform)
 
 
 def main() -> None:
