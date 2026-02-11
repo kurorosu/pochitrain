@@ -3,7 +3,7 @@ name = "pochitrain"
 version = "1.4.2"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "kurorosu" }
@@ -12,7 +12,8 @@ authors = [
 dependencies = [
     "torch",
     "torchvision",
-    "numpy>=2.4.1",
+    "numpy==1.26.1; python_version < '3.11'",
+    "numpy>=2.4.1; python_version >= '3.11'",
     "pandas>=2.0.0",
     "pillow>=8.0.0",
     "scikit-learn>=0.24.0",

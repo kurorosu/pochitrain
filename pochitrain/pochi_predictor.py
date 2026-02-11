@@ -82,7 +82,15 @@ class PochiPredictor:
 
         try:
             # チェックポイントの読み込み
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            try:
+                checkpoint = torch.load(
+                    self.model_path,
+                    map_location=self.device,
+                    weights_only=True,
+                )
+            except TypeError:
+                # 古いPyTorchとの互換のため, weights_only未対応時のみフォールバック
+                checkpoint = torch.load(self.model_path, map_location=self.device)
 
             # モデルの状態辞書を読み込み
             self.model.load_state_dict(checkpoint["model_state_dict"])

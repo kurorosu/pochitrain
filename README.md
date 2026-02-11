@@ -3,6 +3,7 @@
 [![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
+[![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
 
 A tiny but clever CNN pipeline for images — as friendly as Pochi!
@@ -228,7 +229,7 @@ predictions, confidences = trainer.predict(test_loader)
 
 ## 📋 要件
 
-- Python 3.13+
+- Python 3.10+
 - PyTorch 2.9+ (CUDA 13.0)
 - torchvision 0.21+
 - pandas 2.0+ (勾配トレース可視化用)
@@ -258,6 +259,23 @@ source .venv/bin/activate  # Linux/Mac
 ```bash
 uv sync --group dev
 ```
+
+### Jetson環境で依存混在を避ける手順
+
+`numpy` / `scipy` / `matplotlib` の警告が出る場合は, system package と
+venv package が混在している可能性があります. 以下の手順で再作成してください.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -e . --no-deps
+python -c "import numpy, scipy, matplotlib; print(numpy.__version__); print(scipy.__file__); print(matplotlib.__file__)"
+```
+
+`scipy.__file__` と `matplotlib.__file__` が `.venv` 配下を指していれば,
+system package の混在は解消されています.
 
 ## 🔬 ハイパーパラメータ最適化
 

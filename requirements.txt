@@ -1,15 +1,17 @@
-# torch, torchvision, numpy は環境に合わせて手動インストール
+# torch, torchvision は環境に合わせて手動インストール
 # 例 (Jetson / JetPack):
 #   pip install torch torchvision (NVIDIA提供のホイールを使用)
-#   pip install numpy
 # torch
 # torchvision
-# numpy
+# numpy/scipy はこの requirements.txt で管理
 
 # Data processing
+# numpy/scipy は同じ環境・同じインストーラーで揃える
+numpy==1.26.1
 pandas>=2.0.0
 pillow>=8.0.0
 scikit-learn>=0.24.0
+scipy>=1.11.0
 matplotlib>=3.10.8
 matplotlib-fontja>=1.1.0
 
