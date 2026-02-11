@@ -20,7 +20,9 @@ from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
 from pochitrain.inference.services.execution_service import ExecutionService
+from pochitrain.inference.services.result_export_service import ResultExportService
 from pochitrain.inference.types.execution_types import ExecutionRequest
+from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.pochi_dataset import (
@@ -32,12 +34,8 @@ from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
-    save_classification_report,
-    save_confusion_matrix_image,
     validate_data_path,
     validate_model_path,
-    write_inference_csv,
-    write_inference_summary,
 )
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
@@ -290,59 +288,32 @@ def main() -> None:
     # 結果ファイル出力
     class_names = dataset.get_classes()
     image_paths = dataset.get_file_paths()
-
-    write_inference_csv(
-        output_dir=output_dir,
-        image_paths=image_paths,
-        predictions=all_predictions,
-        true_labels=all_true_labels,
-        confidences=all_confidences,
-        class_names=class_names,
-        filename="tensorrt_inference_results.csv",
+    export_service = ResultExportService(logger)
+    export_service.export(
+        ResultExportRequest(
+            output_dir=output_dir,
+            model_path=engine_path,
+            data_path=data_path,
+            image_paths=image_paths,
+            predictions=all_predictions,
+            true_labels=all_true_labels,
+            confidences=all_confidences,
+            class_names=class_names,
+            num_samples=num_samples,
+            correct=correct,
+            avg_time_per_image=avg_time_per_image,
+            total_samples=total_samples,
+            warmup_samples=warmup_samples,
+            avg_total_time_per_image=avg_total_time_per_image,
+            input_size=input_size,
+            results_filename="tensorrt_inference_results.csv",
+            summary_filename="tensorrt_inference_summary.txt",
+            extra_info={"パイプライン": pipeline},
+            cm_config=config.get("confusion_matrix_config", None),
+        )
     )
 
-    accuracy = (correct / num_samples) * 100 if num_samples > 0 else 0.0
-
-    write_inference_summary(
-        output_dir=output_dir,
-        model_path=engine_path,
-        data_path=data_path,
-        num_samples=num_samples,
-        accuracy=accuracy,
-        avg_time_per_image=avg_time_per_image,
-        total_samples=total_samples,
-        warmup_samples=warmup_samples,
-        avg_total_time_per_image=avg_total_time_per_image,
-        input_size=input_size,
-        filename="tensorrt_inference_summary.txt",
-        extra_info={"パイプライン": pipeline},
-    )
-
-    logger.info(f"ワークスペース: {output_dir.name}へサマリーファイルを出力しました")
-
-    # 混同行列画像を生成
-    cm_config = config.get("confusion_matrix_config", None)
-    try:
-        save_confusion_matrix_image(
-            predicted_labels=all_predictions,
-            true_labels=all_true_labels,
-            class_names=class_names,
-            output_dir=output_dir,
-            cm_config=cm_config,
-        )
-    except Exception as e:
-        logger.warning(f"混同行列画像生成に失敗しました: {e}")
-
-    # クラス別精度レポートを生成
-    try:
-        save_classification_report(
-            predicted_labels=all_predictions,
-            true_labels=all_true_labels,
-            class_names=class_names,
-            output_dir=output_dir,
-        )
-    except Exception as e:
-        logger.warning(f"クラス別精度レポート生成に失敗しました: {e}")
+    logger.info(f"ワークスペース: {output_dir.name}にサマリーファイルを出力しました")
 
 
 if __name__ == "__main__":
