@@ -2,8 +2,10 @@
 DataValidatorのテスト.
 """
 
+import logging
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -14,6 +16,12 @@ from pochitrain.validation.validators.data_validator import DataValidator
 def validator():
     """DataValidatorのfixture."""
     return DataValidator()
+
+
+@pytest.fixture
+def mock_logger():
+    """テスト用ロガーのfixture."""
+    return Mock(spec=logging.Logger)
 
 
 @pytest.fixture
@@ -35,9 +43,8 @@ def temp_paths():
     }
 
 
-def test_train_data_root_none_validation_fails(validator, temp_paths, mocker):
+def test_train_data_root_none_validation_fails(validator, temp_paths, mock_logger):
     """train_data_root設定がNoneの場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {
         "train_data_root": None,
         "val_data_root": str(temp_paths["valid_val_path"]),
@@ -53,9 +60,8 @@ def test_train_data_root_none_validation_fails(validator, temp_paths, mocker):
     )
 
 
-def test_train_data_root_missing_validation_fails(validator, temp_paths, mocker):
+def test_train_data_root_missing_validation_fails(validator, temp_paths, mock_logger):
     """train_data_root設定が設定辞書にない場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {"val_data_root": str(temp_paths["valid_val_path"])}
 
     result = validator.validate(config, mock_logger)
@@ -68,9 +74,10 @@ def test_train_data_root_missing_validation_fails(validator, temp_paths, mocker)
     )
 
 
-def test_train_data_root_not_exists_validation_fails(validator, temp_paths, mocker):
+def test_train_data_root_not_exists_validation_fails(
+    validator, temp_paths, mock_logger
+):
     """train_data_rootが存在しない場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     nonexistent_path = str(temp_paths["temp_path"] / "nonexistent_train")
     config = {
         "train_data_root": nonexistent_path,
@@ -86,9 +93,8 @@ def test_train_data_root_not_exists_validation_fails(validator, temp_paths, mock
     )
 
 
-def test_val_data_root_none_validation_fails(validator, temp_paths, mocker):
+def test_val_data_root_none_validation_fails(validator, temp_paths, mock_logger):
     """val_data_root設定がNoneの場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {
         "train_data_root": str(temp_paths["valid_train_path"]),
         "val_data_root": None,
@@ -104,9 +110,8 @@ def test_val_data_root_none_validation_fails(validator, temp_paths, mocker):
     )
 
 
-def test_val_data_root_not_exists_validation_fails(validator, temp_paths, mocker):
+def test_val_data_root_not_exists_validation_fails(validator, temp_paths, mock_logger):
     """val_data_rootが存在しない場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     nonexistent_path = str(temp_paths["temp_path"] / "nonexistent_val")
     config = {
         "train_data_root": str(temp_paths["valid_train_path"]),
@@ -122,9 +127,8 @@ def test_val_data_root_not_exists_validation_fails(validator, temp_paths, mocker
     )
 
 
-def test_both_data_paths_valid(validator, temp_paths, mocker):
+def test_both_data_paths_valid(validator, temp_paths, mock_logger):
     """両方のデータパス設定が有効な場合はバリデーションが成功することをテスト."""
-    mock_logger = mocker.Mock()
     config = {
         "train_data_root": str(temp_paths["valid_train_path"]),
         "val_data_root": str(temp_paths["valid_val_path"]),
@@ -137,9 +141,8 @@ def test_both_data_paths_valid(validator, temp_paths, mocker):
     mock_logger.error.assert_not_called()
 
 
-def test_empty_string_paths_validation_fails(validator, mocker):
+def test_empty_string_paths_validation_fails(validator, mock_logger):
     """空文字列のパス設定でバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {"train_data_root": "", "val_data_root": ""}
 
     result = validator.validate(config, mock_logger)

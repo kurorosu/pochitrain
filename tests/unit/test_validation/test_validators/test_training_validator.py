@@ -1,5 +1,8 @@
 """TrainingValidatorのテスト."""
 
+import logging
+from unittest.mock import Mock
+
 import pytest
 
 from pochitrain.validation.validators.training_validator import TrainingValidator
@@ -12,12 +15,17 @@ def validator():
     return TrainingValidator()
 
 
+@pytest.fixture
+def mock_logger():
+    """テスト用ロガーのfixture."""
+    return Mock(spec=logging.Logger)
+
+
 class TestEpochsValidation:
     """epochsパラメータのバリデーションテスト."""
 
-    def test_epochs_missing_failure(self, validator, mocker):
+    def test_epochs_missing_failure(self, validator, mock_logger):
         """epochs未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
         config = {"batch_size": 32, "model_name": "resnet18"}
 
         result = validator.validate(config, mock_logger)
@@ -28,9 +36,8 @@ class TestEpochsValidation:
             "configs/pochi_train_config.py で設定してください。"
         )
 
-    def test_epochs_invalid_type_failure(self, validator, mocker):
+    def test_epochs_invalid_type_failure(self, validator, mock_logger):
         """epochsが整数でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
 
         # 文字列の場合
         config = {"epochs": "50", "batch_size": 32, "model_name": "resnet18"}
@@ -58,9 +65,8 @@ class TestEpochsValidation:
             "epochs は int である必要があります。現在の型: bool, 現在の値: True"
         )
 
-    def test_epochs_non_positive_failure(self, validator, mocker):
+    def test_epochs_non_positive_failure(self, validator, mock_logger):
         """epochsが0以下の場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
 
         # 0の場合
         config = {"epochs": 0, "batch_size": 32, "model_name": "resnet18"}
@@ -79,9 +85,8 @@ class TestEpochsValidation:
             "epochs は正の値である必要があります。現在の値: -10"
         )
 
-    def test_epochs_valid_success(self, validator, mocker):
+    def test_epochs_valid_success(self, validator, mock_logger):
         """有効なepochsでバリデーション成功."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
 
         result = validator.validate(config, mock_logger)
@@ -93,9 +98,8 @@ class TestEpochsValidation:
 class TestBatchSizeValidation:
     """batch_sizeパラメータのバリデーションテスト."""
 
-    def test_batch_size_missing_failure(self, validator, mocker):
+    def test_batch_size_missing_failure(self, validator, mock_logger):
         """batch_size未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 50, "model_name": "resnet18"}
 
         result = validator.validate(config, mock_logger)
@@ -106,9 +110,8 @@ class TestBatchSizeValidation:
             "configs/pochi_train_config.py で設定してください。"
         )
 
-    def test_batch_size_invalid_type_failure(self, validator, mocker):
+    def test_batch_size_invalid_type_failure(self, validator, mock_logger):
         """batch_sizeが整数でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
 
         # 文字列の場合
         config = {"epochs": 50, "batch_size": "32", "model_name": "resnet18"}
@@ -136,9 +139,8 @@ class TestBatchSizeValidation:
             "batch_size は int である必要があります。現在の型: bool, 現在の値: True"
         )
 
-    def test_batch_size_non_positive_failure(self, validator, mocker):
+    def test_batch_size_non_positive_failure(self, validator, mock_logger):
         """batch_sizeが0以下の場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
 
         # 0の場合
         config = {"epochs": 50, "batch_size": 0, "model_name": "resnet18"}
@@ -157,9 +159,8 @@ class TestBatchSizeValidation:
             "batch_size は正の値である必要があります。現在の値: -8"
         )
 
-    def test_batch_size_valid_success(self, validator, mocker):
+    def test_batch_size_valid_success(self, validator, mock_logger):
         """有効なbatch_sizeでバリデーション成功."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
 
         result = validator.validate(config, mock_logger)
@@ -171,9 +172,8 @@ class TestBatchSizeValidation:
 class TestModelNameValidation:
     """model_nameパラメータのバリデーションテスト."""
 
-    def test_model_name_missing_failure(self, validator, mocker):
+    def test_model_name_missing_failure(self, validator, mock_logger):
         """model_name未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 50, "batch_size": 32}
 
         result = validator.validate(config, mock_logger)
@@ -184,9 +184,8 @@ class TestModelNameValidation:
             "configs/pochi_train_config.py で設定してください。"
         )
 
-    def test_model_name_invalid_type_failure(self, validator, mocker):
+    def test_model_name_invalid_type_failure(self, validator, mock_logger):
         """model_nameが文字列でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
 
         # 整数の場合
         config = {"epochs": 50, "batch_size": 32, "model_name": 18}
@@ -205,9 +204,8 @@ class TestModelNameValidation:
             "model_name は str である必要があります。現在の型: bool, 現在の値: True"
         )
 
-    def test_model_name_unsupported_failure(self, validator, mocker):
+    def test_model_name_unsupported_failure(self, validator, mock_logger):
         """サポートされていないmodel_nameでバリデーション失敗."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 50, "batch_size": 32, "model_name": "vgg16"}
 
         result = validator.validate(config, mock_logger)
@@ -218,9 +216,8 @@ class TestModelNameValidation:
             "サポート対象: ['resnet18', 'resnet34', 'resnet50']"
         )
 
-    def test_model_name_valid_success(self, validator, mocker):
+    def test_model_name_valid_success(self, validator, mock_logger):
         """有効なmodel_nameでバリデーション成功."""
-        mock_logger = mocker.Mock()
 
         # resnet18
         config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
@@ -246,9 +243,8 @@ class TestModelNameValidation:
 class TestTrainingValidatorIntegration:
     """TrainingValidator統合テスト."""
 
-    def test_all_valid_parameters_success(self, validator, mocker):
+    def test_all_valid_parameters_success(self, validator, mock_logger):
         """すべてのパラメータが有効な場合バリデーション成功."""
-        mock_logger = mocker.Mock()
         config = {"epochs": 100, "batch_size": 64, "model_name": "resnet50"}
 
         result = validator.validate(config, mock_logger)
@@ -258,9 +254,8 @@ class TestTrainingValidatorIntegration:
         assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 64")
         assert_info_or_debug_called_with(mock_logger, "モデル名: resnet50")
 
-    def test_multiple_invalid_parameters_failure(self, validator, mocker):
+    def test_multiple_invalid_parameters_failure(self, validator, mock_logger):
         """複数のパラメータが無効な場合、最初のエラーでバリデーション失敗."""
-        mock_logger = mocker.Mock()
         config = {
             "epochs": "invalid",  # 最初のエラー
             "batch_size": -1,  # このエラーには到達しない
@@ -275,9 +270,8 @@ class TestTrainingValidatorIntegration:
             "epochs は int である必要があります。現在の型: str, 現在の値: invalid"
         )
 
-    def test_boundary_values_success(self, validator, mocker):
+    def test_boundary_values_success(self, validator, mock_logger):
         """境界値でバリデーション成功."""
-        mock_logger = mocker.Mock()
         config = {
             "epochs": 1,  # 最小有効値
             "batch_size": 1,  # 最小有効値
