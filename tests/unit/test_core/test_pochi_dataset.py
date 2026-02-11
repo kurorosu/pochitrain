@@ -15,6 +15,8 @@ from pochitrain.pochi_dataset import (
     PochiImageDataset,
     convert_transform_for_fast_inference,
     create_data_loaders,
+    create_scaled_normalize_tensors,
+    gpu_normalize,
 )
 
 
@@ -566,3 +568,46 @@ class TestConvertTransformForFastInference:
         convert_dtype = result.transforms[0]
         assert isinstance(convert_dtype, transforms.ConvertImageDtype)
         assert convert_dtype.dtype == torch.float32
+
+
+class TestGpuNormalize:
+    """gpu_normalize と事前計算テンソル作成のテスト."""
+
+    def test_create_scaled_normalize_tensors_cpu(self):
+        """255倍済みテンソルが想定形状/値で作成されることを確認."""
+        mean = [0.5, 0.25, 0.125]
+        std = [0.1, 0.2, 0.4]
+
+        mean_255, std_255 = create_scaled_normalize_tensors(mean, std, device="cpu")
+
+        assert mean_255.shape == (1, 3, 1, 1)
+        assert std_255.shape == (1, 3, 1, 1)
+        assert mean_255.dtype == torch.float32
+        assert std_255.dtype == torch.float32
+        assert torch.allclose(
+            mean_255.view(-1), torch.tensor(mean, dtype=torch.float32) * 255.0
+        )
+        assert torch.allclose(
+            std_255.view(-1), torch.tensor(std, dtype=torch.float32) * 255.0
+        )
+
+    def test_gpu_normalize_accepts_precomputed_tensors(self):
+        """事前計算テンソルを使って正規化できることを確認."""
+        images = torch.tensor(
+            [
+                [[0, 255], [128, 64]],
+                [[10, 20], [30, 40]],
+                [[50, 60], [70, 80]],
+            ],
+            dtype=torch.uint8,
+        )
+        mean = [0.5, 0.25, 0.125]
+        std = [0.1, 0.2, 0.4]
+
+        mean_255, std_255 = create_scaled_normalize_tensors(mean, std, device="cpu")
+        normalized = gpu_normalize(images, mean_255, std_255)
+
+        expected = (images.unsqueeze(0).to(torch.float32) - mean_255) / std_255
+        assert normalized.shape == (1, 3, 2, 2)
+        assert normalized.dtype == torch.float32
+        assert torch.allclose(normalized, expected, atol=1e-6)

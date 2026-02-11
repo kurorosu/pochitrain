@@ -270,31 +270,50 @@ def build_gpu_preprocess_transform(
 
 def gpu_normalize(
     images: Tensor,
-    mean: List[float],
-    std: List[float],
+    mean_255: Tensor,
+    std_255: Tensor,
 ) -> Tensor:
-    """CPU uint8テンソルをGPU上でfloat変換+正規化する.
+    """uint8テンソルをfloat変換+正規化する.
 
-    decode_imageが返すuint8テンソルを受け取り,
-    GPUへ転送後にfloat32変換と正規化を一括で行う.
-    mean*255, std*255 でpre-scaledして除算を1回に削減する.
+    decode_image が返す uint8 テンソルを受け取り,
+    float32 変換と正規化を一括で行う.
+    `mean_255`, `std_255` は事前計算済みテンソルを受け取り,
+    ループ内での再生成を回避する.
 
     Args:
         images: uint8テンソル (C,H,W) or (N,C,H,W)
-        mean: 正規化の平均値 (例: [0.485, 0.456, 0.406])
-        std: 正規化の標準偏差 (例: [0.229, 0.224, 0.225])
+        mean_255: 255倍済み平均テンソル (1,3,1,1)
+        std_255: 255倍済み標準偏差テンソル (1,3,1,1)
 
     Returns:
-        正規化済みfloat32 CUDAテンソル (N,C,H,W)
+        正規化済み float32 テンソル (N,C,H,W)
     """
     if images.dim() == 3:
         images = images.unsqueeze(0)
 
-    mean_255 = torch.tensor(mean, device="cuda").view(1, 3, 1, 1) * 255.0
-    std_255 = torch.tensor(std, device="cuda").view(1, 3, 1, 1) * 255.0
+    device = mean_255.device
+    images_float = images.to(device=device, dtype=torch.float32, non_blocking=True)
+    return (images_float - mean_255) / std_255
 
-    gpu = images.cuda()
-    return (gpu.to(torch.float32) - mean_255) / std_255
+
+def create_scaled_normalize_tensors(
+    mean: List[float],
+    std: List[float],
+    device: Union[str, torch.device] = "cuda",
+) -> Tuple[Tensor, Tensor]:
+    """正規化用の 255 倍済みテンソルを作成する.
+
+    Args:
+        mean: 正規化の平均値 (例: [0.485, 0.456, 0.406])
+        std: 正規化の標準偏差 (例: [0.229, 0.224, 0.225])
+        device: テンソル配置先デバイス
+
+    Returns:
+        (mean_255, std_255) のタプル. 形状はどちらも (1,3,1,1)
+    """
+    mean_255 = torch.tensor(mean, device=device, dtype=torch.float32).view(1, 3, 1, 1)
+    std_255 = torch.tensor(std, device=device, dtype=torch.float32).view(1, 3, 1, 1)
+    return mean_255 * 255.0, std_255 * 255.0
 
 
 def convert_transform_for_fast_inference(
