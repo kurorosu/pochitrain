@@ -1,12 +1,10 @@
 """infer_onnx CLIのテスト.
 
-ONNX推論CLIの引数パース・データパス決定ロジック・パイプライン解決をテスト.
+ONNX推論CLIの引数パース・パイプライン解決をテスト.
 実際のONNX推論はtest_onnx/test_inference.pyでテスト済み.
 """
 
 import argparse
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -69,56 +67,6 @@ class TestInferOnnxArgumentParsing:
         parser = self._build_parser()
         args = parser.parse_args(["model.onnx"])
         assert args.output is None
-
-
-class TestInferOnnxDataPathDecision:
-    """データパス決定ロジックのテスト.
-
-    CLIの実際のロジックを再現してテストする.
-    """
-
-    def test_data_from_args(self, tmp_path):
-        """--dataが指定された場合はそちらを使用."""
-        args_data = str(tmp_path / "custom_val")
-        config = {"val_data_root": str(tmp_path / "config_val")}
-
-        # --data指定時はargsのパスを使う
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path == tmp_path / "custom_val"
-
-    def test_data_from_config(self, tmp_path):
-        """--data未指定時はconfigのval_data_rootを使用."""
-        args_data = None
-        config = {"val_data_root": str(tmp_path / "config_val")}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path == tmp_path / "config_val"
-
-    def test_no_data_source(self):
-        """--dataもconfigもない場合はNone."""
-        args_data = None
-        config = {}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path is None
 
 
 class TestInferOnnxMainExit:

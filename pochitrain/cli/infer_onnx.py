@@ -10,30 +10,28 @@
 import argparse
 import logging
 import sys
-import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-import numpy as np
-import torch
 from torch.utils.data import DataLoader
 
+from pochitrain.inference.execution_service import ExecutionService
+from pochitrain.inference.execution_types import ExecutionRequest
 from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
+from pochitrain.onnx.adapter import OnnxRuntimeAdapter
 from pochitrain.pochi_dataset import (
     PochiImageDataset,
     create_scaled_normalize_tensors,
-    gpu_normalize,
 )
 from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
-    post_process_logits,
     save_classification_report,
     save_confusion_matrix_image,
     validate_data_path,
@@ -207,12 +205,6 @@ def main() -> None:
         pin_memory=pin_memory,
     )
 
-    mean_255 = None
-    std_255 = None
-    if use_gpu_pipeline:
-        assert norm_mean is not None and norm_std is not None
-        mean_255, std_255 = create_scaled_normalize_tensors(norm_mean, norm_std)
-
     # 使用されたtransformをログ出力
     if dataset.transform is not None:
         logger.debug(f"クラス: {dataset.get_classes()}")
@@ -245,22 +237,11 @@ def main() -> None:
             pin_memory=pin_memory,
         )
 
-    # ウォームアップ（最初の1バッチで10回実行）
-    logger.debug("ウォームアップ中...")
-    warmup_image, _ = dataset[0]
-    assert isinstance(warmup_image, torch.Tensor)
-
+    mean_255 = None
+    std_255 = None
     if use_gpu_pipeline:
-        assert mean_255 is not None and std_255 is not None
-        warmup_gpu = gpu_normalize(warmup_image, mean_255, std_255)
-        for _ in range(10):
-            inference.set_input_gpu(warmup_gpu)
-            inference.run_pure()
-            inference.get_output()
-    else:
-        warmup_np = warmup_image.numpy()[np.newaxis, ...]
-        for _ in range(10):
-            inference.run(warmup_np)
+        assert norm_mean is not None and norm_std is not None
+        mean_255, std_255 = create_scaled_normalize_tensors(norm_mean, norm_std)
 
     # 推論実行（End-to-End計測の開始）
     logger.info("推論を開始します...")
@@ -279,66 +260,29 @@ def main() -> None:
     except Exception:
         pass
 
-    e2e_start_time = time.perf_counter()
-
-    all_predictions: List[int] = []
-    all_confidences: List[float] = []
-    all_true_labels: List[int] = []
-    total_inference_time_ms = 0.0
-    total_samples = 0
-    warmup_samples = 0
-
-    # GPU時間計測用のCUDA Event
-    if use_gpu:
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-
-    for batch_idx, (images, labels) in enumerate(data_loader):
-        # 前処理: パイプラインに応じた入力準備
-        if use_gpu_pipeline:
-            assert mean_255 is not None and std_255 is not None
-            gpu_tensor = gpu_normalize(images, mean_255, std_255)
-
-        if batch_idx == 0:
-            # 最初のバッチは計測対象外（ウォームアップ）
-            if use_gpu_pipeline:
-                inference.set_input_gpu(gpu_tensor)
-            else:
-                inference.set_input(images.numpy())
-            inference.run_pure()
-            logits = inference.get_output()
-            predicted, confidence = post_process_logits(logits)
-            warmup_samples = len(images)
-        else:
-            # 転送（計測外）
-            if use_gpu_pipeline:
-                inference.set_input_gpu(gpu_tensor)
-            else:
-                inference.set_input(images.numpy())
-
-            if use_gpu:
-                start_event.record()
-                inference.run_pure()  # 純粋推論のみを計測
-                end_event.record()
-                torch.cuda.synchronize()
-                inference_time_ms = start_event.elapsed_time(end_event)
-            else:
-                start_time = time.perf_counter()
-                inference.run_pure()  # 純粋推論のみを計測
-                inference_time_ms = (time.perf_counter() - start_time) * 1000
-
-            logits = inference.get_output()  # 取得（計測外）
-            predicted, confidence = post_process_logits(logits)
-
-            total_inference_time_ms += inference_time_ms
-            total_samples += len(images)
-
-        all_predictions.extend(predicted.tolist())
-        all_confidences.extend(confidence.tolist())
-        all_true_labels.extend(labels.tolist())
-
-    # 全処理計測の終了
-    e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
+    execution_request = ExecutionRequest(
+        use_gpu_pipeline=use_gpu_pipeline,
+        mean_255=mean_255,
+        std_255=std_255,
+        warmup_repeats=10,
+        skip_measurement_batches=1,
+        use_cuda_timing=use_gpu,
+    )
+    logger.debug("ウォームアップ中...")
+    execution_service = ExecutionService()
+    runtime_adapter = OnnxRuntimeAdapter(inference)
+    execution_result = execution_service.run(
+        data_loader=data_loader,
+        runtime=runtime_adapter,
+        request=execution_request,
+    )
+    all_predictions = execution_result.predictions
+    all_confidences = execution_result.confidences
+    all_true_labels = execution_result.true_labels
+    total_inference_time_ms = execution_result.total_inference_time_ms
+    total_samples = execution_result.total_samples
+    warmup_samples = execution_result.warmup_samples
+    e2e_total_time_ms = execution_result.e2e_total_time_ms
 
     # 精度計算
     correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
