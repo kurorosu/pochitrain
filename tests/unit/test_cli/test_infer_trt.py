@@ -1,11 +1,10 @@
 """infer_trt CLIのテスト.
 
-TensorRT推論CLIの引数パース・データパス決定ロジックをテスト.
+TensorRT推論CLIの引数パースをテスト.
 TensorRTはオプション依存のためインポートチェックでスキップ.
 """
 
 import argparse
-from pathlib import Path
 
 import pytest
 
@@ -64,86 +63,3 @@ class TestInferTrtArgumentParsing:
         parser = self._build_parser()
         args = parser.parse_args(["model.engine"])
         assert args.output is None
-
-
-class TestInferTrtDataPathDecision:
-    """データパス決定ロジックのテスト."""
-
-    def test_data_from_args(self, tmp_path):
-        """--dataが指定された場合はそちらを使用."""
-        args_data = str(tmp_path / "custom_val")
-        config = {"val_data_root": str(tmp_path / "config_val")}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path == tmp_path / "custom_val"
-
-    def test_data_from_config(self, tmp_path):
-        """--data未指定時はconfigのval_data_rootを使用."""
-        args_data = None
-        config = {"val_data_root": str(tmp_path / "config_val")}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path == tmp_path / "config_val"
-
-    def test_no_data_source(self):
-        """--dataもconfigもない場合はNone."""
-        args_data = None
-        config = {}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path is None
-
-
-class TestInferTrtTransformDecision:
-    """transformの決定ロジックのテスト."""
-
-    def test_transform_from_config(self):
-        """configにval_transformがある場合はそちらを使用."""
-        import torchvision.transforms as transforms
-
-        test_transform = transforms.Compose(
-            [transforms.Resize((224, 224)), transforms.ToTensor()]
-        )
-        config = {"val_transform": test_transform}
-
-        if "val_transform" in config:
-            transform = config["val_transform"]
-            input_size_str = "config指定"
-        else:
-            transform = None
-            input_size_str = "auto"
-
-        assert transform is test_transform
-        assert input_size_str == "config指定"
-
-    def test_transform_fallback_without_config(self):
-        """configにval_transformがない場合のフォールバック."""
-        config = {}
-
-        if "val_transform" in config:
-            transform = config["val_transform"]
-            input_size_str = "config指定"
-        else:
-            transform = None
-            input_size_str = "auto"
-
-        assert transform is None
-        assert input_size_str == "auto"
