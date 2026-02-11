@@ -1,6 +1,6 @@
 """infer_onnx CLIのテスト.
 
-ONNX推論CLIの引数パース・パイプライン解決をテスト.
+ONNX推論CLIの引数パースと入口導線をテスト.
 実際のONNX推論はtest_onnx/test_inference.pyでテスト済み.
 """
 
@@ -11,8 +11,6 @@ import pytest
 
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
-
-from pochitrain.cli.infer_onnx import _resolve_pipeline
 
 
 class TestInferOnnxArgumentParsing:
@@ -88,40 +86,6 @@ class TestInferOnnxMainExit:
         with patch("sys.argv", ["infer-onnx", fake_model]):
             with pytest.raises(SystemExit):
                 main()
-
-
-class TestResolvePipeline:
-    """_resolve_pipeline関数のテスト."""
-
-    def test_auto_with_gpu_returns_gpu(self):
-        """auto + GPU推論 → gpu."""
-        result = _resolve_pipeline("auto", use_gpu=True, val_transform=None)
-        assert result == "gpu"
-
-    def test_auto_without_gpu_returns_fast(self):
-        """auto + CPU推論 → fast."""
-        result = _resolve_pipeline("auto", use_gpu=False, val_transform=None)
-        assert result == "fast"
-
-    def test_current_passthrough(self):
-        """current指定時はそのまま返す."""
-        result = _resolve_pipeline("current", use_gpu=True, val_transform=None)
-        assert result == "current"
-
-    def test_fast_passthrough(self):
-        """fast指定時はそのまま返す."""
-        result = _resolve_pipeline("fast", use_gpu=False, val_transform=None)
-        assert result == "fast"
-
-    def test_gpu_with_gpu_available(self):
-        """gpu指定 + GPU推論 → gpu."""
-        result = _resolve_pipeline("gpu", use_gpu=True, val_transform=None)
-        assert result == "gpu"
-
-    def test_gpu_without_gpu_falls_back_to_fast(self):
-        """gpu指定 + CPU推論 → fastにフォールバック."""
-        result = _resolve_pipeline("gpu", use_gpu=False, val_transform=None)
-        assert result == "fast"
 
 
 class TestGpuFallbackReresolution:

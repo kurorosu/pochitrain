@@ -20,8 +20,10 @@ from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
 from pochitrain.inference.services.execution_service import ExecutionService
+from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.services.result_export_service import ResultExportService
 from pochitrain.inference.types.execution_types import ExecutionRequest
+from pochitrain.inference.types.orchestration_types import InferenceCliRequest
 from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -31,46 +33,14 @@ from pochitrain.pochi_dataset import (
     create_scaled_normalize_tensors,
 )
 from pochitrain.utils import (
-    get_default_output_base_dir,
     load_config_auto,
     log_inference_result,
-    validate_data_path,
     validate_model_path,
 )
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 PIPELINE_CHOICES = ("auto", "current", "fast", "gpu")
-
-
-def _resolve_pipeline(
-    requested: str,
-    use_gpu: bool,
-    val_transform: Any,
-) -> str:
-    """--pipeline auto を実際のパイプライン名に解決する.
-
-    Args:
-        requested: ユーザー指定のパイプライン名
-        use_gpu: GPU推論かどうか
-        val_transform: configのval_transform
-
-    Returns:
-        解決後のパイプライン名 ("current", "fast", "gpu")
-    """
-    if requested != "auto":
-        if requested == "gpu" and not use_gpu:
-            logger.warning(
-                "gpuパイプラインが指定されましたが, CPU推論のため fastにフォールバックします"
-            )
-            return "fast"
-        return requested
-
-    # auto: GPU推論 → gpu, CPU推論 → fast
-    if use_gpu:
-        return "gpu"
-    return "fast"
 
 
 def _create_dataset_and_params(
@@ -137,6 +107,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    orchestration_service = OnnxInferenceService()
 
     manager = LoggerManager()
     level = LogLevel.DEBUG if args.debug else LogLevel.INFO
@@ -150,41 +121,41 @@ def main() -> None:
     # config自動検出・読み込み
     config = load_config_auto(model_path)
 
-    # データパスの決定（--data指定 or configのval_data_root）
-    if args.data:
-        data_path = Path(args.data)
-    elif "val_data_root" in config:
-        data_path = Path(config["val_data_root"])
-        logger.debug(f"データパスをconfigから取得: {data_path}")
-    else:
-        logger.error("--data を指定するか、configにval_data_rootを設定してください")
+    cli_request = InferenceCliRequest(
+        model_path=model_path,
+        data_path=Path(args.data) if args.data else None,
+        output_dir=Path(args.output) if args.output else None,
+        requested_pipeline=args.pipeline,
+    )
+    try:
+        resolved_paths = orchestration_service.resolve_paths(cli_request, config)
+    except ValueError as e:
+        logger.error(str(e))
         sys.exit(1)
-    validate_data_path(data_path)
 
-    # 出力ディレクトリの決定
-    if args.output:
-        output_dir = Path(args.output)
-        output_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        base_dir = get_default_output_base_dir(model_path)
-        workspace_manager = InferenceWorkspaceManager(str(base_dir))
-        output_dir = workspace_manager.create_workspace()
+    data_path = resolved_paths.data_path
+    output_dir = resolved_paths.output_dir
 
     # configからパラメータ取得
-    batch_size = config.get("batch_size", 1)
-    num_workers = config.get("num_workers", 0)
-    pin_memory = config.get("pin_memory", True)
     use_gpu = config.get("device", "cpu") == "cuda"
     val_transform = config["val_transform"]
 
     # パイプライン解決
-    pipeline = _resolve_pipeline(args.pipeline, use_gpu, val_transform)
+    pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu)
+    runtime_options = orchestration_service.resolve_runtime_options(
+        config=config,
+        pipeline=pipeline,
+        use_gpu=use_gpu,
+    )
+    batch_size = runtime_options.batch_size
+    num_workers = runtime_options.num_workers
+    pin_memory = runtime_options.pin_memory
 
     # データセット作成
     dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
         pipeline, data_path, val_transform
     )
-    use_gpu_pipeline = pipeline == "gpu"
+    use_gpu_pipeline = runtime_options.use_gpu_pipeline
 
     logger.debug(f"モデル: {model_path}")
     logger.debug(f"データ: {data_path}")
@@ -220,19 +191,24 @@ def main() -> None:
     if use_gpu and not inference.use_gpu:
         logger.warning("CUDA ExecutionProviderが利用できません.CPUに切り替えます.")
         use_gpu = False
-        pipeline = _resolve_pipeline(args.pipeline, use_gpu, val_transform)
+        pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu)
+        runtime_options = orchestration_service.resolve_runtime_options(
+            config=config,
+            pipeline=pipeline,
+            use_gpu=use_gpu,
+        )
         dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
             pipeline, data_path, val_transform
         )
-        use_gpu_pipeline = pipeline == "gpu"
+        use_gpu_pipeline = runtime_options.use_gpu_pipeline
 
         # DataLoaderを再作成
         data_loader = DataLoader(
             dataset,
-            batch_size=batch_size,
+            batch_size=runtime_options.batch_size,
             shuffle=False,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
+            num_workers=runtime_options.num_workers,
+            pin_memory=runtime_options.pin_memory,
         )
 
     mean_255 = None
@@ -249,12 +225,7 @@ def main() -> None:
     try:
         # get_inputs()[0].shape から [batch, channel, height, width] を抽出
         shape = inference.session.get_inputs()[0].shape
-        if len(shape) == 4:
-            c = shape[1] if isinstance(shape[1], int) else 3
-            h = shape[2] if isinstance(shape[2], int) else None
-            w = shape[3] if isinstance(shape[3], int) else None
-            if h and w:
-                input_size = (c, h, w)
+        input_size = orchestration_service.resolve_input_size(shape)
     except Exception:
         pass
 
