@@ -1,5 +1,6 @@
 """ResultExportService のテスト."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -27,6 +28,7 @@ def _build_request(tmp_path: Path) -> ResultExportRequest:
         avg_time_per_image=1.5,
         total_samples=2,
         warmup_samples=1,
+        model_info={"model_name": "resnet18", "num_classes": 2},
         avg_total_time_per_image=2.0,
         input_size=(3, 224, 224),
         results_filename="results.csv",
@@ -44,6 +46,7 @@ def test_export_writes_all_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     summary_path = request.output_dir / request.summary_filename
     cm_path = request.output_dir / request.confusion_matrix_filename
     report_path = request.output_dir / request.classification_report_filename
+    model_info_path = request.output_dir / request.model_info_filename
 
     mock_csv = MagicMock(return_value=results_path)
     mock_summary = MagicMock(return_value=summary_path)
@@ -74,7 +77,12 @@ def test_export_writes_all_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert result.summary_path == summary_path
     assert result.confusion_matrix_path == cm_path
     assert result.classification_report_path == report_path
+    assert result.model_info_path == model_info_path
     assert result.accuracy == pytest.approx(50.0)
+    assert model_info_path.exists()
+    with open(model_info_path, "r", encoding="utf-8") as f:
+        model_info = json.load(f)
+    assert model_info["model_name"] == "resnet18"
 
     mock_csv.assert_called_once()
     mock_summary.assert_called_once()
@@ -118,5 +126,6 @@ def test_export_continues_when_optional_exports_fail(
     assert result.summary_path == summary_path
     assert result.confusion_matrix_path is None
     assert result.classification_report_path is None
+    assert result.model_info_path == request.output_dir / request.model_info_filename
     assert result.accuracy == pytest.approx(50.0)
     assert mock_logger.warning.call_count == 2

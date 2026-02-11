@@ -22,12 +22,14 @@ class ResultExportRequest:
     avg_time_per_image: float
     total_samples: int
     warmup_samples: int
+    model_info: Optional[Dict[str, Any]] = None
     avg_total_time_per_image: Optional[float] = None
     input_size: Optional[Tuple[int, int, int]] = None
     results_filename: str = "inference_results.csv"
     summary_filename: str = "inference_summary.txt"
     confusion_matrix_filename: str = "confusion_matrix.png"
     classification_report_filename: str = "classification_report.csv"
+    model_info_filename: str = "model_info.json"
     extra_info: Optional[Dict[str, Any]] = None
     cm_config: Optional[Dict[str, Any]] = None
 
@@ -40,4 +42,5 @@ class ResultExportResult:
     summary_path: Path
     confusion_matrix_path: Optional[Path]
     classification_report_path: Optional[Path]
+    model_info_path: Optional[Path]
     accuracy: float
