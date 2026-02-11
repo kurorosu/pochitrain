@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import pochitrain.utils.inference_utils as inference_utils
 from pochitrain.utils.inference_utils import (
     auto_detect_config_path,
     compute_confusion_matrix,
@@ -474,6 +475,35 @@ class TestSaveConfusionMatrixImage:
             output_dir=tmp_path,
         )
         assert isinstance(result, Path)
+
+    def test_works_without_matplotlib_fontja(self, tmp_path, monkeypatch):
+        """matplotlib_fontja 未導入でも画像保存できる."""
+        original_import_module = inference_utils.importlib.import_module
+
+        def fake_import_module(name):
+            if name == "matplotlib_fontja":
+                raise ModuleNotFoundError("No module named 'matplotlib_fontja'")
+            return original_import_module(name)
+
+        monkeypatch.setattr(
+            inference_utils.importlib,
+            "import_module",
+            fake_import_module,
+        )
+        monkeypatch.setattr(
+            inference_utils,
+            "_MATPLOTLIB_FONTJA_WARNING_EMITTED",
+            False,
+        )
+
+        output_path = save_confusion_matrix_image(
+            predicted_labels=[0, 1, 0],
+            true_labels=[0, 1, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+        )
+
+        assert output_path.exists()
 
 
 class TestSaveClassificationReport:

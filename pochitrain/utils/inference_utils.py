@@ -4,6 +4,7 @@ PyTorch, ONNX, TensorRT推論CLIで共通して使用する処理を提供.
 """
 
 import csv
+import importlib
 import logging
 import sys
 from pathlib import Path
@@ -15,6 +16,27 @@ from sklearn.metrics import precision_recall_fscore_support
 from pochitrain.logging import LoggerManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
+_MATPLOTLIB_FONTJA_WARNING_EMITTED = False
+
+
+def _import_matplotlib_fontja_if_available() -> None:
+    """matplotlib_fontja を利用可能な場合のみ読み込む.
+
+    Note:
+        Jetson 等の環境では matplotlib_fontja が未導入でも推論結果出力を継続する.
+        未導入時は既定フォントで描画する.
+    """
+    global _MATPLOTLIB_FONTJA_WARNING_EMITTED
+
+    try:
+        importlib.import_module("matplotlib_fontja")
+    except ImportError:
+        if not _MATPLOTLIB_FONTJA_WARNING_EMITTED:
+            logger.warning(
+                "matplotlib_fontja が見つからないため, "
+                "既定フォントで混同行列を描画します."
+            )
+            _MATPLOTLIB_FONTJA_WARNING_EMITTED = True
 
 
 def post_process_logits(
@@ -91,10 +113,11 @@ def save_confusion_matrix_image(
         保存されたファイルのパス
     """
     import matplotlib
-    import matplotlib.pyplot as plt
-    import matplotlib_fontja  # noqa: F401
 
     matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    _import_matplotlib_fontja_if_available()
 
     # デフォルト設定
     default_config: Dict[str, Any] = {
