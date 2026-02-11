@@ -15,15 +15,15 @@ from typing import Any, List, Optional, Tuple
 
 from torch.utils.data import DataLoader
 
-from pochitrain.inference.execution_service import ExecutionService
-from pochitrain.inference.execution_types import ExecutionRequest
+from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
 from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
+from pochitrain.inference.services.execution_service import ExecutionService
+from pochitrain.inference.types.execution_types import ExecutionRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.onnx import OnnxInference
-from pochitrain.onnx.adapter import OnnxRuntimeAdapter
 from pochitrain.pochi_dataset import (
     PochiImageDataset,
     create_scaled_normalize_tensors,

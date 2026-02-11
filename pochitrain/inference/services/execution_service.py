@@ -6,8 +6,8 @@ from typing import Any, List
 import torch
 from torch.utils.data import DataLoader
 
-from pochitrain.inference.execution_types import ExecutionRequest, ExecutionResult
-from pochitrain.inference.interfaces import IRuntimeAdapter
+from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
+from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.utils import post_process_logits
 
 

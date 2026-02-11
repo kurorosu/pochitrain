@@ -15,11 +15,12 @@ from typing import Any, List, Optional, Tuple
 
 from torch.utils.data import DataLoader
 
-from pochitrain.inference.execution_service import ExecutionService
-from pochitrain.inference.execution_types import ExecutionRequest
+from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
 from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
+from pochitrain.inference.services.execution_service import ExecutionService
+from pochitrain.inference.types.execution_types import ExecutionRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.pochi_dataset import (
@@ -27,7 +28,6 @@ from pochitrain.pochi_dataset import (
     create_scaled_normalize_tensors,
     get_basic_transforms,
 )
-from pochitrain.tensorrt.adapter import TensorRTRuntimeAdapter
 from pochitrain.utils import (
     get_default_output_base_dir,
     load_config_auto,

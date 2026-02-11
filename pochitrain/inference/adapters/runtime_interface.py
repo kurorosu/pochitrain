@@ -5,7 +5,7 @@ from typing import Protocol
 import numpy as np
 from torch import Tensor
 
-from pochitrain.inference.execution_types import ExecutionRequest
+from pochitrain.inference.types.execution_types import ExecutionRequest
 
 
 class IRuntimeAdapter(Protocol):

@@ -7,8 +7,8 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from pochitrain.inference.execution_service import ExecutionService
-from pochitrain.inference.execution_types import ExecutionRequest
+from pochitrain.inference.services.execution_service import ExecutionService
+from pochitrain.inference.types.execution_types import ExecutionRequest
 
 
 class _DummyRuntimeAdapter:
@@ -89,7 +89,7 @@ def test_run_aggregates_predictions_and_timing(monkeypatch) -> None:
 
     perf_counter_values = iter([0.0, 1.0, 1.003, 2.0, 2.004, 3.0])
     monkeypatch.setattr(
-        "pochitrain.inference.execution_service.time.perf_counter",
+        "pochitrain.inference.services.execution_service.time.perf_counter",
         lambda: next(perf_counter_values),
     )
 
@@ -127,7 +127,7 @@ def test_run_skips_warmup_when_repeats_is_zero(monkeypatch) -> None:
 
     perf_counter_values = iter([0.0, 1.0, 1.002, 2.0, 2.003, 4.0])
     monkeypatch.setattr(
-        "pochitrain.inference.execution_service.time.perf_counter",
+        "pochitrain.inference.services.execution_service.time.perf_counter",
         lambda: next(perf_counter_values),
     )
 
@@ -170,15 +170,15 @@ def test_run_uses_cuda_event_timing_when_available(monkeypatch) -> None:
 
     perf_counter_values = iter([10.0, 10.8])
     monkeypatch.setattr(
-        "pochitrain.inference.execution_service.time.perf_counter",
+        "pochitrain.inference.services.execution_service.time.perf_counter",
         lambda: next(perf_counter_values),
     )
     monkeypatch.setattr(
-        "pochitrain.inference.execution_service.torch.cuda.Event",
+        "pochitrain.inference.services.execution_service.torch.cuda.Event",
         _FakeCudaEvent,
     )
     monkeypatch.setattr(
-        "pochitrain.inference.execution_service.torch.cuda.synchronize",
+        "pochitrain.inference.services.execution_service.torch.cuda.synchronize",
         lambda: None,
     )
 
