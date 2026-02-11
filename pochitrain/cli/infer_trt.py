@@ -26,6 +26,7 @@ from pochitrain.pochi_dataset import (
     PochiImageDataset,
     build_gpu_preprocess_transform,
     convert_transform_for_fast_inference,
+    create_scaled_normalize_tensors,
     extract_normalize_params,
     get_basic_transforms,
     gpu_normalize,
@@ -266,6 +267,12 @@ def main() -> None:
         pin_memory=pin_memory,
     )
 
+    mean_255 = None
+    std_255 = None
+    if use_gpu_pipeline:
+        assert norm_mean is not None and norm_std is not None
+        mean_255, std_255 = create_scaled_normalize_tensors(norm_mean, norm_std)
+
     # 使用されたtransformをログ出力
     if dataset.transform is not None:
         logger.debug(f"クラス: {dataset.get_classes()}")
@@ -280,8 +287,8 @@ def main() -> None:
     assert isinstance(image, torch.Tensor)
 
     if use_gpu_pipeline:
-        assert norm_mean is not None and norm_std is not None
-        warmup_gpu = gpu_normalize(image, norm_mean, norm_std)
+        assert mean_255 is not None and std_255 is not None
+        warmup_gpu = gpu_normalize(image, mean_255, std_255)
         for _ in range(10):
             inference.set_input_gpu(warmup_gpu)
             inference.execute()
@@ -320,8 +327,8 @@ def main() -> None:
     for i, (image, label) in enumerate(data_loader):
         # 前処理: パイプラインに応じた入力準備
         if use_gpu_pipeline:
-            assert norm_mean is not None and norm_std is not None
-            gpu_tensor = gpu_normalize(image, norm_mean, norm_std)
+            assert mean_255 is not None and std_255 is not None
+            gpu_tensor = gpu_normalize(image, mean_255, std_255)
 
         if i == 0:
             # 最初の1枚は計測対象外（ウォームアップ済みだが念のため）
