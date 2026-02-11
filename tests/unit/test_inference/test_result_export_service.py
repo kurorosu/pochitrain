@@ -38,8 +38,8 @@ def _build_request(tmp_path: Path) -> ResultExportRequest:
     )
 
 
-def test_export_writes_all_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """全成果物を出力し, パスを返すことを確認する."""
+def test_export_writes_all_artifacts(tmp_path: Path):
+    """全成果物を実際に出力し, 返却パスと整合することを確認する."""
     request = _build_request(tmp_path)
 
     results_path = request.output_dir / request.results_filename
@@ -47,28 +47,6 @@ def test_export_writes_all_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     cm_path = request.output_dir / request.confusion_matrix_filename
     report_path = request.output_dir / request.classification_report_filename
     model_info_path = request.output_dir / request.model_info_filename
-
-    mock_csv = MagicMock(return_value=results_path)
-    mock_summary = MagicMock(return_value=summary_path)
-    mock_cm = MagicMock(return_value=cm_path)
-    mock_report = MagicMock(return_value=report_path)
-
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.write_inference_csv",
-        mock_csv,
-    )
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.write_inference_summary",
-        mock_summary,
-    )
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-        mock_cm,
-    )
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.save_classification_report",
-        mock_report,
-    )
 
     service = ResultExportService(logger=MagicMock())
     result = service.export(request)
@@ -79,16 +57,14 @@ def test_export_writes_all_artifacts(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert result.classification_report_path == report_path
     assert result.model_info_path == model_info_path
     assert result.accuracy == pytest.approx(50.0)
+    assert results_path.exists()
+    assert summary_path.exists()
+    assert cm_path.exists()
+    assert report_path.exists()
     assert model_info_path.exists()
     with open(model_info_path, "r", encoding="utf-8") as f:
         model_info = json.load(f)
     assert model_info["model_name"] == "resnet18"
-
-    mock_csv.assert_called_once()
-    mock_summary.assert_called_once()
-    mock_cm.assert_called_once()
-    mock_report.assert_called_once()
-    assert mock_summary.call_args.kwargs["accuracy"] == pytest.approx(50.0)
 
 
 def test_export_continues_when_optional_exports_fail(
@@ -101,14 +77,6 @@ def test_export_continues_when_optional_exports_fail(
     results_path = request.output_dir / request.results_filename
     summary_path = request.output_dir / request.summary_filename
 
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.write_inference_csv",
-        MagicMock(return_value=results_path),
-    )
-    monkeypatch.setattr(
-        "pochitrain.inference.services.result_export_service.write_inference_summary",
-        MagicMock(return_value=summary_path),
-    )
     monkeypatch.setattr(
         "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
         MagicMock(side_effect=RuntimeError("cm failed")),
@@ -128,4 +96,6 @@ def test_export_continues_when_optional_exports_fail(
     assert result.classification_report_path is None
     assert result.model_info_path == request.output_dir / request.model_info_filename
     assert result.accuracy == pytest.approx(50.0)
+    assert results_path.exists()
+    assert summary_path.exists()
     assert mock_logger.warning.call_count == 2

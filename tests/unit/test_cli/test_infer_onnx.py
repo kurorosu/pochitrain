@@ -1,70 +1,14 @@
-"""infer_onnx CLIのテスト.
+"""infer_onnx CLIの入口導線テスト.
 
-ONNX推論CLIの引数パースと入口導線をテスト.
-実際のONNX推論はtest_onnx/test_inference.pyでテスト済み.
+実際のONNX推論ロジックは test_onnx/test_inference.py でテスト済み.
 """
 
-import argparse
 from unittest.mock import patch
 
 import pytest
 
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
-
-
-class TestInferOnnxArgumentParsing:
-    """infer_onnx CLIの引数パースのテスト."""
-
-    def _build_parser(self):
-        """テスト用にinfer_onnxと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser(description="ONNXモデルを使用した推論")
-        parser.add_argument("model_path", help="ONNXモデルファイルパス")
-        parser.add_argument("--data", help="推論データディレクトリ")
-        parser.add_argument("--output", "-o", help="結果出力ディレクトリ")
-        return parser
-
-    def test_model_path_required(self):
-        """model_pathが必須引数であることを確認."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args([])
-
-    def test_model_path_parsed(self):
-        """model_pathが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.model_path == "model.onnx"
-
-    def test_data_option(self):
-        """--dataオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--data", "data/val"])
-        assert args.data == "data/val"
-
-    def test_output_option(self):
-        """--outputオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--output", "results/"])
-        assert args.output == "results/"
-
-    def test_output_short_option(self):
-        """-oオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "-o", "results/"])
-        assert args.output == "results/"
-
-    def test_data_default_none(self):
-        """--data未指定時はNone."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.data is None
-
-    def test_output_default_none(self):
-        """--output未指定時はNone."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.output is None
 
 
 class TestInferOnnxMainExit:
