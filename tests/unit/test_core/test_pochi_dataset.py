@@ -225,6 +225,7 @@ class TestCreateDataLoaders:
                 val_root=val_root,
                 batch_size=2,
                 num_workers=0,  # テスト用に0に設定
+                pin_memory=False,
                 train_transform=train_transform,
                 val_transform=val_transform,
             )
@@ -254,6 +255,7 @@ class TestCreateDataLoaders:
                 val_root=val_root,  # 検証データ必須
                 batch_size=1,
                 num_workers=0,
+                pin_memory=False,
                 train_transform=train_transform,
                 val_transform=val_transform,
             )

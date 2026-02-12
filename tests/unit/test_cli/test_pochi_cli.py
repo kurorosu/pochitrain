@@ -2,7 +2,7 @@
 
 import argparse
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import torchvision.transforms as transforms
@@ -220,25 +220,28 @@ class TestValidateConfig:
 class TestMainArgumentParsing:
     """main関数の引数パースのテスト."""
 
-    def test_main_no_args_prints_help(self, capsys):
+    def test_main_no_args_prints_help(self, monkeypatch: pytest.MonkeyPatch):
         """引数なしでヘルプを表示して終了することを確認."""
-        with patch("sys.argv", ["pochi"]):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
-            assert exc_info.value.code == 1
+        monkeypatch.setattr("sys.argv", ["pochi"])
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 1
 
-    def test_train_parser_default_config(self):
+    def test_main_dispatch_train_command(self, monkeypatch: pytest.MonkeyPatch):
         """trainサブコマンドのデフォルト設定を確認."""
-        parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers(dest="command")
-        train_parser = subparsers.add_parser("train")
-        train_parser.add_argument(
-            "--config",
-            default="configs/pochi_train_config.py",
-        )
+        import pochitrain.cli.pochi as pochi_module
 
-        args = parser.parse_args(["train"])
-        assert args.config == "configs/pochi_train_config.py"
+        called: dict[str, object] = {}
+
+        def _fake_train(args: object) -> None:
+            called["args"] = args
+
+        monkeypatch.setattr("sys.argv", ["pochi", "train"])
+        monkeypatch.setattr(pochi_module, "train_command", _fake_train)
+        main()
+
+        assert "args" in called
+        assert getattr(called["args"], "command") == "train"
 
     def test_infer_parser_positional_model_path(self):
         """inferサブコマンドの位置引数model_pathを確認."""
@@ -289,3 +292,87 @@ class TestMainArgumentParsing:
 
         args = parser.parse_args(["optimize"])
         assert args.output == "work_dirs/optuna_results"
+
+
+class TestMainDispatch:
+    """main のディスパッチ経路を検証するテスト."""
+
+    def test_dispatch_train_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """train サブコマンドで train_command が呼ばれることを検証する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        called: dict[str, object] = {}
+
+        def _fake_train(args: object) -> None:
+            called["args"] = args
+
+        monkeypatch.setattr("sys.argv", ["pochi", "train"])
+        monkeypatch.setattr(pochi_module, "train_command", _fake_train)
+        main()
+
+        assert "args" in called
+        assert getattr(called["args"], "command") == "train"
+
+    def test_dispatch_infer_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """infer サブコマンドで infer_command が呼ばれることを検証する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        called: dict[str, object] = {}
+
+        def _fake_infer(args: object) -> None:
+            called["args"] = args
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "pochi",
+                "infer",
+                "model.pth",
+                "--data",
+                "data/val",
+                "--config-path",
+                "config.py",
+            ],
+        )
+        monkeypatch.setattr(pochi_module, "infer_command", _fake_infer)
+        main()
+
+        assert "args" in called
+        assert getattr(called["args"], "command") == "infer"
+        assert getattr(called["args"], "model_path") == "model.pth"
+        assert getattr(called["args"], "data") == "data/val"
+        assert getattr(called["args"], "config_path") == "config.py"
+
+    def test_dispatch_optimize_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """optimize サブコマンドで optimize_command が呼ばれることを検証する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        called: dict[str, object] = {}
+
+        def _fake_optimize(args: object) -> None:
+            called["args"] = args
+
+        monkeypatch.setattr("sys.argv", ["pochi", "optimize"])
+        monkeypatch.setattr(pochi_module, "optimize_command", _fake_optimize)
+        main()
+
+        assert "args" in called
+        assert getattr(called["args"], "command") == "optimize"
+        assert getattr(called["args"], "output") == "work_dirs/optuna_results"
+
+    def test_dispatch_convert_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """convert サブコマンドで convert_command が呼ばれることを検証する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        called: dict[str, object] = {}
+
+        def _fake_convert(args: object) -> None:
+            called["args"] = args
+
+        monkeypatch.setattr("sys.argv", ["pochi", "convert", "model.onnx"])
+        monkeypatch.setattr(pochi_module, "convert_command", _fake_convert)
+        main()
+
+        assert "args" in called
+        assert getattr(called["args"], "command") == "convert"
+        assert getattr(called["args"], "onnx_path") == "model.onnx"

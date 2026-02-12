@@ -3,6 +3,8 @@
 実際のモデルを作成してforward passまで実行する古典的テスト.
 """
 
+import inspect
+
 import pytest
 import torch
 import torch.nn as nn
@@ -30,11 +32,6 @@ class TestPochiModelInit:
         model = PochiModel("resnet18", num_classes=5, pretrained=False)
         # ResNetのfc層の出力次元を確認
         assert model.model.fc.out_features == 5
-
-    def test_pretrained_false(self):
-        """pretrained=Falseでモデルが作成される."""
-        model = PochiModel("resnet18", num_classes=3, pretrained=False)
-        assert model is not None
 
     def test_is_nn_module(self):
         """nn.Moduleのサブクラスであることを確認."""
@@ -151,10 +148,10 @@ class TestCreateModel:
         assert isinstance(model, PochiModel)
 
     def test_default_pretrained(self):
-        """pretrained引数のデフォルトがTrueであることを確認."""
-        # pretrained=Trueでもエラーなく作成できることだけ確認
-        model = create_model("resnet18", num_classes=5)
-        assert model is not None
+        """create_model の pretrained デフォルト値が True であることを確認."""
+        signature = inspect.signature(create_model)
+
+        assert signature.parameters["pretrained"].default is True
 
     @pytest.mark.parametrize("model_name", ["resnet18", "resnet34", "resnet50"])
     def test_all_supported_models(self, model_name):

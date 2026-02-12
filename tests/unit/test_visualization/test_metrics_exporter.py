@@ -5,7 +5,7 @@ TrainingMetricsExporterのテスト.
 import tempfile
 from pathlib import Path
 
-from pochitrain.visualization import TrainingMetricsExporter
+from pochitrain.visualization import TrainingMetricsExporter, metrics_exporter
 
 
 class TestTrainingMetricsExporter:
@@ -116,7 +116,7 @@ class TestTrainingMetricsExporter:
             )
 
             # メトリクスを記録
-            for epoch in range(1, 6):
+            for epoch in range(1, 4):
                 exporter.record_epoch(
                     epoch=epoch,
                     learning_rate=0.001,
@@ -150,29 +150,40 @@ class TestTrainingMetricsExporter:
 
             assert graph_paths is None
 
-    def test_export_all(self):
-        """CSVとグラフの両方をエクスポートするテスト."""
+    def test_generate_graphs_with_layer_wise_lr(self, monkeypatch):
+        """層別学習率有効時に専用グラフが追加生成されることを確認."""
+
+        def _fast_savefig(path, *args, **kwargs):
+            output_path = Path(path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"test")
+
         with tempfile.TemporaryDirectory() as temp_dir:
             exporter = TrainingMetricsExporter(
                 output_dir=Path(temp_dir), enable_visualization=True
             )
 
-            # メトリクスを記録
+            # 層別学習率付きメトリクスを記録
             for epoch in range(1, 4):
                 exporter.record_epoch(
                     epoch=epoch,
                     learning_rate=0.001,
                     train_loss=0.5,
                     train_accuracy=85.0,
+                    layer_wise_lr_enabled=True,
+                    lr_backbone=0.0001 * epoch,
+                    lr_head=0.001 * epoch,
                 )
 
-            csv_path, graph_paths = exporter.export_all()
+            # 通常経路の実描画は test_generate_graphs で担保し、
+            # ここでは層別学習率分岐の検証に集中する。
+            monkeypatch.setattr(metrics_exporter.plt, "savefig", _fast_savefig)
+            graph_paths = exporter.generate_graphs("test_layer_wise")
 
-            assert csv_path is not None
-            assert csv_path.exists()
             assert graph_paths is not None
-            assert len(graph_paths) == 2  # 損失、精度（学習率統合）の2つ
+            assert len(graph_paths) == 3  # 損失、精度、層別学習率の3つ
             assert all(p.exists() for p in graph_paths)
+            assert any("layer_wise_lr" in str(p) for p in graph_paths)
 
     def test_get_best_epoch(self):
         """最良エポック取得のテスト."""

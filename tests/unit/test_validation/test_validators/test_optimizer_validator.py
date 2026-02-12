@@ -1,5 +1,8 @@
 """OptimizerValidatorのテスト."""
 
+import logging
+from unittest.mock import Mock
+
 import pytest
 
 from pochitrain.validation.validators.optimizer_validator import OptimizerValidator
@@ -12,9 +15,14 @@ def validator():
     return OptimizerValidator()
 
 
-def test_learning_rate_missing_failure(validator, mocker):
+@pytest.fixture
+def mock_logger():
+    """テスト用ロガーのfixture."""
+    return Mock(spec=logging.Logger)
+
+
+def test_learning_rate_missing_failure(validator, mock_logger):
     """learning_rate未設定でバリデーション失敗."""
-    mock_logger = mocker.Mock()
     config = {"optimizer": "Adam"}
 
     result = validator.validate(config, mock_logger)
@@ -26,9 +34,8 @@ def test_learning_rate_missing_failure(validator, mocker):
     )
 
 
-def test_learning_rate_invalid_type_failure(validator, mocker):
+def test_learning_rate_invalid_type_failure(validator, mock_logger):
     """learning_rateが数値でない場合バリデーション失敗."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": "0.001", "optimizer": "Adam"}
 
     result = validator.validate(config, mock_logger)
@@ -40,9 +47,8 @@ def test_learning_rate_invalid_type_failure(validator, mocker):
     )
 
 
-def test_learning_rate_out_of_range_failure(validator, mocker):
+def test_learning_rate_out_of_range_failure(validator, mock_logger):
     """learning_rateが範囲外の場合バリデーション失敗."""
-    mock_logger = mocker.Mock()
 
     # 0以下のケース
     config = {"learning_rate": 0, "optimizer": "Adam"}
@@ -55,9 +61,8 @@ def test_learning_rate_out_of_range_failure(validator, mocker):
     assert result is False
 
 
-def test_optimizer_missing_failure(validator, mocker):
+def test_optimizer_missing_failure(validator, mock_logger):
     """optimizer未設定でバリデーション失敗."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": 0.001}
 
     result = validator.validate(config, mock_logger)
@@ -69,9 +74,8 @@ def test_optimizer_missing_failure(validator, mocker):
     )
 
 
-def test_optimizer_invalid_type_failure(validator, mocker):
+def test_optimizer_invalid_type_failure(validator, mock_logger):
     """optimizerが文字列でない場合バリデーション失敗."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": 0.001, "optimizer": 123}
 
     result = validator.validate(config, mock_logger)
@@ -82,9 +86,8 @@ def test_optimizer_invalid_type_failure(validator, mocker):
     )
 
 
-def test_optimizer_unsupported_failure(validator, mocker):
+def test_optimizer_unsupported_failure(validator, mock_logger):
     """サポートされていないoptimizer名でバリデーション失敗."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": 0.001, "optimizer": "RMSprop"}
 
     result = validator.validate(config, mock_logger)
@@ -96,9 +99,8 @@ def test_optimizer_unsupported_failure(validator, mocker):
     )
 
 
-def test_valid_adam_success(validator, mocker):
+def test_valid_adam_success(validator, mock_logger):
     """有効なAdam設定でバリデーション成功."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": 0.001, "optimizer": "Adam"}
 
     result = validator.validate(config, mock_logger)
@@ -108,9 +110,8 @@ def test_valid_adam_success(validator, mocker):
     assert_info_or_debug_called_with(mock_logger, "最適化器: Adam")
 
 
-def test_valid_sgd_success(validator, mocker):
+def test_valid_sgd_success(validator, mock_logger):
     """有効なSGD設定でバリデーション成功."""
-    mock_logger = mocker.Mock()
     config = {"learning_rate": 0.1, "optimizer": "SGD"}
 
     result = validator.validate(config, mock_logger)
@@ -120,9 +121,8 @@ def test_valid_sgd_success(validator, mocker):
     assert_info_or_debug_called_with(mock_logger, "最適化器: SGD")
 
 
-def test_learning_rate_boundary_values(validator, mocker):
+def test_learning_rate_boundary_values(validator, mock_logger):
     """learning_rateの境界値テスト."""
-    mock_logger = mocker.Mock()
 
     # 最小値（0に近い値）
     config = {"learning_rate": 0.0001, "optimizer": "Adam"}

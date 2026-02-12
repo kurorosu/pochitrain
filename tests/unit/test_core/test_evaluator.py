@@ -7,7 +7,6 @@ PochiPredictor.calculate_accuracy() から移行したテストを含む.
 import logging
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 import torch

@@ -254,7 +254,9 @@ class TestLoadCheckpoint:
         """スケジューラー付きチェックポイントが正しく復元される."""
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5)
         # 数ステップ進める
+        optimizer.step()
         scheduler.step()
+        optimizer.step()
         scheduler.step()
 
         store.save_checkpoint(

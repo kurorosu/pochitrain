@@ -1,13 +1,48 @@
 """ResultExportService のテスト."""
 
 import json
+import logging
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
 from pochitrain.inference.services.result_export_service import ResultExportService
 from pochitrain.inference.types.result_export_types import ResultExportRequest
+
+
+class _ListHandler(logging.Handler):
+    """warning ログを収集するテスト用ハンドラ."""
+
+    def __init__(self) -> None:
+        """ハンドラを初期化する."""
+        super().__init__(level=logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """ログメッセージを記録する.
+
+        Args:
+            record: ログレコード.
+        """
+        self.messages.append(record.getMessage())
+
+
+def _build_test_logger(name: str) -> tuple[logging.Logger, _ListHandler]:
+    """テスト用ロガーと収集ハンドラを返す.
+
+    Args:
+        name: ロガー名.
+
+    Returns:
+        ロガーと warning 収集用ハンドラ.
+    """
+    logger = logging.getLogger(name)
+    logger.handlers.clear()
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    handler = _ListHandler()
+    logger.addHandler(handler)
+    return logger, handler
 
 
 def _build_request(tmp_path: Path) -> ResultExportRequest:
@@ -48,7 +83,8 @@ def test_export_writes_all_artifacts(tmp_path: Path):
     report_path = request.output_dir / request.classification_report_filename
     model_info_path = request.output_dir / request.model_info_filename
 
-    service = ResultExportService(logger=MagicMock())
+    logger, _ = _build_test_logger("test_result_export_service_success")
+    service = ResultExportService(logger=logger)
     result = service.export(request)
 
     assert result.results_csv_path == results_path
@@ -77,17 +113,23 @@ def test_export_continues_when_optional_exports_fail(
     results_path = request.output_dir / request.results_filename
     summary_path = request.output_dir / request.summary_filename
 
+    def _raise_cm_error(**_: object) -> Path:
+        raise RuntimeError("cm failed")
+
+    def _raise_report_error(**_: object) -> Path:
+        raise RuntimeError("report failed")
+
     monkeypatch.setattr(
         "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-        MagicMock(side_effect=RuntimeError("cm failed")),
+        _raise_cm_error,
     )
     monkeypatch.setattr(
         "pochitrain.inference.services.result_export_service.save_classification_report",
-        MagicMock(side_effect=RuntimeError("report failed")),
+        _raise_report_error,
     )
 
-    mock_logger = MagicMock()
-    service = ResultExportService(logger=mock_logger)
+    logger, handler = _build_test_logger("test_result_export_service_failure")
+    service = ResultExportService(logger=logger)
     result = service.export(request)
 
     assert result.results_csv_path == results_path
@@ -98,4 +140,4 @@ def test_export_continues_when_optional_exports_fail(
     assert result.accuracy == pytest.approx(50.0)
     assert results_path.exists()
     assert summary_path.exists()
-    assert mock_logger.warning.call_count == 2
+    assert len(handler.messages) == 2

@@ -2,6 +2,9 @@
 TransformValidatorのテスト.
 """
 
+import logging
+from unittest.mock import Mock
+
 import pytest
 
 from pochitrain.validation.validators.transform_validator import TransformValidator
@@ -13,9 +16,14 @@ def validator():
     return TransformValidator()
 
 
-def test_train_transform_none_validation_fails(validator, mocker):
+@pytest.fixture
+def mock_logger():
+    """テスト用ロガーのfixture."""
+    return Mock(spec=logging.Logger)
+
+
+def test_train_transform_none_validation_fails(validator, mock_logger):
     """train_transform設定がNoneの場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {"train_transform": None, "val_transform": "dummy_transform"}
 
     result = validator.validate(config, mock_logger)
@@ -28,9 +36,8 @@ def test_train_transform_none_validation_fails(validator, mocker):
     )
 
 
-def test_val_transform_none_validation_fails(validator, mocker):
+def test_val_transform_none_validation_fails(validator, mock_logger):
     """val_transform設定がNoneの場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {"train_transform": "dummy_transform", "val_transform": None}
 
     result = validator.validate(config, mock_logger)
@@ -43,9 +50,8 @@ def test_val_transform_none_validation_fails(validator, mocker):
     )
 
 
-def test_both_transforms_none_validation_fails(validator, mocker):
+def test_both_transforms_none_validation_fails(validator, mock_logger):
     """両方のtransform設定がNoneの場合はバリデーションが失敗することをテスト."""
-    mock_logger = mocker.Mock()
     config = {"train_transform": None, "val_transform": None}
 
     result = validator.validate(config, mock_logger)
@@ -58,9 +64,8 @@ def test_both_transforms_none_validation_fails(validator, mocker):
     )
 
 
-def test_transforms_missing_from_config(validator, mocker):
+def test_transforms_missing_from_config(validator, mock_logger):
     """設定辞書にtransformキーがない場合のテスト."""
-    mock_logger = mocker.Mock()
     config = {}  # transformキーなし
 
     result = validator.validate(config, mock_logger)
@@ -73,9 +78,8 @@ def test_transforms_missing_from_config(validator, mocker):
     )
 
 
-def test_both_transforms_valid(validator, mocker):
+def test_both_transforms_valid(validator, mock_logger):
     """両方のtransform設定が有効な場合はバリデーションが成功することをテスト."""
-    mock_logger = mocker.Mock()
     config = {
         "train_transform": "valid_train_transform",
         "val_transform": "valid_val_transform",
