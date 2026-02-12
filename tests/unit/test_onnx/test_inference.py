@@ -1,16 +1,14 @@
-"""OnnxInferenceクラスのテスト."""
+"""OnnxInference クラスのユニットテスト."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 import torch
 import torch.nn as nn
 
-# ONNXはオプション依存のためスキップ
 pytest.importorskip("onnx")
-pytest.importorskip("onnxruntime")
+onnxruntime = pytest.importorskip("onnxruntime")
 
 from pochitrain.onnx.inference import OnnxInference, check_gpu_availability
 
@@ -18,13 +16,26 @@ from pochitrain.onnx.inference import OnnxInference, check_gpu_availability
 class SimpleModel(nn.Module):
     """テスト用のシンプルなモデル."""
 
-    def __init__(self, num_classes: int = 10):
+    def __init__(self, num_classes: int = 10) -> None:
+        """モデルを初期化する.
+
+        Args:
+            num_classes: 出力クラス数.
+        """
         super().__init__()
         self.conv = nn.Conv2d(3, 16, kernel_size=3, padding=1)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(16, num_classes)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """順伝播を行う.
+
+        Args:
+            x: 入力テンソル.
+
+        Returns:
+            ログイット.
+        """
         x = self.conv(x)
         x = torch.relu(x)
         x = self.pool(x)
@@ -34,7 +45,15 @@ class SimpleModel(nn.Module):
 
 
 def create_test_onnx_model(tmp_path: Path, num_classes: int = 10) -> Path:
-    """テスト用ONNXモデルを作成."""
+    """テスト用 ONNX モデルを作成する.
+
+    Args:
+        tmp_path: 一時ディレクトリ.
+        num_classes: 出力クラス数.
+
+    Returns:
+        生成した ONNX ファイルパス.
+    """
     model = SimpleModel(num_classes=num_classes)
     model.eval()
 
@@ -43,47 +62,54 @@ def create_test_onnx_model(tmp_path: Path, num_classes: int = 10) -> Path:
 
     torch.onnx.export(
         model,
-        dummy_input,
+        (dummy_input,),
         str(output_path),
         export_params=True,
         opset_version=17,
         input_names=["input"],
         output_names=["output"],
-        dynamic_axes={
-            "input": {0: "batch_size"},
-            "output": {0: "batch_size"},
-        },
+        dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
     )
 
     return output_path
 
 
 class TestCheckGpuAvailability:
-    """check_gpu_availability関数のテスト."""
+    """check_gpu_availability 関数のテスト."""
 
-    def test_check_gpu_availability_returns_bool(self):
-        """戻り値がboolであることを確認."""
+    def test_check_gpu_availability_returns_bool(self) -> None:
+        """戻り値が bool であることを確認する."""
         result = check_gpu_availability()
         assert isinstance(result, bool)
 
-    def test_check_gpu_availability_with_cuda(self):
-        """CUDAプロバイダーが利用可能な場合のテスト（モック）."""
-        with patch("onnxruntime.get_available_providers") as mock_get:
-            mock_get.return_value = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            assert check_gpu_availability() is True
+    def test_check_gpu_availability_with_cuda(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CUDA プロバイダーがある場合に True を返すことを確認する."""
+        monkeypatch.setattr(
+            onnxruntime,
+            "get_available_providers",
+            lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"],
+        )
+        assert check_gpu_availability() is True
 
-    def test_check_gpu_availability_without_cuda(self):
-        """CUDAプロバイダーが利用不可の場合のテスト（モック）."""
-        with patch("onnxruntime.get_available_providers") as mock_get:
-            mock_get.return_value = ["CPUExecutionProvider"]
-            assert check_gpu_availability() is False
+    def test_check_gpu_availability_without_cuda(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CUDA プロバイダーがない場合に False を返すことを確認する."""
+        monkeypatch.setattr(
+            onnxruntime,
+            "get_available_providers",
+            lambda: ["CPUExecutionProvider"],
+        )
+        assert check_gpu_availability() is False
 
 
 class TestOnnxInferenceInit:
-    """OnnxInference初期化のテスト."""
+    """OnnxInference 初期化のテスト."""
 
-    def test_init_cpu(self, tmp_path):
-        """CPU初期化のテスト."""
+    def test_init_cpu(self, tmp_path: Path) -> None:
+        """CPU 初期化が成功することを確認する."""
         model_path = create_test_onnx_model(tmp_path)
         inference = OnnxInference(model_path, use_gpu=False)
 
@@ -91,27 +117,31 @@ class TestOnnxInferenceInit:
         assert inference.use_gpu is False
         assert inference.session is not None
 
-    def test_init_gpu_not_available(self, tmp_path):
-        """GPU指定時にCUDAが利用不可の場合のテスト."""
+    def test_init_gpu_not_available(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GPU 指定時に CUDA 未対応なら CPU へフォールバックすることを確認する."""
         model_path = create_test_onnx_model(tmp_path)
 
-        with patch(
-            "pochitrain.onnx.inference.check_gpu_availability", return_value=False
-        ):
-            inference = OnnxInference(model_path, use_gpu=True)
-            # GPUが利用不可のためCPUにフォールバック
-            assert inference.use_gpu is False
+        monkeypatch.setattr(
+            "pochitrain.onnx.inference.check_gpu_availability",
+            lambda: False,
+        )
+
+        inference = OnnxInference(model_path, use_gpu=True)
+        assert inference.use_gpu is False
 
 
 class TestOnnxInferenceRun:
-    """OnnxInference.run()のテスト."""
+    """OnnxInference.run のテスト."""
 
-    def test_run_single_image(self, tmp_path):
-        """単一画像での推論テスト."""
+    def test_run_single_image(self, tmp_path: Path) -> None:
+        """単一画像の推論結果形状と値域を確認する."""
         model_path = create_test_onnx_model(tmp_path, num_classes=5)
         inference = OnnxInference(model_path, use_gpu=False)
 
-        # テスト入力
         images = np.random.randn(1, 3, 224, 224).astype(np.float32)
         predicted, confidence = inference.run(images)
 
@@ -120,12 +150,11 @@ class TestOnnxInferenceRun:
         assert 0 <= predicted[0] < 5
         assert 0 <= confidence[0] <= 1
 
-    def test_run_batch_images(self, tmp_path):
-        """バッチ画像での推論テスト."""
+    def test_run_batch_images(self, tmp_path: Path) -> None:
+        """バッチ画像推論の結果形状と値域を確認する."""
         model_path = create_test_onnx_model(tmp_path, num_classes=5)
         inference = OnnxInference(model_path, use_gpu=False)
 
-        # テスト入力（バッチサイズ4）
         images = np.random.randn(4, 3, 224, 224).astype(np.float32)
         predicted, confidence = inference.run(images)
 
@@ -135,23 +164,22 @@ class TestOnnxInferenceRun:
             assert 0 <= predicted[i] < 5
             assert 0 <= confidence[i] <= 1
 
-    def test_run_confidence_sum_to_one(self, tmp_path):
-        """信頼度がsoftmax適用後であることを確認."""
+    def test_run_confidence_range(self, tmp_path: Path) -> None:
+        """最大信頼度が想定範囲に収まることを確認する."""
         model_path = create_test_onnx_model(tmp_path, num_classes=5)
         inference = OnnxInference(model_path, use_gpu=False)
 
         images = np.random.randn(1, 3, 224, 224).astype(np.float32)
-        predicted, confidence = inference.run(images)
+        _, confidence = inference.run(images)
 
-        # 信頼度は最大確率なので0-1の範囲
-        assert 0.2 <= confidence[0] <= 1.0  # 5クラスの場合、最低でも1/5=0.2
+        assert 0.2 <= confidence[0] <= 1.0
 
 
 class TestOnnxInferenceGetProviders:
-    """OnnxInference.get_providers()のテスト."""
+    """OnnxInference.get_providers のテスト."""
 
-    def test_get_providers_returns_list(self, tmp_path):
-        """プロバイダーリストを返すことを確認."""
+    def test_get_providers_returns_list(self, tmp_path: Path) -> None:
+        """利用プロバイダー一覧を取得できることを確認する."""
         model_path = create_test_onnx_model(tmp_path)
         inference = OnnxInference(model_path, use_gpu=False)
 
