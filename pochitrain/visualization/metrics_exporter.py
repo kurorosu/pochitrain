@@ -10,6 +10,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import matplotlib
+
+# 画像ファイル出力のみを行うため、GUIバックエンド依存を避ける.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from pochitrain.exporters import BaseCSVExporter
