@@ -9,6 +9,14 @@ import torch.nn as nn
 
 pytest.importorskip("onnx")
 onnxruntime = pytest.importorskip("onnxruntime")
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:You are using the legacy TorchScript-based ONNX export.*:DeprecationWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:The feature will be removed\\. Please remove usage of this function:DeprecationWarning"
+    ),
+]
 
 from pochitrain.onnx.inference import OnnxInference, check_gpu_availability
 
@@ -64,6 +72,7 @@ def create_test_onnx_model(tmp_path: Path, num_classes: int = 10) -> Path:
         model,
         (dummy_input,),
         str(output_path),
+        dynamo=False,
         export_params=True,
         opset_version=17,
         input_names=["input"],

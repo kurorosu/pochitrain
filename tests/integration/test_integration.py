@@ -75,6 +75,7 @@ device = "cpu"
                 val_root=config["val_data_root"],
                 batch_size=config["batch_size"],
                 num_workers=config["num_workers"],
+                pin_memory=False,
                 train_transform=train_transform,
                 val_transform=val_transform,
             )
@@ -106,6 +107,7 @@ device = "cpu"
                 val_root=val_root,
                 batch_size=1,
                 num_workers=0,
+                pin_memory=False,
                 train_transform=train_transform,
                 val_transform=val_transform,
             )
@@ -141,6 +143,7 @@ device = "cpu"
                     train_root="/nonexistent/train",
                     val_root="/nonexistent/val",
                     batch_size=1,
+                    pin_memory=False,
                     train_transform=train_transform,
                     val_transform=val_transform,
                 )

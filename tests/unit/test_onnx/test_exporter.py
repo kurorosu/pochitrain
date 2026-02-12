@@ -7,6 +7,14 @@ import torch
 import torch.nn as nn
 
 pytest.importorskip("onnx")
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:You are using the legacy TorchScript-based ONNX export.*:DeprecationWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:The feature will be removed\\. Please remove usage of this function:DeprecationWarning"
+    ),
+]
 
 from pochitrain.onnx.exporter import OnnxExporter
 
