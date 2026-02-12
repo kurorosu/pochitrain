@@ -40,7 +40,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: uv run --no-sync pytest -q -n 6 --dist=worksteal
         language: system
         pass_filenames: false
         always_run: true
