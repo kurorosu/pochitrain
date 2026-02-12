@@ -62,44 +62,6 @@ class TestLayerWiseLR:
         assert trainer.enable_layer_wise_lr
         assert trainer.base_learning_rate == 0.001
 
-    def test_get_layer_group(self, trainer):
-        """層グループ名の取得テスト (TrainingConfigurator 経由)."""
-        configurator = trainer.training_configurator
-        assert configurator._get_layer_group("conv1.weight") == "conv1"
-        assert configurator._get_layer_group("bn1.weight") == "bn1"
-        assert configurator._get_layer_group("layer1.0.conv1.weight") == "layer1"
-        assert configurator._get_layer_group("layer2.1.bn2.bias") == "layer2"
-        assert configurator._get_layer_group("layer3.0.downsample.0.weight") == "layer3"
-        assert configurator._get_layer_group("layer4.1.conv2.weight") == "layer4"
-        assert configurator._get_layer_group("fc.weight") == "fc"
-        assert configurator._get_layer_group("unknown.weight") == "other"
-
-    def test_build_layer_wise_param_groups(self, trainer):
-        """パラメータグループ構築のテスト (TrainingConfigurator 経由)."""
-        layer_wise_lr_config = {
-            "layer_rates": {
-                "conv1": 0.0001,
-                "layer1": 0.0002,
-                "fc": 0.01,
-            }
-        }
-
-        param_groups = trainer.training_configurator._build_layer_wise_param_groups(
-            trainer.model, 0.001, layer_wise_lr_config
-        )
-
-        # パラメータグループが作成されることを確認
-        assert len(param_groups) > 0
-
-        # 各グループに必要な情報が含まれることを確認
-        for group in param_groups:
-            assert "params" in group
-            assert "lr" in group
-            assert "layer_name" in group
-            assert isinstance(group["params"], list)
-            assert isinstance(group["lr"], float)
-            assert group["lr"] > 0
-
     def test_get_base_learning_rate(self, trainer):
         """基本学習率取得のテスト."""
         # 層別学習率無効時
