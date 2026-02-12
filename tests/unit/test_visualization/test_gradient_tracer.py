@@ -165,29 +165,18 @@ def test_exclude_patterns(model):
 
 
 def test_aggregation_methods(model):
-    """集約方法のテスト."""
-    methods = ["median", "mean", "max", "rms"]
+    """集約方法ごとに期待値で集約結果を検証."""
+    test_cases = [
+        ("median", [1.0, 2.0, 3.0, 4.0], 2.5),
+        ("mean", [1.0, 2.0, 3.0, 4.0], 2.5),
+        ("max", [1.0, 2.0, 3.0, 4.0], 4.0),
+        ("rms", [3.0, 4.0], (12.5) ** 0.5),
+    ]
 
-    for method in methods:
-        tracer = GradientTracer(
-            group_by_block=False, aggregation_method=method  # グループ化なし
-        )
-
-        # 勾配を生成
-        x = torch.randn(4, 10)
-        y = torch.randint(0, 2, (4,))
-        output = model(x)
-        loss = nn.functional.cross_entropy(output, y)
-        loss.backward()
-
-        # 勾配を記録
-        tracer.record_gradients(model, epoch=1)
-
-        # 検証: 記録が正常に行われている
-        assert len(tracer.epochs) == 1
-        assert len(tracer.layer_names) == 4
-        for layer_name in tracer.layer_names:
-            assert tracer.gradient_history[layer_name][0] >= 0.0
+    for method, values, expected in test_cases:
+        tracer = GradientTracer(group_by_block=False, aggregation_method=method)
+        actual = tracer._aggregate_gradients(values)
+        assert actual == pytest.approx(expected, rel=1e-6)
 
 
 def test_group_by_block():
