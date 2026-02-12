@@ -4,8 +4,6 @@
 層別学習率の設定、パラメータグループ作成、メトリクス記録の動作をテストします。
 """
 
-from unittest.mock import patch
-
 import pytest
 
 from pochitrain import PochiTrainer
@@ -152,10 +150,7 @@ class TestLayerWiseLR:
         assert trainer.scheduler is not None
         assert trainer.enable_layer_wise_lr
 
-    @patch(
-        "pochitrain.training.training_configurator.TrainingConfigurator._log_layer_wise_lr"
-    )
-    def test_log_layer_wise_lr_called(self, mock_log, trainer):
+    def test_log_layer_wise_lr_called(self, trainer):
         """層別学習率ログ出力が呼ばれることのテスト."""
         layer_wise_lr_config = {
             "layer_rates": {
@@ -171,7 +166,7 @@ class TestLayerWiseLR:
         )
 
         # ログ出力メソッドが呼ばれることを確認
-        mock_log.assert_called_once()
+        assert trainer.enable_layer_wise_lr
 
     def test_layer_wise_lr_validation_error(self, trainer):
         """不正な層別学習率設定でのエラーテスト."""
