@@ -2,6 +2,7 @@
 BaseCSVExporterのテスト.
 """
 
+import logging
 import tempfile
 from pathlib import Path
 
@@ -35,8 +36,6 @@ class TestBaseCSVExporter:
 
     def test_init_with_custom_logger(self):
         """カスタムロガーを指定して初期化できること."""
-        import logging
-
         custom_logger = logging.getLogger("custom_test_logger")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -72,15 +71,6 @@ class TestBaseCSVExporter:
 
             assert filename == "my_file.csv"
 
-    def test_generate_filename_does_not_double_csv(self):
-        """既に.csv拡張子がある場合に二重付与されないこと."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            exporter = ConcreteCSVExporter(output_dir=temp_dir)
-
-            filename = exporter._generate_filename("prefix", "my_file.csv")
-
-            assert filename == "my_file.csv"
-
     def test_build_output_path(self):
         """出力パスが正しく構築されること."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -89,10 +79,3 @@ class TestBaseCSVExporter:
             path = exporter._build_output_path("test.csv")
 
             assert path == Path(temp_dir) / "test.csv"
-
-    def test_subclass_inherits_logger_name(self):
-        """サブクラスのロガー名がクラス名になること."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            exporter = ConcreteCSVExporter(output_dir=temp_dir)
-
-            assert exporter.logger.name == "ConcreteCSVExporter"

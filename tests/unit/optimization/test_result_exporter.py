@@ -1,9 +1,11 @@
-"""ResultExporterのユニットテスト."""
+"""ResultExporter のユニットテスト."""
 
 import json
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+
+import optuna
+import pytest
+from torchvision import transforms
 
 from pochitrain.config.pochi_config import PochiConfig
 from pochitrain.optimization.result_exporter import (
@@ -12,94 +14,72 @@ from pochitrain.optimization.result_exporter import (
 )
 
 
+def _create_test_study() -> optuna.Study:
+    """エクスポート検証用の Study を生成する.
+
+    Returns:
+        最適化済みの Optuna Study.
+    """
+
+    def objective(trial: optuna.Trial) -> float:
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        optimizer = trial.suggest_categorical("optimizer", ["SGD", "Adam"])
+        optimizer_bonus = 0.02 if optimizer == "Adam" else 0.0
+        return float(0.9 + optimizer_bonus - abs(learning_rate - 0.001))
+
+    study = optuna.create_study(study_name="test_study", direction="maximize")
+    study.optimize(objective, n_trials=2, show_progress_bar=False)
+    return study
+
+
 class TestJsonResultExporter:
-    """JsonResultExporterのテスト."""
+    """JsonResultExporter のテスト."""
 
-    def test_export_creates_best_params_json(self) -> None:
-        """best_params.jsonが作成されることをテスト."""
+    def test_export_creates_best_params_json(self, tmp_path: Path) -> None:
+        """best_params.json を出力できることを検証する."""
         exporter = JsonResultExporter()
+        study = _create_test_study()
 
-        # モックStudyを作成
-        mock_trial = MagicMock()
-        mock_trial.number = 0
-        mock_trial.value = 0.95
-        mock_trial.params = {"learning_rate": 0.001}
-        mock_trial.state.name = "COMPLETE"
-        mock_trial.datetime_start = None
-        mock_trial.datetime_complete = None
+        exporter.export(
+            best_params=study.best_params,
+            best_value=float(study.best_value),
+            study=study,
+            output_path=str(tmp_path),
+        )
 
-        mock_study = MagicMock()
-        mock_study.study_name = "test_study"
-        mock_study.trials = [mock_trial]
+        best_params_file = tmp_path / "best_params.json"
+        assert best_params_file.exists()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            exporter.export(
-                best_params={"learning_rate": 0.001},
-                best_value=0.95,
-                study=mock_study,
-                output_path=tmpdir,
-            )
+        data = json.loads(best_params_file.read_text(encoding="utf-8"))
+        assert data["study_name"] == "test_study"
+        assert data["best_value"] == pytest.approx(float(study.best_value))
+        assert data["n_trials"] == len(study.trials)
 
-            # best_params.jsonの確認
-            best_params_file = Path(tmpdir) / "best_params.json"
-            assert best_params_file.exists()
-
-            with open(best_params_file) as f:
-                data = json.load(f)
-
-            assert data["study_name"] == "test_study"
-            assert data["best_value"] == 0.95
-            assert data["best_params"]["learning_rate"] == 0.001
-            assert data["n_trials"] == 1
-
-    def test_export_creates_trials_history_json(self) -> None:
-        """trials_history.jsonが作成されることをテスト."""
+    def test_export_creates_trials_history_json(self, tmp_path: Path) -> None:
+        """trials_history.json を出力できることを検証する."""
         exporter = JsonResultExporter()
+        study = _create_test_study()
 
-        mock_trial1 = MagicMock()
-        mock_trial1.number = 0
-        mock_trial1.value = 0.90
-        mock_trial1.params = {"learning_rate": 0.01}
-        mock_trial1.state.name = "COMPLETE"
-        mock_trial1.datetime_start = None
-        mock_trial1.datetime_complete = None
+        exporter.export(
+            best_params=study.best_params,
+            best_value=float(study.best_value),
+            study=study,
+            output_path=str(tmp_path),
+        )
 
-        mock_trial2 = MagicMock()
-        mock_trial2.number = 1
-        mock_trial2.value = 0.95
-        mock_trial2.params = {"learning_rate": 0.001}
-        mock_trial2.state.name = "COMPLETE"
-        mock_trial2.datetime_start = None
-        mock_trial2.datetime_complete = None
+        trials_file = tmp_path / "trials_history.json"
+        assert trials_file.exists()
 
-        mock_study = MagicMock()
-        mock_study.study_name = "test_study"
-        mock_study.trials = [mock_trial1, mock_trial2]
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            exporter.export(
-                best_params={"learning_rate": 0.001},
-                best_value=0.95,
-                study=mock_study,
-                output_path=tmpdir,
-            )
-
-            trials_file = Path(tmpdir) / "trials_history.json"
-            assert trials_file.exists()
-
-            with open(trials_file) as f:
-                data = json.load(f)
-
-            assert len(data) == 2
-            assert data[0]["number"] == 0
-            assert data[1]["number"] == 1
+        data = json.loads(trials_file.read_text(encoding="utf-8"))
+        assert len(data) == len(study.trials)
+        assert {"number", "value", "params", "state"}.issubset(data[0])
 
 
 class TestConfigExporter:
-    """ConfigExporterのテスト."""
+    """ConfigExporter のテスト."""
 
-    def test_export_creates_optimized_config_py(self) -> None:
-        """optimized_config.pyが作成されることをテスト."""
+    def test_export_creates_optimized_config_py(self, tmp_path: Path) -> None:
+        """optimized_config.py を生成できることを検証する."""
         base_config = PochiConfig(
             model_name="resnet18",
             num_classes=10,
@@ -109,33 +89,27 @@ class TestConfigExporter:
             learning_rate=0.001,
             optimizer="Adam",
             train_data_root="data/train",
-            train_transform=MagicMock(),
-            val_transform=MagicMock(),
+            train_transform=transforms.Compose([transforms.ToTensor()]),
+            val_transform=transforms.Compose([transforms.ToTensor()]),
             enable_layer_wise_lr=False,
         )
         exporter = ConfigExporter(base_config)
+        study = _create_test_study()
 
-        mock_study = MagicMock()
-        mock_study.study_name = "test_study"
-        mock_study.trials = []
+        exporter.export(
+            best_params=study.best_params,
+            best_value=float(study.best_value),
+            study=study,
+            output_path=str(tmp_path),
+        )
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            exporter.export(
-                best_params={"learning_rate": 0.001, "optimizer": "Adam"},
-                best_value=0.95,
-                study=mock_study,
-                output_path=tmpdir,
-            )
+        config_file = tmp_path / "optimized_config.py"
+        assert config_file.exists()
 
-            config_file = Path(tmpdir) / "optimized_config.py"
-            assert config_file.exists()
-
-            content = config_file.read_text(encoding="utf-8")
-
-            # 最適化されたパラメータが含まれていることを確認
-            assert "learning_rate = 0.001" in content
-            assert "optimizer = 'Adam'" in content
-
-            # ベース設定も含まれていることを確認
-            assert "model_name = 'resnet18'" in content
-            assert "num_classes = 10" in content
+        content = config_file.read_text(encoding="utf-8")
+        assert "learning_rate =" in content
+        assert "optimizer =" in content
+        assert "model_name = 'resnet18'" in content
+        assert "num_classes = 10" in content
+        assert "train_transform = transforms.Compose(" in content
+        assert "val_transform = transforms.Compose(" in content

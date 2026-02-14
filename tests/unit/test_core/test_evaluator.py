@@ -7,7 +7,7 @@ PochiPredictor.calculate_accuracy() から移行したテストを含む.
 import logging
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -251,5 +251,6 @@ class TestLogConfusionMatrix:
     def test_log_skips_when_no_workspace(self, evaluator):
         """workspace_path=None のときスキップする."""
         cm = torch.tensor([[1, 0], [0, 1]], dtype=torch.int64)
-        # 例外が発生しないことを確認
-        evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=None)
+        with patch("builtins.open") as mock_open:
+            evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=None)
+        mock_open.assert_not_called()

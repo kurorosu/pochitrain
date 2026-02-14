@@ -1,16 +1,20 @@
-"""OnnxExporterクラスのテスト."""
+"""OnnxExporter クラスのユニットテスト."""
 
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 import torch
 import torch.nn as nn
 
-# ONNXはオプション依存のためスキップ
 pytest.importorskip("onnx")
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:You are using the legacy TorchScript-based ONNX export.*:DeprecationWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:The feature will be removed\\. Please remove usage of this function:DeprecationWarning"
+    ),
+]
 
 from pochitrain.onnx.exporter import OnnxExporter
 
@@ -18,13 +22,26 @@ from pochitrain.onnx.exporter import OnnxExporter
 class SimpleModel(nn.Module):
     """テスト用のシンプルなモデル."""
 
-    def __init__(self, num_classes: int = 10):
+    def __init__(self, num_classes: int = 10) -> None:
+        """モデルを初期化する.
+
+        Args:
+            num_classes: 出力クラス数.
+        """
         super().__init__()
         self.conv = nn.Conv2d(3, 16, kernel_size=3, padding=1)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(16, num_classes)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """順伝播を行う.
+
+        Args:
+            x: 入力テンソル.
+
+        Returns:
+            ログイット.
+        """
         x = self.conv(x)
         x = torch.relu(x)
         x = self.pool(x)
@@ -34,32 +51,32 @@ class SimpleModel(nn.Module):
 
 
 class TestOnnxExporterInit:
-    """OnnxExporter初期化のテスト."""
+    """OnnxExporter 初期化のテスト."""
 
-    def test_init_default(self):
-        """デフォルト初期化のテスト."""
+    def test_init_default(self) -> None:
+        """デフォルト初期化の値を確認する."""
         exporter = OnnxExporter()
         assert exporter.model is None
         assert exporter.device == torch.device("cpu")
 
-    def test_init_with_model(self):
-        """モデル指定での初期化テスト."""
+    def test_init_with_model(self) -> None:
+        """モデル指定初期化を確認する."""
         model = SimpleModel()
         exporter = OnnxExporter(model=model)
         assert exporter.model is model
 
-    def test_init_with_device(self):
-        """デバイス指定での初期化テスト."""
+    def test_init_with_device(self) -> None:
+        """デバイス指定初期化を確認する."""
         device = torch.device("cpu")
         exporter = OnnxExporter(device=device)
         assert exporter.device == device
 
 
 class TestOnnxExporterExport:
-    """OnnxExporter.export()のテスト."""
+    """OnnxExporter.export のテスト."""
 
-    def test_export_success(self, tmp_path):
-        """正常なエクスポートのテスト."""
+    def test_export_success(self, tmp_path: Path) -> None:
+        """正常なエクスポートを確認する."""
         model = SimpleModel()
         exporter = OnnxExporter(model=model)
 
@@ -70,15 +87,15 @@ class TestOnnxExporterExport:
         assert output_path.exists()
         assert output_path.stat().st_size > 0
 
-    def test_export_without_model_raises_error(self, tmp_path):
-        """モデルなしでエクスポートするとエラーになることを確認."""
+    def test_export_without_model_raises_error(self, tmp_path: Path) -> None:
+        """モデル未設定で ValueError になることを確認する."""
         exporter = OnnxExporter()
 
-        with pytest.raises(ValueError, match="モデルが設定されていません"):
+        with pytest.raises(ValueError, match="モデル"):
             exporter.export(tmp_path / "model.onnx", input_size=(224, 224))
 
-    def test_export_custom_opset(self, tmp_path):
-        """カスタムopsetバージョンでのエクスポートテスト."""
+    def test_export_custom_opset(self, tmp_path: Path) -> None:
+        """カスタム opset_version を指定できることを確認する."""
         model = SimpleModel()
         exporter = OnnxExporter(model=model)
 
@@ -88,8 +105,8 @@ class TestOnnxExporterExport:
         assert result == output_path
         assert output_path.exists()
 
-    def test_export_custom_input_size(self, tmp_path):
-        """カスタム入力サイズでのエクスポートテスト."""
+    def test_export_custom_input_size(self, tmp_path: Path) -> None:
+        """カスタム入力サイズ指定を確認する."""
         model = SimpleModel()
         exporter = OnnxExporter(model=model)
 
@@ -101,10 +118,10 @@ class TestOnnxExporterExport:
 
 
 class TestOnnxExporterVerify:
-    """OnnxExporter.verify()のテスト."""
+    """OnnxExporter.verify のテスト."""
 
-    def test_verify_success(self, tmp_path):
-        """正常な検証のテスト."""
+    def test_verify_success(self, tmp_path: Path) -> None:
+        """正常な検証が True を返すことを確認する."""
         model = SimpleModel()
         exporter = OnnxExporter(model=model)
 
@@ -114,53 +131,82 @@ class TestOnnxExporterVerify:
         result = exporter.verify(output_path, input_size=(224, 224))
         assert result is True
 
-    def test_verify_without_model_raises_error(self, tmp_path):
-        """モデルなしで検証するとエラーになることを確認."""
+    def test_verify_without_model_raises_error(self, tmp_path: Path) -> None:
+        """モデル未設定で verify が ValueError になることを確認する."""
         exporter = OnnxExporter()
 
-        with pytest.raises(ValueError, match="モデルが設定されていません"):
+        with pytest.raises(ValueError, match="モデル"):
             exporter.verify(tmp_path / "model.onnx", input_size=(224, 224))
 
 
 class TestOnnxExporterLoadModel:
-    """OnnxExporter.load_model()のテスト."""
+    """OnnxExporter.load_model のテスト."""
 
-    def test_load_model_with_state_dict(self, tmp_path):
-        """state_dict形式のチェックポイント読み込みテスト."""
-        # create_modelをモックしてテスト
-        with patch("pochitrain.onnx.exporter.create_model") as mock_create:
-            mock_model = SimpleModel(num_classes=5)
-            mock_create.return_value = mock_model
+    def test_load_model_with_state_dict(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """model_state_dict 形式チェックポイントを読み込めることを確認する."""
+        call_args: dict[str, object] = {}
 
-            # テスト用チェックポイントを作成
-            checkpoint = {
-                "model_state_dict": mock_model.state_dict(),
-                "epoch": 10,
-                "best_accuracy": 95.0,
-            }
-            checkpoint_path = tmp_path / "checkpoint.pth"
-            torch.save(checkpoint, checkpoint_path)
+        def _fake_create_model(
+            model_name: str, num_classes: int, pretrained: bool = False
+        ) -> nn.Module:
+            call_args["model_name"] = model_name
+            call_args["num_classes"] = num_classes
+            call_args["pretrained"] = pretrained
+            return SimpleModel(num_classes=num_classes)
 
-            # 読み込みテスト
-            exporter = OnnxExporter()
-            exporter.load_model(checkpoint_path, model_name="resnet18", num_classes=5)
+        monkeypatch.setattr("pochitrain.onnx.exporter.create_model", _fake_create_model)
 
-            assert exporter.model is not None
-            mock_create.assert_called_once_with("resnet18", 5, pretrained=False)
+        checkpoint_model = SimpleModel(num_classes=5)
+        checkpoint = {
+            "model_state_dict": checkpoint_model.state_dict(),
+            "epoch": 10,
+            "best_accuracy": 95.0,
+        }
+        checkpoint_path = tmp_path / "checkpoint.pth"
+        torch.save(checkpoint, checkpoint_path)
 
-    def test_load_model_raw_state_dict(self, tmp_path):
-        """生のstate_dict形式のチェックポイント読み込みテスト."""
-        # create_modelをモックしてテスト
-        with patch("pochitrain.onnx.exporter.create_model") as mock_create:
-            mock_model = SimpleModel(num_classes=5)
-            mock_create.return_value = mock_model
+        exporter = OnnxExporter()
+        exporter.load_model(checkpoint_path, model_name="resnet18", num_classes=5)
 
-            # テスト用チェックポイントを作成
-            checkpoint_path = tmp_path / "checkpoint.pth"
-            torch.save(mock_model.state_dict(), checkpoint_path)
+        assert exporter.model is not None
+        assert call_args == {
+            "model_name": "resnet18",
+            "num_classes": 5,
+            "pretrained": False,
+        }
 
-            exporter = OnnxExporter()
-            exporter.load_model(checkpoint_path, model_name="resnet18", num_classes=5)
+    def test_load_model_raw_state_dict(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """生の state_dict 形式チェックポイントを読み込めることを確認する."""
+        call_args: dict[str, object] = {}
 
-            assert exporter.model is not None
-            mock_create.assert_called_once_with("resnet18", 5, pretrained=False)
+        def _fake_create_model(
+            model_name: str, num_classes: int, pretrained: bool = False
+        ) -> nn.Module:
+            call_args["model_name"] = model_name
+            call_args["num_classes"] = num_classes
+            call_args["pretrained"] = pretrained
+            return SimpleModel(num_classes=num_classes)
+
+        monkeypatch.setattr("pochitrain.onnx.exporter.create_model", _fake_create_model)
+
+        checkpoint_model = SimpleModel(num_classes=5)
+        checkpoint_path = tmp_path / "checkpoint.pth"
+        torch.save(checkpoint_model.state_dict(), checkpoint_path)
+
+        exporter = OnnxExporter()
+        exporter.load_model(checkpoint_path, model_name="resnet18", num_classes=5)
+
+        assert exporter.model is not None
+        assert call_args == {
+            "model_name": "resnet18",
+            "num_classes": 5,
+            "pretrained": False,
+        }

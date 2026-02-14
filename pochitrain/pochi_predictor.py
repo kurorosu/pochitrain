@@ -82,7 +82,15 @@ class PochiPredictor:
 
         try:
             # チェックポイントの読み込み
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            try:
+                checkpoint = torch.load(
+                    self.model_path,
+                    map_location=self.device,
+                    weights_only=True,
+                )
+            except TypeError:
+                # 古いPyTorchとの互換のため, weights_only未対応時のみフォールバック
+                checkpoint = torch.load(self.model_path, map_location=self.device)
 
             # モデルの状態辞書を読み込み
             self.model.load_state_dict(checkpoint["model_state_dict"])
@@ -126,27 +134,47 @@ class PochiPredictor:
         total_samples = 0
         warmup_samples = 0
         inference_time_ms = 0.0
-        is_first_batch = True
 
         use_cuda = self.device.type == "cuda"
 
-        with torch.no_grad():
-            for data, _ in data_loader:
-                data = data.to(self.device)
+        # ウォームアップ: 最初のバッチで10回事前実行
+        # dataset[0]を直接アクセスし, DataLoaderのイテレーションに影響させない
+        warmup_data, _ = data_loader.dataset[0]
+        if not isinstance(warmup_data, torch.Tensor):
+            warmup_data = torch.tensor(warmup_data)
+        warmup_data = warmup_data.unsqueeze(0).to(self.device)
+        with torch.inference_mode():
+            for _ in range(10):
+                self.model(warmup_data)
+            if use_cuda:
+                torch.cuda.synchronize()
+
+        # CUDA Eventをループ外で1回だけ生成
+        if use_cuda:
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+
+        # Note: ONNX/TRTと異なり, PyTorchは事前確保バッファを持たないため,
+        # to(device)で毎回CUDAメモリアロケーションが発生する.
+        # この転送コストと .cpu().numpy() のD2H転送は計測対象外だが,
+        # E2E時間には含まれるため, E2E - 純粋推論 の差が大きくなる.
+        # inference_mode: no_gradに加えテンソルのメタデータ追跡も無効化.
+        # 推論専用のため採用. 訓練側の検証ループ(evaluator.py)は
+        # 現在no_gradだが, 同様にinference_modeへ移行可能.
+        with torch.inference_mode():
+            for batch_idx, (data, _) in enumerate(data_loader):
+                data = data.to(self.device)  # H2D転送（計測外）
                 batch_size = data.size(0)
 
-                if is_first_batch:
-                    # ウォームアップ: 最初のバッチは計測対象外
+                if batch_idx == 0:
+                    # 最初のバッチは計測対象外（ウォームアップ）
                     output = self.model(data)
                     if use_cuda:
                         torch.cuda.synchronize()
                     warmup_samples = batch_size
-                    is_first_batch = False
                 else:
                     # 推論時間計測（モデル推論部分のみ）
                     if use_cuda:
-                        start_event = torch.cuda.Event(enable_timing=True)
-                        end_event = torch.cuda.Event(enable_timing=True)
                         start_event.record()
                         output = self.model(data)
                         end_event.record()
@@ -160,7 +188,7 @@ class PochiPredictor:
                     total_samples += batch_size
 
                 # 後処理（計測対象外）
-                logits = output.cpu().numpy()
+                logits = output.cpu().numpy()  # D2H転送 + 暗黙同期
                 predicted, confidence = post_process_logits(logits)
 
                 predictions.extend(predicted)

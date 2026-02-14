@@ -2,10 +2,11 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 import numpy as np
 import onnxruntime as ort
+import torch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.utils.inference_utils import post_process_logits
@@ -90,6 +91,32 @@ class OnnxInference:
             # CPUの場合は単純に保持
             self._temp_cpu_images = images
 
+    def set_input_gpu(self, tensor: torch.Tensor) -> None:
+        """GPU上のテンソルを直接入力として設定.
+
+        io_binding.bind_input() でGPUメモリを直接バインドし,
+        CPU→GPU転送 (H2D) をスキップする.
+
+        Args:
+            tensor: GPU上のfloat32テンソル (batch, channels, height, width)
+
+        Raises:
+            RuntimeError: GPU モードでない場合
+        """
+        if not self.io_binding:
+            raise RuntimeError("GPU入力はGPUモード時のみ使用可能です")
+
+        tensor = tensor.contiguous()
+        self.io_binding.bind_input(
+            name=self.input_name,
+            device_type="cuda",
+            device_id=0,
+            element_type=np.float32,
+            shape=tuple(tensor.shape),
+            buffer_ptr=tensor.data_ptr(),
+        )
+        self.io_binding.bind_output(self.output_name, "cuda")
+
     def run_pure(self) -> None:
         """純粋な推論実行（計測対象）.
 
@@ -112,9 +139,9 @@ class OnnxInference:
         if self.io_binding:
             # GPUからCPUへ結果を取得（D2H転送が発生）
             outputs = self.io_binding.copy_outputs_to_cpu()
-            return outputs[0]
+            return cast(np.ndarray, outputs[0])
         else:
-            return self._temp_cpu_outputs[0]
+            return cast(np.ndarray, self._temp_cpu_outputs[0])
 
     def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """推論を一括実行（互換性および簡易用）.

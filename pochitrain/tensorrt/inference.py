@@ -112,6 +112,15 @@ class TensorRTInference:
         logger.debug(f"入力: {self.input_name}, shape: {self.input_shape}")
         logger.debug(f"出力: {self.output_name}, shape: {self.output_shape}")
 
+    @property
+    def stream(self) -> torch.cuda.Stream:
+        """CUDAストリームを取得.
+
+        Returns:
+            推論に使用するCUDAストリーム
+        """
+        return self._stream
+
     def _resolve_io_bindings(self, trt: object) -> Dict[str, str]:
         """名前ベースで入出力バインディングを解決する.
 
@@ -160,6 +169,17 @@ class TensorRTInference:
         """
         with torch.cuda.stream(self._stream):
             self._d_input.copy_(torch.from_numpy(image))
+
+    def set_input_gpu(self, tensor: torch.Tensor) -> None:
+        """GPU上のテンソルを直接入力として設定.
+
+        GPU-to-GPUコピーのみ行い, CPU経由のH2D転送をスキップする.
+
+        Args:
+            tensor: GPU上のfloat32テンソル (1, channels, height, width)
+        """
+        with torch.cuda.stream(self._stream):
+            self._d_input.copy_(tensor)
 
     def execute(self) -> None:
         """純粋な推論実行（計測対象）.

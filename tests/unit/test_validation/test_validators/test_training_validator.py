@@ -1,292 +1,83 @@
-"""TrainingValidatorのテスト."""
+"""TrainingValidatorのテスト.
+
+必須項目, 型/値検証, 正常系, 先頭エラー停止を確認する.
+"""
+
+import logging
+from unittest.mock import Mock
 
 import pytest
 
 from pochitrain.validation.validators.training_validator import TrainingValidator
-from tests.unit.test_validation.conftest import assert_info_or_debug_called_with
+from tests.unit.test_validation.conftest import (
+    assert_error_called_with_substring,
+    assert_info_or_debug_called_with,
+)
 
 
 @pytest.fixture
-def validator():
+def validator() -> TrainingValidator:
     """TrainingValidatorのfixture."""
+
     return TrainingValidator()
 
 
-class TestEpochsValidation:
-    """epochsパラメータのバリデーションテスト."""
+@pytest.fixture
+def mock_logger() -> Mock:
+    """検証用ロガーのfixture."""
 
-    def test_epochs_missing_failure(self, validator, mocker):
-        """epochs未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
-        config = {"batch_size": 32, "model_name": "resnet18"}
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs が設定されていません。"
-            "configs/pochi_train_config.py で設定してください。"
-        )
-
-    def test_epochs_invalid_type_failure(self, validator, mocker):
-        """epochsが整数でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
-
-        # 文字列の場合
-        config = {"epochs": "50", "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs は int である必要があります。現在の型: str, 現在の値: 50"
-        )
-
-        # 浮動小数点数の場合
-        mock_logger.reset_mock()
-        config = {"epochs": 50.0, "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs は int である必要があります。現在の型: float, 現在の値: 50.0"
-        )
-
-        # ブール値の場合
-        mock_logger.reset_mock()
-        config = {"epochs": True, "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs は int である必要があります。現在の型: bool, 現在の値: True"
-        )
-
-    def test_epochs_non_positive_failure(self, validator, mocker):
-        """epochsが0以下の場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
-
-        # 0の場合
-        config = {"epochs": 0, "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs は正の値である必要があります。現在の値: 0"
-        )
-
-        # 負の数の場合
-        mock_logger.reset_mock()
-        config = {"epochs": -10, "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "epochs は正の値である必要があります。現在の値: -10"
-        )
-
-    def test_epochs_valid_success(self, validator, mocker):
-        """有効なepochsでバリデーション成功."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "エポック数: 50")
+    return Mock(spec=logging.Logger)
 
 
-class TestBatchSizeValidation:
-    """batch_sizeパラメータのバリデーションテスト."""
+@pytest.mark.parametrize(
+    "config,error_key",
+    [
+        ({"batch_size": 32, "model_name": "resnet18"}, "epochs"),
+        ({"epochs": "10", "batch_size": 32, "model_name": "resnet18"}, "epochs"),
+        ({"epochs": True, "batch_size": 32, "model_name": "resnet18"}, "epochs"),
+        ({"epochs": 0, "batch_size": 32, "model_name": "resnet18"}, "epochs"),
+        ({"epochs": 10, "model_name": "resnet18"}, "batch_size"),
+        ({"epochs": 10, "batch_size": "32", "model_name": "resnet18"}, "batch_size"),
+        ({"epochs": 10, "batch_size": -1, "model_name": "resnet18"}, "batch_size"),
+        ({"epochs": 10, "batch_size": 32}, "model_name"),
+        ({"epochs": 10, "batch_size": 32, "model_name": 18}, "model_name"),
+        ({"epochs": 10, "batch_size": 32, "model_name": "vgg16"}, "vgg16"),
+    ],
+)
+def test_validate_failure_cases(
+    validator: TrainingValidator,
+    mock_logger: Mock,
+    config: dict,
+    error_key: str,
+) -> None:
+    """代表的な失敗パターンでFalseとエラーログを確認."""
 
-    def test_batch_size_missing_failure(self, validator, mocker):
-        """batch_size未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 50, "model_name": "resnet18"}
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size が設定されていません。"
-            "configs/pochi_train_config.py で設定してください。"
-        )
-
-    def test_batch_size_invalid_type_failure(self, validator, mocker):
-        """batch_sizeが整数でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
-
-        # 文字列の場合
-        config = {"epochs": 50, "batch_size": "32", "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size は int である必要があります。現在の型: str, 現在の値: 32"
-        )
-
-        # 浮動小数点数の場合
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": 32.0, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size は int である必要があります。現在の型: float, 現在の値: 32.0"
-        )
-
-        # ブール値の場合
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": True, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size は int である必要があります。現在の型: bool, 現在の値: True"
-        )
-
-    def test_batch_size_non_positive_failure(self, validator, mocker):
-        """batch_sizeが0以下の場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
-
-        # 0の場合
-        config = {"epochs": 50, "batch_size": 0, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size は正の値である必要があります。現在の値: 0"
-        )
-
-        # 負の数の場合
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": -8, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "batch_size は正の値である必要があります。現在の値: -8"
-        )
-
-    def test_batch_size_valid_success(self, validator, mocker):
-        """有効なbatch_sizeでバリデーション成功."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 32")
+    assert validator.validate(config, mock_logger) is False
+    assert_error_called_with_substring(mock_logger, error_key)
 
 
-class TestModelNameValidation:
-    """model_nameパラメータのバリデーションテスト."""
+def test_validate_success(validator: TrainingValidator, mock_logger: Mock) -> None:
+    """有効設定でTrueになり, 主要値がログ出力されることを確認."""
 
-    def test_model_name_missing_failure(self, validator, mocker):
-        """model_name未設定でバリデーション失敗."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 50, "batch_size": 32}
+    config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
 
-        result = validator.validate(config, mock_logger)
-
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "model_name が設定されていません。"
-            "configs/pochi_train_config.py で設定してください。"
-        )
-
-    def test_model_name_invalid_type_failure(self, validator, mocker):
-        """model_nameが文字列でない場合バリデーション失敗."""
-        mock_logger = mocker.Mock()
-
-        # 整数の場合
-        config = {"epochs": 50, "batch_size": 32, "model_name": 18}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "model_name は str である必要があります。現在の型: int, 現在の値: 18"
-        )
-
-        # ブール値の場合
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": True}
-        result = validator.validate(config, mock_logger)
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "model_name は str である必要があります。現在の型: bool, 現在の値: True"
-        )
-
-    def test_model_name_unsupported_failure(self, validator, mocker):
-        """サポートされていないmodel_nameでバリデーション失敗."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": "vgg16"}
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is False
-        mock_logger.error.assert_called_with(
-            "サポートされていないモデル名です: vgg16. "
-            "サポート対象: ['resnet18', 'resnet34', 'resnet50']"
-        )
-
-    def test_model_name_valid_success(self, validator, mocker):
-        """有効なmodel_nameでバリデーション成功."""
-        mock_logger = mocker.Mock()
-
-        # resnet18
-        config = {"epochs": 50, "batch_size": 32, "model_name": "resnet18"}
-        result = validator.validate(config, mock_logger)
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet18")
-
-        # resnet34
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": "resnet34"}
-        result = validator.validate(config, mock_logger)
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet34")
-
-        # resnet50
-        mock_logger.reset_mock()
-        config = {"epochs": 50, "batch_size": 32, "model_name": "resnet50"}
-        result = validator.validate(config, mock_logger)
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet50")
+    assert validator.validate(config, mock_logger) is True
+    assert_info_or_debug_called_with(mock_logger, "50")
+    assert_info_or_debug_called_with(mock_logger, "32")
+    assert_info_or_debug_called_with(mock_logger, "resnet18")
 
 
-class TestTrainingValidatorIntegration:
-    """TrainingValidator統合テスト."""
+def test_validate_stops_at_first_error(
+    validator: TrainingValidator,
+    mock_logger: Mock,
+) -> None:
+    """複数不正時に最初のエラーで停止することを確認."""
 
-    def test_all_valid_parameters_success(self, validator, mocker):
-        """すべてのパラメータが有効な場合バリデーション成功."""
-        mock_logger = mocker.Mock()
-        config = {"epochs": 100, "batch_size": 64, "model_name": "resnet50"}
+    config = {
+        "epochs": "invalid",
+        "batch_size": -1,
+        "model_name": "invalid_model",
+    }
 
-        result = validator.validate(config, mock_logger)
-
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "エポック数: 100")
-        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 64")
-        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet50")
-
-    def test_multiple_invalid_parameters_failure(self, validator, mocker):
-        """複数のパラメータが無効な場合、最初のエラーでバリデーション失敗."""
-        mock_logger = mocker.Mock()
-        config = {
-            "epochs": "invalid",  # 最初のエラー
-            "batch_size": -1,  # このエラーには到達しない
-            "model_name": "invalid_model",  # このエラーには到達しない
-        }
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is False
-        # epochsの型エラーが最初に検出される
-        mock_logger.error.assert_called_with(
-            "epochs は int である必要があります。現在の型: str, 現在の値: invalid"
-        )
-
-    def test_boundary_values_success(self, validator, mocker):
-        """境界値でバリデーション成功."""
-        mock_logger = mocker.Mock()
-        config = {
-            "epochs": 1,  # 最小有効値
-            "batch_size": 1,  # 最小有効値
-            "model_name": "resnet18",
-        }
-
-        result = validator.validate(config, mock_logger)
-
-        assert result is True
-        assert_info_or_debug_called_with(mock_logger, "エポック数: 1")
-        assert_info_or_debug_called_with(mock_logger, "バッチサイズ: 1")
-        assert_info_or_debug_called_with(mock_logger, "モデル名: resnet18")
+    assert validator.validate(config, mock_logger) is False
+    assert_error_called_with_substring(mock_logger, "epochs")

@@ -1,9 +1,7 @@
 """ExponentialLR と LinearLR スケジューラーのテスト."""
 
 import pytest
-import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
 
 from pochitrain import PochiTrainer
 
@@ -18,17 +16,10 @@ class TestExponentialLRScheduler:
             model_name="resnet18",
             num_classes=4,
             device="cpu",
+            pretrained=False,
             create_workspace=False,
         )
         return trainer
-
-    @pytest.fixture
-    def dummy_loader(self):
-        """ダミーデータローダー."""
-        X = torch.randn(32, 3, 32, 32)
-        y = torch.randint(0, 4, (32,))
-        dataset = TensorDataset(X, y)
-        return DataLoader(dataset, batch_size=8)
 
     def test_exponential_lr_setup(self, trainer):
         """ExponentialLR の設定テスト."""
@@ -42,7 +33,7 @@ class TestExponentialLRScheduler:
         assert trainer.scheduler is not None
         assert isinstance(trainer.scheduler, optim.lr_scheduler.ExponentialLR)
 
-    def test_exponential_lr_decay(self, trainer, dummy_loader):
+    def test_exponential_lr_decay(self, trainer):
         """ExponentialLR の減衰動作テスト."""
         trainer.setup_training(
             learning_rate=0.001,
@@ -55,8 +46,8 @@ class TestExponentialLRScheduler:
         initial_lr = trainer.optimizer.param_groups[0]["lr"]
         assert abs(initial_lr - 0.001) < 1e-6
 
-        # 1エポック分進める
-        trainer.train_epoch(dummy_loader)
+        # 1ステップ進める
+        trainer.optimizer.step()
         trainer.scheduler.step()
 
         # 学習率が gamma 倍に減衰したことを確認
@@ -97,17 +88,10 @@ class TestLinearLRScheduler:
             model_name="resnet18",
             num_classes=4,
             device="cpu",
+            pretrained=False,
             create_workspace=False,
         )
         return trainer
-
-    @pytest.fixture
-    def dummy_loader(self):
-        """ダミーデータローダー."""
-        X = torch.randn(32, 3, 32, 32)
-        y = torch.randint(0, 4, (32,))
-        dataset = TensorDataset(X, y)
-        return DataLoader(dataset, batch_size=8)
 
     def test_linear_lr_setup(self, trainer):
         """LinearLR の設定テスト."""
@@ -125,7 +109,7 @@ class TestLinearLRScheduler:
         assert trainer.scheduler is not None
         assert isinstance(trainer.scheduler, optim.lr_scheduler.LinearLR)
 
-    def test_linear_lr_decay(self, trainer, dummy_loader):
+    def test_linear_lr_decay(self, trainer):
         """LinearLR の減衰動作テスト."""
         total_iters = 50
         trainer.setup_training(
@@ -146,7 +130,7 @@ class TestLinearLRScheduler:
         # 複数ステップ進めて学習率が線形に減衰することを確認
         lrs = [initial_lr]
         for _ in range(10):
-            trainer.train_epoch(dummy_loader)
+            trainer.optimizer.step()
             trainer.scheduler.step()
             lrs.append(trainer.optimizer.param_groups[0]["lr"])
 
@@ -191,6 +175,7 @@ class TestSchedulerInteroperability:
             model_name="resnet18",
             num_classes=4,
             device="cpu",
+            pretrained=False,
             create_workspace=False,
         )
         return trainer
@@ -206,21 +191,14 @@ class TestSchedulerInteroperability:
         ]
 
         for scheduler_name, params in schedulers:
-            trainer_tmp = PochiTrainer(
-                model_name="resnet18",
-                num_classes=4,
-                device="cpu",
-                create_workspace=False,
-            )
-
-            trainer_tmp.setup_training(
+            trainer.setup_training(
                 learning_rate=0.001,
                 optimizer_name="SGD",
                 scheduler_name=scheduler_name,
                 scheduler_params=params,
             )
 
-            assert trainer_tmp.scheduler is not None
+            assert trainer.scheduler is not None
 
     def test_unsupported_scheduler_raises_error(self, trainer):
         """未サポートのスケジューラーでエラーが発生することを確認."""

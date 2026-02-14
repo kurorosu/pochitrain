@@ -1,17 +1,18 @@
-# torch, torchvision, numpy は環境に合わせて手動インストール
+# torch, torchvision は環境に合わせて手動インストール
 # 例 (Jetson / JetPack):
 #   pip install torch torchvision (NVIDIA提供のホイールを使用)
-#   pip install numpy
 # torch
 # torchvision
-# numpy
+# numpy/scipy はこの requirements.txt で管理
 
 # Data processing
+# numpy/scipy は同じ環境・同じインストーラーで揃える
+# matplotlib は Jetson 環境では system パッケージを利用
+numpy==1.26.1
 pandas>=2.0.0
 pillow>=8.0.0
 scikit-learn>=0.24.0
-matplotlib>=3.10.8
-matplotlib-fontja>=1.1.0
+scipy>=1.11.0
 
 # Configuration and logging
 pyyaml>=5.4.0
@@ -21,3 +22,18 @@ rich>=13.0.0
 # Hyperparameter optimization
 optuna>=3.5.0
 plotly>=5.0.0
+
+# ONNX and ONNX Runtime
+onnx>=1.14.0
+onnxscript>=0.1.0
+onnxruntime-gpu>=1.16.0
+
+# Development tools
+black>=25.12.0
+isort>=7.0.0
+mypy>=1.19.1
+pre-commit>=4.5.1
+pydocstyle>=6.3.0
+pytest>=9.0.2
+pytest-cov>=7.0.0
+pytest-mock>=3.15.1

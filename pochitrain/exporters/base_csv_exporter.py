@@ -1,7 +1,7 @@
 """
 CSV出力系クラスの共通基底クラス.
 
-InferenceCSVExporter と TrainingMetricsExporter の
+推論結果や学習メトリクスなど, CSV出力処理の
 共通処理(出力ディレクトリ管理, ロガー設定, ファイル名生成)を提供します.
 """
 

@@ -3,10 +3,12 @@
 import csv
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
+import pochitrain.utils.inference_utils as inference_utils
 from pochitrain.utils.inference_utils import (
     auto_detect_config_path,
     compute_confusion_matrix,
@@ -63,7 +65,8 @@ class TestValidateModelPath:
         """存在するモデルパスではSystemExitが発生しない."""
         model_file = tmp_path / "model.pth"
         model_file.touch()
-        validate_model_path(model_file)  # 例外なし
+        result = validate_model_path(model_file)
+        assert result is None
 
     def test_non_existing_model_path(self, tmp_path):
         """存在しないモデルパスでSystemExitが発生する."""
@@ -79,7 +82,8 @@ class TestValidateDataPath:
         """存在するデータパスではSystemExitが発生しない."""
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        validate_data_path(data_dir)  # 例外なし
+        result = validate_data_path(data_dir)
+        assert result is None
 
     def test_non_existing_data_path(self, tmp_path):
         """存在しないデータパスでSystemExitが発生する."""
@@ -321,9 +325,11 @@ class TestWriteInferenceSummary:
 class TestLogInferenceResult:
     """log_inference_result関数のテスト."""
 
-    def test_no_exception(self):
-        """正常にログ出力できることを確認."""
-        # 例外が発生しなければOK
+    def test_logs_core_metrics(self, monkeypatch):
+        """基本メトリクスのログ内容を検証."""
+        mock_logger = Mock()
+        monkeypatch.setattr(inference_utils, "logger", mock_logger)
+
         log_inference_result(
             num_samples=100,
             correct=95,
@@ -332,8 +338,58 @@ class TestLogInferenceResult:
             warmup_samples=10,
         )
 
-    def test_zero_samples(self):
-        """サンプル数0でもエラーにならない."""
+        logged_messages = [
+            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
+        ]
+        assert mock_logger.info.call_count == 5
+        assert any("推論画像枚数: 100枚" in message for message in logged_messages)
+        assert any("精度: 95.00%" in message for message in logged_messages)
+        assert any(
+            "平均推論時間: 2.50 ms/image" in message for message in logged_messages
+        )
+        assert any(
+            "スループット: 400.0 images/sec" in message for message in logged_messages
+        )
+        assert any(
+            "計測詳細: 90枚, ウォームアップ除外: 10枚" in message
+            for message in logged_messages
+        )
+
+    def test_logs_optional_input_size_and_total_time(self, monkeypatch):
+        """入力サイズと全処理時間の追加ログ分岐を検証."""
+        mock_logger = Mock()
+        monkeypatch.setattr(inference_utils, "logger", mock_logger)
+
+        log_inference_result(
+            num_samples=10,
+            correct=8,
+            avg_time_per_image=2.0,
+            total_samples=10,
+            warmup_samples=0,
+            avg_total_time_per_image=4.0,
+            input_size=(3, 224, 224),
+        )
+
+        logged_messages = [
+            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
+        ]
+        assert mock_logger.info.call_count == 8
+        assert any(
+            "入力解像度: 224x224 (WxH), チャンネル数: 3" in message
+            for message in logged_messages
+        )
+        assert any(
+            "平均全処理時間: 4.00 ms/image" in message for message in logged_messages
+        )
+        assert any(
+            "スループット: 250.0 images/sec, 計測範囲: 全処理" in message
+            for message in logged_messages
+        )
+
+    def test_zero_samples(self, monkeypatch):
+        mock_logger = Mock()
+        monkeypatch.setattr(inference_utils, "logger", mock_logger)
+
         log_inference_result(
             num_samples=0,
             correct=0,
@@ -342,8 +398,15 @@ class TestLogInferenceResult:
             warmup_samples=0,
         )
 
-    def test_zero_avg_time(self):
-        """平均推論時間0でもエラーにならない."""
+        logged_messages = [
+            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
+        ]
+        assert any("0.00%" in message for message in logged_messages)
+
+    def test_zero_avg_time(self, monkeypatch):
+        mock_logger = Mock()
+        monkeypatch.setattr(inference_utils, "logger", mock_logger)
+
         log_inference_result(
             num_samples=10,
             correct=5,
@@ -351,6 +414,11 @@ class TestLogInferenceResult:
             total_samples=10,
             warmup_samples=0,
         )
+
+        logged_messages = [
+            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
+        ]
+        assert any("0.0 images/sec" in message for message in logged_messages)
 
 
 class TestComputeConfusionMatrix:
@@ -474,6 +542,35 @@ class TestSaveConfusionMatrixImage:
             output_dir=tmp_path,
         )
         assert isinstance(result, Path)
+
+    def test_works_without_matplotlib_fontja(self, tmp_path, monkeypatch):
+        """matplotlib_fontja 未導入でも画像保存できる."""
+        original_import_module = inference_utils.importlib.import_module
+
+        def fake_import_module(name):
+            if name == "matplotlib_fontja":
+                raise ModuleNotFoundError("No module named 'matplotlib_fontja'")
+            return original_import_module(name)
+
+        monkeypatch.setattr(
+            inference_utils.importlib,
+            "import_module",
+            fake_import_module,
+        )
+        monkeypatch.setattr(
+            inference_utils,
+            "_MATPLOTLIB_FONTJA_WARNING_EMITTED",
+            False,
+        )
+
+        output_path = save_confusion_matrix_image(
+            predicted_labels=[0, 1, 0],
+            true_labels=[0, 1, 1],
+            class_names=["cat", "dog"],
+            output_dir=tmp_path,
+        )
+
+        assert output_path.exists()
 
 
 class TestSaveClassificationReport:

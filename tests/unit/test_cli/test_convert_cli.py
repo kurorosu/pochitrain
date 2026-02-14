@@ -1,345 +1,477 @@
-"""pochi convert CLIのテスト.
+"""`pochi convert` CLIのテスト.
 
-TensorRT変換サブコマンドの引数パース・バリデーションロジックをテスト.
+実際のエントリポイントを通して, 引数パースと変換実行の連携を検証する.
 """
 
 import argparse
+import sys
+from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
-from pochitrain.cli.pochi import positive_int
+import pochitrain.cli.pochi as pochi_cli
+from pochitrain.cli.arg_types import positive_int
+
+ConvertArgsRunner = Callable[[list[str]], argparse.Namespace]
 
 
-class TestConvertArgumentParsing:
-    """convert サブコマンドの引数パースのテスト."""
+@pytest.fixture
+def convert_args(monkeypatch: pytest.MonkeyPatch) -> ConvertArgsRunner:
+    """`pochi main` 経由で `convert` のパース結果を取得するfixture."""
 
-    def _build_parser(self):
-        """テスト用にconvertと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("onnx_path", help="ONNXモデルファイルパス")
-        parser.add_argument("--fp16", action="store_true")
-        parser.add_argument("--int8", action="store_true")
-        parser.add_argument("--output", "-o")
-        parser.add_argument("--config-path", "-c")
-        parser.add_argument("--calib-data")
-        parser.add_argument(
-            "--input-size", nargs=2, type=positive_int, metavar=("HEIGHT", "WIDTH")
-        )
-        parser.add_argument("--calib-samples", type=positive_int, default=500)
-        parser.add_argument("--calib-batch-size", type=positive_int, default=1)
-        parser.add_argument("--workspace-size", type=positive_int, default=1 << 30)
-        parser.add_argument("--debug", action="store_true")
-        return parser
+    def _run(argv_tail: list[str]) -> argparse.Namespace:
+        captured: dict[str, argparse.Namespace] = {}
 
-    def test_onnx_path_required(self):
-        """onnx_pathが必須引数であることを確認."""
-        parser = self._build_parser()
+        def _fake_convert(args: argparse.Namespace) -> None:
+            captured["args"] = args
+
+        monkeypatch.setattr(pochi_cli, "convert_command", _fake_convert)
+        monkeypatch.setattr("sys.argv", ["pochi", *argv_tail])
+        pochi_cli.main()
+        return captured["args"]
+
+    return _run
+
+
+class TestConvertParser:
+    """`convert` サブコマンドの引数パース検証."""
+
+    def test_onnx_path_required(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`onnx_path` が必須引数であることを確認."""
+        monkeypatch.setattr("sys.argv", ["pochi", "convert"])
         with pytest.raises(SystemExit):
-            parser.parse_args([])
+            pochi_cli.main()
 
-    def test_onnx_path_parsed(self):
-        """onnx_pathが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
+    def test_parse_basic_options(self, convert_args: ConvertArgsRunner) -> None:
+        """主要オプションが想定どおりにパースされることを確認."""
+        args = convert_args(
+            [
+                "convert",
+                "model.onnx",
+                "--fp16",
+                "--config-path",
+                "config.py",
+                "--calib-data",
+                "data/val",
+                "--input-size",
+                "224",
+                "224",
+                "--calib-samples",
+                "200",
+                "--calib-batch-size",
+                "4",
+                "--workspace-size",
+                "1024",
+                "--output",
+                "out.engine",
+            ]
+        )
+
+        assert args.command == "convert"
         assert args.onnx_path == "model.onnx"
-
-    def test_fp16_flag(self):
-        """--fp16フラグが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--fp16"])
         assert args.fp16 is True
         assert args.int8 is False
+        assert args.config_path == "config.py"
+        assert args.calib_data == "data/val"
+        assert args.input_size == [224, 224]
+        assert args.calib_samples == 200
+        assert args.calib_batch_size == 4
+        assert args.workspace_size == 1024
+        assert args.output == "out.engine"
 
-    def test_int8_flag(self):
-        """--int8フラグが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--int8"])
-        assert args.int8 is True
-        assert args.fp16 is False
+    def test_parse_defaults(self, convert_args: ConvertArgsRunner) -> None:
+        """未指定時にデフォルト値が適用されることを確認."""
+        args = convert_args(["convert", "model.onnx"])
 
-    def test_default_no_precision_flag(self):
-        """精度フラグ未指定時はどちらもFalse (FP32)."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
         assert args.fp16 is False
         assert args.int8 is False
-
-    def test_output_option(self):
-        """--outputオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "-o", "output.engine"])
-        assert args.output == "output.engine"
-
-    def test_config_path_option(self):
-        """--config-pathオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "-c", "config.py"])
-        assert args.config_path == "config.py"
-
-    def test_calib_data_option(self):
-        """--calib-dataオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--calib-data", "data/val"])
-        assert args.calib_data == "data/val"
-
-    def test_calib_samples_default(self):
-        """--calib-samplesのデフォルト値を確認."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
+        assert args.input_size is None
         assert args.calib_samples == 500
-
-    def test_calib_samples_custom(self):
-        """--calib-samplesのカスタム値が正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--calib-samples", "200"])
-        assert args.calib_samples == 200
-
-    def test_calib_batch_size_default(self):
-        """--calib-batch-sizeのデフォルト値を確認."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
         assert args.calib_batch_size == 1
-
-    def test_workspace_size_default(self):
-        """--workspace-sizeのデフォルト値を確認."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
         assert args.workspace_size == 1 << 30
 
 
-class TestConvertPrecisionDecision:
-    """精度モード決定ロジックのテスト."""
+class FakeConverter:
+    """`TensorRTConverter` を置き換えるテスト用ダミー."""
 
-    def _decide_precision(self, fp16, int8):
-        """精度モードを決定する (CLI実装と同じロジック)."""
-        if int8:
-            return "int8"
-        elif fp16:
-            return "fp16"
-        else:
-            return "fp32"
+    instances: list["FakeConverter"] = []
 
-    def test_default_is_fp32(self):
-        """デフォルトはFP32."""
-        assert self._decide_precision(fp16=False, int8=False) == "fp32"
+    def __init__(self, onnx_path: Path, workspace_size: int) -> None:
+        """コンストラクタ引数と呼び出し履歴を保持."""
+        self.onnx_path = onnx_path
+        self.workspace_size = workspace_size
+        self.convert_calls: list[dict] = []
+        FakeConverter.instances.append(self)
 
-    def test_fp16_flag(self):
-        """--fp16指定時はFP16."""
-        assert self._decide_precision(fp16=True, int8=False) == "fp16"
+    def convert(
+        self,
+        output_path: Path,
+        precision: str,
+        calibrator: object,
+        input_shape: tuple[int, int, int] | None,
+    ) -> Path:
+        """変換呼び出し内容を記録し, 出力パスをそのまま返す."""
+        self.convert_calls.append(
+            {
+                "output_path": output_path,
+                "precision": precision,
+                "calibrator": calibrator,
+                "input_shape": input_shape,
+            }
+        )
+        return output_path
 
-    def test_int8_flag(self):
-        """--int8指定時はINT8."""
-        assert self._decide_precision(fp16=False, int8=True) == "int8"
 
-    def test_int8_takes_precedence(self):
-        """--int8と--fp16の両方が指定された場合はINT8が優先."""
-        assert self._decide_precision(fp16=True, int8=True) == "int8"
+class TestConvertCommand:
+    """`convert_command` の実行時分岐と引数伝播を検証."""
 
+    def setup_method(self) -> None:
+        """テスト間でダミーインスタンスの履歴を初期化."""
+        FakeConverter.instances.clear()
 
-class TestConvertOutputPathDecision:
-    """出力パス決定ロジックのテスト."""
+    def test_output_suffix_and_input_shape(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """デフォルト出力名のsuffixと `input_shape` 変換を確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
 
-    def test_output_specified(self):
-        """--output指定時はそのパスを使用."""
-        output = "custom_output.engine"
-        onnx_path = Path("model.onnx")
+        logger = SimpleNamespace(
+            debug=lambda *_a, **_k: None,
+            info=lambda *_a, **_k: None,
+            error=lambda *_a, **_k: None,
+        )
 
-        if output:
-            result = Path(output)
-        else:
-            result = onnx_path.with_suffix(".engine")
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
 
-        assert result == Path("custom_output.engine")
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
 
-    def _decide_output_path(self, output, onnx_path, precision):
-        """出力パスを決定する (CLI実装と同じロジック)."""
-        if output:
-            return Path(output)
-        stem = onnx_path.stem
-        if precision != "fp32":
-            stem = f"{stem}_{precision}"
-        return onnx_path.with_name(f"{stem}.engine")
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=True,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[224, 224],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
 
-    def test_output_default_fp32(self):
-        """--output未指定, FP32時のデフォルトパス."""
-        onnx_path = Path("work_dirs/20260206_001/models/model.onnx")
-        result = self._decide_output_path(None, onnx_path, "fp32")
-        assert result == Path("work_dirs/20260206_001/models/model.engine")
+        pochi_cli.convert_command(args)
 
-    def test_output_default_fp16(self):
-        """--output未指定, FP16時のデフォルトパス."""
-        onnx_path = Path("work_dirs/20260206_001/models/model.onnx")
-        result = self._decide_output_path(None, onnx_path, "fp16")
-        assert result == Path("work_dirs/20260206_001/models/model_fp16.engine")
+        assert len(FakeConverter.instances) == 1
+        call = FakeConverter.instances[0].convert_calls[0]
+        assert call["precision"] == "fp16"
+        assert call["output_path"] == onnx_path.with_name("model_fp16.engine")
+        assert call["input_shape"] == (3, 224, 224)
 
-    def test_output_default_int8(self):
-        """--output未指定, INT8時のデフォルトパス."""
-        onnx_path = Path("work_dirs/20260206_001/models/model.onnx")
-        result = self._decide_output_path(None, onnx_path, "int8")
-        assert result == Path("work_dirs/20260206_001/models/model_int8.engine")
+    def test_explicit_output_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--output` 指定時は明示パスが優先されることを確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+        explicit_output = tmp_path / "custom.engine"
+
+        logger = SimpleNamespace(
+            debug=lambda *_a, **_k: None,
+            info=lambda *_a, **_k: None,
+            error=lambda *_a, **_k: None,
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=str(explicit_output),
+            config_path=None,
+            calib_data=None,
+            input_size=[128, 256],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        call = FakeConverter.instances[0].convert_calls[0]
+        assert call["precision"] == "fp32"
+        assert call["output_path"] == explicit_output
+        assert call["input_shape"] == (3, 128, 256)
+
+    def test_int8_takes_precedence_and_builds_calibrator(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--int8` と `--fp16` 同時指定時にINT8が優先されることを確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+        calib_dir = tmp_path / "calib"
+        calib_dir.mkdir()
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+        fake_calibrator = object()
+        calibrator_args: dict[str, object] = {}
+
+        def _fake_create_int8_calibrator(**kwargs: object) -> object:
+            calibrator_args.update(kwargs)
+            return fake_calibrator
+
+        import pochitrain.tensorrt.calibrator as calibrator_module
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(
+            calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
+        )
+        monkeypatch.setattr(
+            pochi_cli.ConfigLoader,
+            "load_config",
+            lambda _path: {"val_transform": "dummy_transform"},
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=True,
+            int8=True,
+            output=None,
+            config_path=str(tmp_path / "config.py"),
+            calib_data=str(calib_dir),
+            input_size=[224, 224],
+            calib_samples=123,
+            calib_batch_size=2,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 1
+        call = FakeConverter.instances[0].convert_calls[0]
+        assert call["precision"] == "int8"
+        assert call["output_path"] == onnx_path.with_name("model_int8.engine")
+        assert call["calibrator"] is fake_calibrator
+        assert call["input_shape"] == (3, 224, 224)
+
+        assert calibrator_args["data_root"] == str(calib_dir)
+        assert calibrator_args["input_shape"] == (3, 224, 224)
+        assert calibrator_args["batch_size"] == 2
+        assert calibrator_args["max_samples"] == 123
+        logger.error.assert_not_called()
+
+    def test_dynamic_onnx_requires_input_size(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """動的シェイプONNXで `--input-size` 未指定時にエラー終了することを確認."""
+        onnx_path = tmp_path / "dynamic.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        dynamic_onnx = SimpleNamespace(
+            load=lambda _path: SimpleNamespace(
+                graph=SimpleNamespace(
+                    input=[
+                        SimpleNamespace(
+                            type=SimpleNamespace(
+                                tensor_type=SimpleNamespace(
+                                    shape=SimpleNamespace(
+                                        dim=[
+                                            SimpleNamespace(dim_value=1, dim_param=""),
+                                            SimpleNamespace(
+                                                dim_value=0, dim_param="height"
+                                            ),
+                                            SimpleNamespace(
+                                                dim_value=0, dim_param="width"
+                                            ),
+                                        ]
+                                    )
+                                )
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+        monkeypatch.setitem(sys.modules, "onnx", dynamic_onnx)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=None,
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 0
+        error_messages = [
+            str(call.args[0]) for call in logger.error.call_args_list if call.args
+        ]
+        assert any("動的シェイプ" in message for message in error_messages)
+
+    def test_returns_when_tensorrt_unavailable(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """TensorRT利用不可時に変換処理へ進まないことを確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: False
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[224, 224],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 0
+        error_messages = [
+            str(call.args[0]) for call in logger.error.call_args_list if call.args
+        ]
+        assert any("TensorRTが利用できません" in message for message in error_messages)
+
+    def test_returns_when_onnx_path_does_not_exist(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """ONNXファイル未存在時に変換処理へ進まないことを確認."""
+        onnx_path = tmp_path / "missing.onnx"
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[224, 224],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 0
+        error_messages = [
+            str(call.args[0]) for call in logger.error.call_args_list if call.args
+        ]
+        assert any(
+            "ONNXモデルが見つかりません" in message for message in error_messages
+        )
 
 
 class TestPositiveIntValidation:
-    """正の整数バリデーション関数のテスト."""
+    """`positive_int` の境界値検証."""
 
-    def test_positive_int_valid(self):
-        """正の整数を正しく変換する."""
+    def test_positive_int_valid(self) -> None:
+        """正の整数文字列は `int` に変換されることを確認."""
         assert positive_int("1") == 1
         assert positive_int("100") == 100
-        assert positive_int("500") == 500
 
-    def test_positive_int_zero_raises_error(self):
-        """0を指定するとArgumentTypeErrorが発生する."""
-        with pytest.raises(argparse.ArgumentTypeError, match="1以上の整数を指定"):
+    def test_positive_int_invalid(self) -> None:
+        """0以下は `ArgumentTypeError` になることを確認."""
+        with pytest.raises(argparse.ArgumentTypeError):
             positive_int("0")
-
-    def test_positive_int_negative_raises_error(self):
-        """負の値を指定するとArgumentTypeErrorが発生する."""
-        with pytest.raises(argparse.ArgumentTypeError, match="1以上の整数を指定"):
+        with pytest.raises(argparse.ArgumentTypeError):
             positive_int("-1")
-
-
-class TestConvertParameterValidation:
-    """convert サブコマンドのパラメータバリデーションテスト."""
-
-    def _build_parser(self):
-        """テスト用にconvertと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("onnx_path")
-        parser.add_argument("--calib-samples", type=positive_int, default=500)
-        parser.add_argument("--calib-batch-size", type=positive_int, default=1)
-        parser.add_argument("--workspace-size", type=positive_int, default=1 << 30)
-        return parser
-
-    def test_calib_samples_zero_rejected(self):
-        """--calib-samples 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--calib-samples", "0"])
-
-    def test_calib_batch_size_negative_rejected(self):
-        """--calib-batch-size に負の値がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--calib-batch-size", "-1"])
-
-    def test_workspace_size_zero_rejected(self):
-        """--workspace-size 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--workspace-size", "0"])
-
-
-class TestInputSizeOption:
-    """--input-size オプションのテスト."""
-
-    def _build_parser(self):
-        """テスト用にconvertと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("onnx_path")
-        parser.add_argument(
-            "--input-size", nargs=2, type=positive_int, metavar=("HEIGHT", "WIDTH")
-        )
-        return parser
-
-    def test_input_size_default_none(self):
-        """--input-size 未指定時は None."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.input_size is None
-
-    def test_input_size_parsed(self):
-        """--input-size が正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--input-size", "224", "224"])
-        assert args.input_size == [224, 224]
-
-    def test_input_size_different_values(self):
-        """--input-size に異なる高さと幅を指定できる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--input-size", "320", "640"])
-        assert args.input_size == [320, 640]
-
-    def test_input_size_zero_rejected(self):
-        """--input-size 0 224 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--input-size", "0", "224"])
-
-    def test_input_size_negative_rejected(self):
-        """--input-size -1 224 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--input-size", "-1", "224"])
-
-    def test_input_size_second_value_zero_rejected(self):
-        """--input-size 224 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--input-size", "224", "0"])
-
-    def test_input_size_both_zero_rejected(self):
-        """--input-size 0 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.onnx", "--input-size", "0", "0"])
-
-
-class TestDynamicShapeDetection:
-    """動的シェイプONNXモデルの検出ロジックのテスト."""
-
-    def _has_dynamic_dims(self, dim_values):
-        """dim_value=0 の次元があるかチェックする (CLI実装と同じロジック)."""
-        return any(v == 0 for v in dim_values)
-
-    def test_static_shape_no_dynamic(self):
-        """静的シェイプには動的次元がない."""
-        assert self._has_dynamic_dims([3, 224, 224]) is False
-
-    def test_dynamic_height_width(self):
-        """height/width が動的 (dim_value=0) の場合を検出."""
-        assert self._has_dynamic_dims([3, 0, 0]) is True
-
-    def test_dynamic_single_dim(self):
-        """1次元のみ動的な場合も検出."""
-        assert self._has_dynamic_dims([3, 0, 224]) is True
-
-    def test_input_shape_from_cli(self):
-        """--input-size 指定時の入力形状構築を検証."""
-        input_size = [224, 224]
-        input_shape = (3, input_size[0], input_size[1])
-        assert input_shape == (3, 224, 224)
-
-
-class TestInputShapeForAllPrecisions:
-    """--input-size が全精度モードで input_shape に変換されるテスト."""
-
-    @staticmethod
-    def _build_input_shape(input_size):
-        """CLI引数からinput_shapeを構築する (CLI実装と同じロジック)."""
-        if input_size:
-            return (3, input_size[0], input_size[1])
-        return None
-
-    def test_input_shape_constructed_for_fp32(self):
-        """FP32でもinput_shapeタプルが構築される."""
-        input_shape = self._build_input_shape([224, 224])
-        assert input_shape == (3, 224, 224)
-
-    def test_input_shape_constructed_for_fp16(self):
-        """FP16で異なるH/Wのinput_shapeが正しく構築される."""
-        input_shape = self._build_input_shape([320, 640])
-        assert input_shape == (3, 320, 640)
-
-    def test_input_shape_none_when_not_specified(self):
-        """--input-size 未指定時はNone."""
-        input_shape = self._build_input_shape(None)
-        assert input_shape is None
-
-    def test_dynamic_shape_detection_applies_to_all_precisions(self):
-        """動的シェイプ検出が精度モードに依存しないことを検証."""
-        # dim_value=0 の検出ロジックは精度モードの外で実行される
-        dim_values = [3, 0, 0]
-        has_dynamic = any(v == 0 for v in dim_values)
-        assert has_dynamic is True

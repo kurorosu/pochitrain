@@ -15,6 +15,7 @@ from .config import PochiConfig
 from .logging import LoggerManager
 from .models.pochi_models import PochiModel, create_model
 from .pochi_dataset import (
+    FastInferenceDataset,
     PochiImageDataset,
     create_data_loaders,
     get_basic_transforms,
@@ -28,7 +29,7 @@ from .pochi_trainer import PochiTrainer
 # ユーティリティ
 from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
-__version__ = "1.4.2"
+__version__ = "1.4.3"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
@@ -40,6 +41,7 @@ __all__ = [
     "PochiPredictor",
     "PochiConfig",
     "PochiImageDataset",
+    "FastInferenceDataset",
     "PochiModel",
     "create_data_loaders",
     "get_basic_transforms",

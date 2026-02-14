@@ -1,122 +1,107 @@
-"""infer_onnx CLIのテスト.
+"""infer_onnx CLIの入口導線テスト.
 
-ONNX推論CLIの引数パース・データパス決定ロジックをテスト.
-実際のONNX推論はtest_onnx/test_inference.pyでテスト済み.
+実際のONNX推論ロジックは test_onnx/test_inference.py でテスト済み.
 """
 
-import argparse
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import torch
+import torch.nn as nn
+from PIL import Image
 
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:You are using the legacy TorchScript-based ONNX export.*:DeprecationWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:The feature will be removed\\. Please remove usage of this function:DeprecationWarning"
+    ),
+]
 
 
-class TestInferOnnxArgumentParsing:
-    """infer_onnx CLIの引数パースのテスト."""
+class _SimpleModel(nn.Module):
+    """GPUフォールバックテスト用の最小モデル."""
 
-    def _build_parser(self):
-        """テスト用にinfer_onnxと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser(description="ONNXモデルを使用した推論")
-        parser.add_argument("model_path", help="ONNXモデルファイルパス")
-        parser.add_argument("--data", help="推論データディレクトリ")
-        parser.add_argument("--output", "-o", help="結果出力ディレクトリ")
-        return parser
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(16, 2)
 
-    def test_model_path_required(self):
-        """model_pathが必須引数であることを確認."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args([])
-
-    def test_model_path_parsed(self):
-        """model_pathが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.model_path == "model.onnx"
-
-    def test_data_option(self):
-        """--dataオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--data", "data/val"])
-        assert args.data == "data/val"
-
-    def test_output_option(self):
-        """--outputオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "--output", "results/"])
-        assert args.output == "results/"
-
-    def test_output_short_option(self):
-        """-oオプションが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx", "-o", "results/"])
-        assert args.output == "results/"
-
-    def test_data_default_none(self):
-        """--data未指定時はNone."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.data is None
-
-    def test_output_default_none(self):
-        """--output未指定時はNone."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.onnx"])
-        assert args.output is None
+    def forward(self, x):
+        x = torch.relu(self.conv(x))
+        x = self.pool(x)
+        return self.fc(x.view(x.size(0), -1))
 
 
-class TestInferOnnxDataPathDecision:
-    """データパス決定ロジックのテスト.
+def _create_dummy_artifact(
+    *,
+    output_dir: Path,
+    filename: str = "dummy.txt",
+    **_kwargs,
+) -> Path:
+    """補助成果物生成を軽量化するダミー出力関数."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / filename
+    output_path.write_text("dummy", encoding="utf-8")
+    return output_path
 
-    CLIの実際のロジックを再現してテストする.
-    """
 
-    def test_data_from_args(self, tmp_path):
-        """--dataが指定された場合はそちらを使用."""
-        args_data = str(tmp_path / "custom_val")
-        config = {"val_data_root": str(tmp_path / "config_val")}
+@pytest.fixture(scope="module")
+def gpu_fallback_test_env(tmp_path_factory):
+    """GPUフォールバック用の共有テスト環境を作成する."""
+    tmp_path = tmp_path_factory.mktemp("infer_onnx_fallback")
 
-        # --data指定時はargsのパスを使う
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
+    # work_dir/models/model.onnx
+    work_dir = tmp_path / "work_dir"
+    models_dir = work_dir / "models"
+    models_dir.mkdir(parents=True)
 
-        assert data_path == tmp_path / "custom_val"
+    model = _SimpleModel()
+    model.eval()
+    model_path = models_dir / "model.onnx"
+    torch.onnx.export(
+        model,
+        torch.randn(1, 3, 32, 32),
+        str(model_path),
+        dynamo=False,
+        export_params=True,
+        opset_version=17,
+        input_names=["input"],
+        output_names=["output"],
+        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+    )
 
-    def test_data_from_config(self, tmp_path):
-        """--data未指定時はconfigのval_data_rootを使用."""
-        args_data = None
-        config = {"val_data_root": str(tmp_path / "config_val")}
+    # データセット: data/{class_a, class_b}/ にダミー画像 (モデルの2クラスに対応)
+    for cls_name, color in [("class_a", "red"), ("class_b", "blue")]:
+        cls_dir = tmp_path / "data" / cls_name
+        cls_dir.mkdir(parents=True)
+        img = Image.new("RGB", (32, 32), color=color)
+        img.save(str(cls_dir / "dummy.jpg"))
 
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
+    # config.py: device="cuda" でGPU推論を要求
+    config_path = work_dir / "config.py"
+    config_path.write_text(
+        "from torchvision import transforms\n"
+        f'val_data_root = r"{tmp_path / "data"}"\n'
+        "val_transform = transforms.Compose([\n"
+        "    transforms.Resize((32, 32)),\n"
+        "    transforms.ToTensor(),\n"
+        "    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),\n"
+        "])\n"
+        'device = "cuda"\n'
+        "batch_size = 1\n"
+        "num_workers = 0\n"
+        "pin_memory = False\n",
+        encoding="utf-8",
+    )
 
-        assert data_path == tmp_path / "config_val"
-
-    def test_no_data_source(self):
-        """--dataもconfigもない場合はNone."""
-        args_data = None
-        config = {}
-
-        if args_data:
-            data_path = Path(args_data)
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            data_path = None
-
-        assert data_path is None
+    data_path = tmp_path / "data"
+    return model_path, data_path
 
 
 class TestInferOnnxMainExit:
@@ -138,3 +123,105 @@ class TestInferOnnxMainExit:
         with patch("sys.argv", ["infer-onnx", fake_model]):
             with pytest.raises(SystemExit):
                 main()
+
+
+class TestGpuFallbackReresolution:
+    """OnnxInference の GPU フォールバック後にパイプラインが再解決されるテスト.
+
+    OnnxInference が内部で use_gpu=False に切り替えた場合,
+    CLI側で pipeline と dataset を再解決するロジックを検証する.
+    main() を通して実コード経路のフォールバックを検証する.
+    """
+
+    def test_main_does_not_crash_when_cuda_ep_unavailable(
+        self,
+        gpu_fallback_test_env,
+        tmp_path,
+    ):
+        """CUDA EP不可時にmain()がRuntimeErrorなく完走する."""
+        from pochitrain.cli.infer_onnx import main
+
+        model_path, data_path = gpu_fallback_test_env
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "infer-onnx",
+                    str(model_path),
+                    "--data",
+                    str(data_path),
+                    "-o",
+                    str(output_dir),
+                    "--pipeline",
+                    "gpu",
+                ],
+            ),
+            patch(
+                "pochitrain.onnx.inference.check_gpu_availability",
+                return_value=False,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
+                side_effect=_create_dummy_artifact,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_classification_report",
+                side_effect=_create_dummy_artifact,
+            ),
+        ):
+            # RuntimeError が発生しないことを確認
+            main()
+
+        # 結果ファイルが生成されていることを確認
+        csv_files = list(output_dir.glob("*.csv"))
+        assert len(csv_files) > 0
+
+    def test_main_fallback_uses_set_input_not_set_input_gpu(
+        self,
+        gpu_fallback_test_env,
+        tmp_path,
+    ):
+        """フォールバック後にset_input_gpu()が呼ばれないことを確認."""
+        from pochitrain.cli.infer_onnx import main
+
+        model_path, data_path = gpu_fallback_test_env
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "infer-onnx",
+                    str(model_path),
+                    "--data",
+                    str(data_path),
+                    "-o",
+                    str(output_dir),
+                    "--pipeline",
+                    "gpu",
+                ],
+            ),
+            patch(
+                "pochitrain.onnx.inference.check_gpu_availability",
+                return_value=False,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
+                side_effect=_create_dummy_artifact,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_classification_report",
+                side_effect=_create_dummy_artifact,
+            ),
+            patch(
+                "pochitrain.onnx.inference.OnnxInference.set_input_gpu",
+                side_effect=RuntimeError("set_input_gpuが呼ばれた"),
+            ) as mock_set_input_gpu,
+        ):
+            main()
+
+        mock_set_input_gpu.assert_not_called()
