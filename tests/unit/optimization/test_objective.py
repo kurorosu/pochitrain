@@ -96,12 +96,15 @@ class FakeTrainer:
         """
         type(self).last_setup_kwargs = dict(kwargs)
 
-    def train_epoch(self, _train_loader: Any) -> None:
+    def train_one_epoch(self, epoch: int, train_loader: Any) -> None:
         """1 エポック学習を模擬する.
 
         Args:
-            _train_loader: 未使用.
+            epoch: エポック番号.
+            train_loader: 未使用.
         """
+        _ = epoch
+        _ = train_loader
 
     def validate(self, _val_loader: Any) -> dict[str, float]:
         """事前に設定した検証値を返す.
