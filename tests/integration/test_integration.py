@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 import torchvision.transforms as transforms
-from PIL import Image
 
 from pochitrain.pochi_dataset import create_data_loaders
 from pochitrain.utils import ConfigLoader
@@ -19,27 +18,8 @@ from pochitrain.utils.directory_manager import PochiWorkspaceManager
 class TestMainWorkflow:
     """メインワークフローの統合テスト."""
 
-    def create_test_data_structure(self, temp_dir: str):
-        """テスト用のデータ構造を作成."""
-        base_path = Path(temp_dir)
-
-        # train/valディレクトリ構造を作成
-        for split in ["train", "val"]:
-            for class_name in ["cat", "dog"]:
-                class_dir = base_path / split / class_name
-                class_dir.mkdir(parents=True)
-
-                # 各クラスに小さな画像ファイルを作成
-                num_images = 2 if split == "val" else 3
-                for i in range(num_images):
-                    img = Image.new("RGB", (64, 64), color=(i * 100, 150, 200))
-                    img.save(class_dir / f"{split}_{i}.jpg")
-
-        return str(base_path / "train"), str(base_path / "val")
-
-    def create_test_config_file(
-        self, temp_dir: str, train_root: str, val_root: str
-    ) -> Path:
+    @staticmethod
+    def _create_config_file(config_dir: Path, train_root: str, val_root: str) -> Path:
         """テスト用設定ファイルを作成."""
         config_content = f"""
 # 統合テスト用設定
@@ -53,48 +33,49 @@ num_workers = 0
 epochs = 1  # テスト用に短く
 learning_rate = 0.1
 optimizer = "SGD"
-work_dir = "{temp_dir.replace(chr(92), '/')}/work_dirs"
+work_dir = "{str(config_dir).replace(chr(92), '/')}/work_dirs"
 device = "cpu"
 """
-        config_path = Path(temp_dir) / "test_config.py"
+        config_path = config_dir / "test_config.py"
         config_path.write_text(config_content, encoding="utf-8")
         return config_path
 
-    def test_config_loader_to_data_loader_workflow(self):
+    def test_config_loader_to_data_loader_workflow(
+        self, tmp_path, create_dummy_train_val
+    ):
         """ConfigLoaderとDataLoaderの結合経路を検証."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            train_root, val_root = self.create_test_data_structure(temp_dir)
-            config_path = self.create_test_config_file(temp_dir, train_root, val_root)
-            config = ConfigLoader.load_config(str(config_path))
+        train_root, val_root = create_dummy_train_val()
+        config_path = self._create_config_file(tmp_path, train_root, val_root)
+        config = ConfigLoader.load_config(str(config_path))
 
-            train_transform = transforms.Compose([transforms.ToTensor()])
-            val_transform = transforms.Compose([transforms.ToTensor()])
+        train_transform = transforms.Compose([transforms.ToTensor()])
+        val_transform = transforms.Compose([transforms.ToTensor()])
 
-            train_loader, val_loader, classes = create_data_loaders(
-                train_root=config["train_data_root"],
-                val_root=config["val_data_root"],
-                batch_size=config["batch_size"],
-                num_workers=config["num_workers"],
-                pin_memory=False,
-                train_transform=train_transform,
-                val_transform=val_transform,
-            )
+        train_loader, val_loader, classes = create_data_loaders(
+            train_root=config["train_data_root"],
+            val_root=config["val_data_root"],
+            batch_size=config["batch_size"],
+            num_workers=config["num_workers"],
+            pin_memory=False,
+            train_transform=train_transform,
+            val_transform=val_transform,
+        )
 
-            assert train_loader is not None
-            assert val_loader is not None
-            assert len(classes) == 2
-            assert "cat" in classes
-            assert "dog" in classes
+        assert train_loader is not None
+        assert val_loader is not None
+        assert len(classes) == 2
+        assert "cat" in classes
+        assert "dog" in classes
 
-            train_batch = next(iter(train_loader))
-            val_batch = next(iter(val_loader))
-            assert len(train_batch) == 2
-            assert len(val_batch) == 2
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        assert len(train_batch) == 2
+        assert len(val_batch) == 2
 
-    def test_workspace_and_paths_workflow(self):
+    def test_workspace_and_paths_workflow(self, create_dummy_train_val):
         """ワークスペース作成とパス保存の結合経路を検証."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            train_root, val_root = self.create_test_data_structure(temp_dir)
+            train_root, val_root = create_dummy_train_val()
 
             workspace_manager = PochiWorkspaceManager(temp_dir)
             workspace_manager.create_workspace()
