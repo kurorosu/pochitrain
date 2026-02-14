@@ -1,123 +1,171 @@
-"""export-onnx CLIのテスト.
+"""`export-onnx` CLIのテスト.
 
---input-size バリデーションを中心にテスト.
+実モジュールの `main` を通し, 引数チェックと呼び出し連携を検証する.
 """
 
-import argparse
+from pathlib import Path
 
 import pytest
 
-from pochitrain.cli.arg_types import positive_int
+import pochitrain.cli.export_onnx as export_onnx_cli
 
 
-class TestExportOnnxArgumentParsing:
-    """export-onnx コマンドの引数パースのテスト."""
+class FakeOnnxExporter:
+    """`OnnxExporter` を置き換えるテストダブル."""
 
-    def _build_parser(self):
-        """テスト用にexport-onnxと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("model_path", help="変換するPyTorchモデルファイル(.pth)")
-        parser.add_argument("--config", "-c")
-        parser.add_argument("--model-name", default="resnet18")
-        parser.add_argument("--num-classes", type=int)
-        parser.add_argument(
-            "--input-size",
-            nargs=2,
-            type=positive_int,
-            required=True,
-            metavar=("HEIGHT", "WIDTH"),
+    instances: list["FakeOnnxExporter"] = []
+
+    def __init__(self, device) -> None:
+        """呼び出し履歴を保持する初期化."""
+        self.device = device
+        self.load_model_args: tuple | None = None
+        self.export_args: dict | None = None
+        self.verify_args: dict | None = None
+        FakeOnnxExporter.instances.append(self)
+
+    def load_model(self, model_path: Path, model_name: str, num_classes: int) -> None:
+        """モデル読み込み引数を記録."""
+        self.load_model_args = (model_path, model_name, num_classes)
+
+    def export(
+        self,
+        output_path: Path,
+        input_size: tuple[int, int],
+        opset_version: int,
+    ) -> None:
+        """ONNX出力引数を記録."""
+        self.export_args = {
+            "output_path": output_path,
+            "input_size": input_size,
+            "opset_version": opset_version,
+        }
+
+    def verify(self, onnx_path: Path, input_size: tuple[int, int]) -> bool:
+        """検証呼び出しを記録して成功を返す."""
+        self.verify_args = {"onnx_path": onnx_path, "input_size": input_size}
+        return True
+
+
+class TestExportOnnxCli:
+    """`export-onnx` のCLI挙動検証."""
+
+    def setup_method(self) -> None:
+        """テスト間でダミーインスタンスを初期化."""
+        FakeOnnxExporter.instances.clear()
+
+    def test_input_size_required(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """`--input-size` 未指定時にエラー終了することを確認."""
+        monkeypatch.setattr(
+            "sys.argv", ["export-onnx", "model.pth", "--num-classes", "2"]
         )
-        parser.add_argument("--output", "-o")
-        parser.add_argument("--opset-version", type=int, default=17)
-        parser.add_argument("--device", default="cpu")
-        parser.add_argument("--skip-verify", action="store_true")
-        return parser
-
-    def test_model_path_required(self):
-        """model_pathが必須引数であることを確認."""
-        parser = self._build_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args(["--input-size", "224", "224"])
+            export_onnx_cli.main()
 
-    def test_input_size_required(self):
-        """--input-sizeが必須引数であることを確認."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth"])
-
-    def test_valid_input_size_parsed(self):
-        """有効な--input-sizeが正しくパースされる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.pth", "--input-size", "224", "224"])
-        assert args.input_size == [224, 224]
-
-    def test_input_size_different_values(self):
-        """異なる高さと幅を指定できる."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.pth", "--input-size", "320", "640"])
-        assert args.input_size == [320, 640]
-
-    def test_default_values(self):
-        """デフォルト値が正しく設定される."""
-        parser = self._build_parser()
-        args = parser.parse_args(["model.pth", "--input-size", "224", "224"])
-        assert args.model_name == "resnet18"
-        assert args.opset_version == 17
-        assert args.device == "cpu"
-        assert args.skip_verify is False
-        assert args.output is None
-        assert args.config is None
-        assert args.num_classes is None
-
-
-class TestExportOnnxInputSizeValidation:
-    """export-onnx の --input-size バリデーションテスト."""
-
-    def _build_parser(self):
-        """テスト用にexport-onnxと同等のパーサーを構築."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("model_path")
-        parser.add_argument(
-            "--input-size",
-            nargs=2,
-            type=positive_int,
-            required=True,
-            metavar=("HEIGHT", "WIDTH"),
+    def test_model_path_must_exist(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """存在しないモデルパスが拒否されることを確認."""
+        missing = tmp_path / "missing.pth"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "export-onnx",
+                str(missing),
+                "--num-classes",
+                "2",
+                "--input-size",
+                "224",
+                "224",
+            ],
         )
-        return parser
-
-    def test_input_size_zero_zero_rejected(self):
-        """--input-size 0 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "0", "0"])
+            export_onnx_cli.main()
 
-    def test_input_size_negative_negative_rejected(self):
-        """--input-size -1 -1 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "-1", "-1"])
+    def test_num_classes_is_required_without_config(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """configから取得できない場合は `--num-classes` が必須であることを確認."""
+        model_path = tmp_path / "model.pth"
+        model_path.write_text("dummy", encoding="utf-8")
 
-    def test_input_size_first_value_zero_rejected(self):
-        """--input-size 0 224 がパース時にエラーとなる."""
-        parser = self._build_parser()
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "export-onnx",
+                str(model_path),
+                "--input-size",
+                "224",
+                "224",
+            ],
+        )
         with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "0", "224"])
+            export_onnx_cli.main()
 
-    def test_input_size_second_value_zero_rejected(self):
-        """--input-size 224 0 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "224", "0"])
+    def test_default_values_are_applied(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """既定値と `--skip-verify` 分岐を確認."""
+        model_path = tmp_path / "model.pth"
+        model_path.write_text("dummy", encoding="utf-8")
 
-    def test_input_size_first_value_negative_rejected(self):
-        """--input-size -1 224 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "-1", "224"])
+        monkeypatch.setattr(export_onnx_cli, "OnnxExporter", FakeOnnxExporter)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "export-onnx",
+                str(model_path),
+                "--num-classes",
+                "2",
+                "--input-size",
+                "224",
+                "224",
+                "--skip-verify",
+            ],
+        )
 
-    def test_input_size_second_value_negative_rejected(self):
-        """--input-size 224 -1 がパース時にエラーとなる."""
-        parser = self._build_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["model.pth", "--input-size", "224", "-1"])
+        export_onnx_cli.main()
+
+        assert len(FakeOnnxExporter.instances) == 1
+        instance = FakeOnnxExporter.instances[0]
+        assert instance.load_model_args is not None
+        assert instance.load_model_args[1] == "resnet18"
+        assert instance.load_model_args[2] == 2
+        assert instance.export_args is not None
+        assert instance.export_args["input_size"] == (224, 224)
+        assert instance.export_args["opset_version"] == 17
+        assert instance.verify_args is None
+
+    def test_verify_runs_when_not_skipped(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`--skip-verify` なしでは verify が呼ばれることを確認."""
+        model_path = tmp_path / "model.pth"
+        model_path.write_text("dummy", encoding="utf-8")
+
+        monkeypatch.setattr(export_onnx_cli, "OnnxExporter", FakeOnnxExporter)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "export-onnx",
+                str(model_path),
+                "--num-classes",
+                "2",
+                "--input-size",
+                "320",
+                "640",
+            ],
+        )
+
+        export_onnx_cli.main()
+
+        instance = FakeOnnxExporter.instances[0]
+        assert instance.verify_args is not None
+        assert instance.verify_args["input_size"] == (320, 640)
