@@ -46,6 +46,14 @@ class FakeOnnxExporter:
         return True
 
 
+class FakeOnnxExporterVerifyFail(FakeOnnxExporter):
+    """verify を失敗させるテストダブル."""
+
+    def verify(self, onnx_path: Path, input_size: tuple[int, int]) -> bool:
+        self.verify_args = {"onnx_path": onnx_path, "input_size": input_size}
+        return False
+
+
 class TestExportOnnxCli:
     """`export-onnx` のCLI挙動検証."""
 
@@ -169,3 +177,29 @@ class TestExportOnnxCli:
         instance = FakeOnnxExporter.instances[0]
         assert instance.verify_args is not None
         assert instance.verify_args["input_size"] == (320, 640)
+
+    def test_verify_failure_exits_with_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """verify が False を返す場合は異常終了することを確認."""
+        model_path = tmp_path / "model.pth"
+        model_path.write_text("dummy", encoding="utf-8")
+
+        monkeypatch.setattr(export_onnx_cli, "OnnxExporter", FakeOnnxExporterVerifyFail)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "export-onnx",
+                str(model_path),
+                "--num-classes",
+                "2",
+                "--input-size",
+                "224",
+                "224",
+            ],
+        )
+
+        with pytest.raises(SystemExit):
+            export_onnx_cli.main()

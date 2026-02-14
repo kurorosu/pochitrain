@@ -367,6 +367,99 @@ class TestConvertCommand:
         ]
         assert any("動的シェイプ" in message for message in error_messages)
 
+    def test_returns_when_tensorrt_unavailable(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """TensorRT利用不可時に変換処理へ進まないことを確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: False
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[224, 224],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 0
+        error_messages = [
+            str(call.args[0]) for call in logger.error.call_args_list if call.args
+        ]
+        assert any("TensorRTが利用できません" in message for message in error_messages)
+
+    def test_returns_when_onnx_path_does_not_exist(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """ONNXファイル未存在時に変換処理へ進まないことを確認."""
+        onnx_path = tmp_path / "missing.onnx"
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=False,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[224, 224],
+            calib_samples=500,
+            calib_batch_size=1,
+            workspace_size=1 << 20,
+        )
+
+        pochi_cli.convert_command(args)
+
+        assert len(FakeConverter.instances) == 0
+        error_messages = [
+            str(call.args[0]) for call in logger.error.call_args_list if call.args
+        ]
+        assert any(
+            "ONNXモデルが見つかりません" in message for message in error_messages
+        )
+
 
 class TestPositiveIntValidation:
     """`positive_int` の境界値検証."""
