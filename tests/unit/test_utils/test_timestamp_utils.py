@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import pochitrain.utils.timestamp_utils as timestamp_utils
 from pochitrain.utils.timestamp_utils import (
     find_next_index,
     format_workspace_name,
@@ -28,11 +29,18 @@ class TestGenerateTimestampDir:
         result = generate_timestamp_dir()
         assert re.match(r"^\d{8}_001$", result)
 
-    def test_starts_with_today(self):
-        """今日の日付で始まることを確認."""
+    def test_starts_with_today(self, monkeypatch):
+        """日付プレフィックス判定が決定論的であることを確認."""
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls):
+                return cls(2026, 2, 14, 12, 34, 56)
+
+        monkeypatch.setattr(timestamp_utils, "datetime", FixedDatetime)
+
         result = generate_timestamp_dir()
-        today = datetime.now().strftime("%Y%m%d")
-        assert result.startswith(today)
+        assert result.startswith("20260214")
 
     def test_ends_with_001(self):
         """_001で終わることを確認."""
@@ -125,11 +133,17 @@ class TestGetCurrentDateStr:
         result = get_current_date_str()
         assert re.match(r"^\d{8}$", result)
 
-    def test_matches_today(self):
-        """今日の日付と一致することを確認."""
-        result = get_current_date_str()
-        today = datetime.now().strftime("%Y%m%d")
-        assert result == today
+    def test_matches_today(self, monkeypatch):
+        """現在日付文字列の判定が決定論的であることを確認."""
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls):
+                return cls(2026, 2, 14, 1, 2, 3)
+
+        monkeypatch.setattr(timestamp_utils, "datetime", FixedDatetime)
+
+        assert get_current_date_str() == "20260214"
 
 
 class TestGetCurrentTimestamp:
@@ -140,11 +154,17 @@ class TestGetCurrentTimestamp:
         result = get_current_timestamp()
         assert re.match(r"^\d{8}_\d{6}$", result)
 
-    def test_starts_with_today(self):
-        """今日の日付で始まることを確認."""
-        result = get_current_timestamp()
-        today = datetime.now().strftime("%Y%m%d")
-        assert result.startswith(today)
+    def test_starts_with_today(self, monkeypatch):
+        """現在時刻文字列の判定が決定論的であることを確認."""
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls):
+                return cls(2026, 2, 14, 7, 8, 9)
+
+        monkeypatch.setattr(timestamp_utils, "datetime", FixedDatetime)
+
+        assert get_current_timestamp() == "20260214_070809"
 
 
 class TestFormatWorkspaceName:

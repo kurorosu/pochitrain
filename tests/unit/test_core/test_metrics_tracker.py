@@ -247,6 +247,9 @@ class TestRecordEpoch:
             model=model,
             learning_rate=0.001,
         )
+        assert tracker._metrics_exporter is None
+        assert tracker._gradient_tracer is None
+        assert list(visualization_dir.glob("gradient_trace_*.csv")) == []
 
 
 class TestFinalize:
