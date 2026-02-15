@@ -16,24 +16,18 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
 
-from torch.utils.data import DataLoader
-
 from pochitrain import (
     LoggerManager,
     PochiConfig,
-    PochiImageDataset,
-    PochiPredictor,
     PochiTrainer,
     create_data_loaders,
 )
 from pochitrain.cli.arg_types import positive_int
-from pochitrain.inference.services.result_export_service import ResultExportService
-from pochitrain.inference.types.result_export_types import ResultExportRequest
+from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
-    log_inference_result,
     validate_data_path,
     validate_model_path,
 )
@@ -347,8 +341,6 @@ def get_indexed_output_dir(base_dir: str) -> Path:
 
 def infer_command(args: argparse.Namespace) -> None:
     """推論サブコマンドの実行."""
-    import time
-
     logger = setup_logging(debug=args.debug)
     logger.debug("=== pochitrain 推論モード ===")
 
@@ -386,93 +378,38 @@ def infer_command(args: argparse.Namespace) -> None:
     if args.output:
         output_dir = args.output
     else:
-        # modelsフォルダと同階層に出力
         model_dir = model_path.parent  # models フォルダ
         work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
         output_dir = str(work_dir / "inference_results")
 
-    # 推論器作成
-    try:
-        predictor = PochiPredictor(
-            model_name=pochi_config.model_name,
-            num_classes=pochi_config.num_classes,
-            device=pochi_config.device,
-            model_path=str(model_path),
-        )
+    # Service に委譲して推論実行
+    service = PyTorchInferenceService(logger)
 
+    try:
+        predictor = service.create_predictor(pochi_config, model_path)
     except Exception as e:
         logger.error(f"推論器作成エラー: {e}")
         return
 
-    # データローダー作成（訓練時と同じval_transformを使用）
     logger.debug("データローダーを作成しています...")
     try:
-        val_dataset = PochiImageDataset(
-            str(data_path), transform=pochi_config.val_transform
-        )
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=pochi_config.batch_size,
-            shuffle=False,
-            num_workers=pochi_config.num_workers,
-            pin_memory=True,
-        )
-
-        logger.debug("使用されたTransform (設定ファイルから):")
-        for i, transform in enumerate(pochi_config.val_transform.transforms):
-            logger.debug(f"   {i+1}. {transform}")
-
+        val_loader, val_dataset = service.create_dataloader(pochi_config, data_path)
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
         return
 
-    # 推論実行（時間計測はPredictor内で行う）
-    logger.info("推論を開始します...")
+    input_size = service.detect_input_size(pochi_config, val_dataset)
 
-    # 入力サイズの取得 (Transform設定またはデータセットから)
-    input_size = None
     try:
-        from torchvision.transforms import CenterCrop, RandomResizedCrop, Resize
-
-        # Transformからサイズ情報を探す
-        for t in pochi_config.val_transform.transforms:
-            if isinstance(t, (Resize, CenterCrop, RandomResizedCrop)):
-                size = getattr(t, "size", None)
-                if size:
-                    if isinstance(size, int):
-                        input_size = (3, size, size)
-                    elif isinstance(size, (list, tuple)):
-                        input_size = (3, size[0], size[1])
-                    break
-        # 見つからない場合はデータセットの最初のサンプルを確認
-        if input_size is None and len(val_dataset) > 0:
-            sample_img, _ = val_dataset[0]
-            if hasattr(sample_img, "shape"):
-                input_size = tuple(sample_img.shape)  # type: ignore
-    except Exception:
-        pass
-
-    e2e_start_time = time.perf_counter()
-    try:
-        predictions, confidences, metrics = predictor.predict(val_loader)
-
-        # 全処理計測の終了
-        e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
-
-        # 結果整理
-        image_paths = val_dataset.get_file_paths()
-        predicted_labels = predictions.tolist()
-        confidence_scores = confidences.tolist()
-        true_labels = val_dataset.labels
-        class_names = val_dataset.get_classes()
-
+        predicted_labels, confidence_scores, metrics, e2e_total_time_ms = (
+            service.run_inference(predictor, val_loader)
+        )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
         return
 
     # 結果出力
     try:
-        # 混同行列設定を取得（設定ファイルにあれば使用）
         cm_config = (
             dataclasses.asdict(pochi_config.confusion_matrix_config)
             if pochi_config.confusion_matrix_config is not None
@@ -482,52 +419,22 @@ def infer_command(args: argparse.Namespace) -> None:
         workspace_manager = InferenceWorkspaceManager(output_dir)
         workspace_dir = workspace_manager.create_workspace()
 
-        # 精度計算 (ONNX/TRTと同じ方式で統一)
-        num_samples = len(predicted_labels)
-        correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
-        avg_total_time_per_image = (
-            e2e_total_time_ms / num_samples if num_samples > 0 else 0
-        )
-
-        # 共通のログ出力機能を使用
-        log_inference_result(
-            num_samples=num_samples,
-            correct=correct,
-            avg_time_per_image=metrics["avg_time_per_image"],
-            total_samples=int(metrics["total_samples"]),
-            warmup_samples=int(metrics["warmup_samples"]),
-            avg_total_time_per_image=avg_total_time_per_image,
+        service.aggregate_and_export(
+            workspace_dir=workspace_dir,
+            model_path=model_path,
+            data_path=data_path,
+            dataset=val_dataset,
+            predicted_labels=predicted_labels,
+            confidence_scores=confidence_scores,
+            metrics=metrics,
+            e2e_total_time_ms=e2e_total_time_ms,
             input_size=input_size,
-        )
-
-        export_service = ResultExportService(logger)
-        export_service.export(
-            ResultExportRequest(
-                output_dir=workspace_dir,
-                model_path=model_path,
-                data_path=data_path,
-                image_paths=image_paths,
-                predictions=predicted_labels,
-                true_labels=true_labels,
-                confidences=confidence_scores,
-                class_names=class_names,
-                num_samples=num_samples,
-                correct=correct,
-                avg_time_per_image=metrics["avg_time_per_image"],
-                total_samples=int(metrics["total_samples"]),
-                warmup_samples=int(metrics["warmup_samples"]),
-                avg_total_time_per_image=avg_total_time_per_image,
-                input_size=input_size,
-                results_filename="pytorch_inference_results.csv",
-                summary_filename="pytorch_inference_summary.txt",
-                model_info=predictor.get_model_info(),
-                cm_config=cm_config,
-            )
+            model_info=predictor.get_model_info(),
+            cm_config=cm_config,
         )
 
         logger.info("推論完了")
 
-        # ワークスペース情報
         workspace_info = workspace_manager.get_workspace_info()
         logger.info(
             f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
