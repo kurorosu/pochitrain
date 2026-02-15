@@ -14,6 +14,8 @@
   - `bug`, `feature`, `refactor`, `test`, `documentation` のテンプレートを追加し, 起票とレビュー記述を標準化した.
 
 ### Changed
+- `pochi infer` の推論ビジネスロジックを `PyTorchInferenceService` へ分離し, CLI を薄いラッパーに整理した.
+  - 推論器生成・DataLoader 作成・入力サイズ検出・結果集約を Service 層に移し, 単体テストを可能にした.
 - `PochiTrainer` の訓練フローを `TrainingLoop` と `EpochRunner` へ分離し, 状態管理を改善した ([#235](https://github.com/kurorosu/pochitrain/pull/235)).
   - 訓練ループ責務を分割し, 目的関数とユニットテストの保守性を高めた.
 
