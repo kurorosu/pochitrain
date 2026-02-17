@@ -12,8 +12,9 @@ A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
 ## 📚 ドキュメント
 
+- [GPU環境セットアップガイド](pochitrain/docs/gpu_environment_setup.md) - CUDA/cuDNN/TensorRT のインストールと環境構築
 - [設定ファイルガイド](configs/docs/configuration.md) - 詳細な設定方法とカスタマイズ
-- [TensorRT変換ガイド](pochitrain/tensorrt/docs/conversion_guide.md) - 動的シェイプ対応と精度モード別の変換手順
+- [TensorRT変換ガイド](pochitrain/docs/conversion_guide.md) - 動的シェイプ対応と精度モード別の変換手順
 
 ## 🚀 クイックスタート
 

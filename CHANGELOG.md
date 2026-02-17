@@ -6,18 +6,21 @@
 ## [Unreleased]
 
 ### Added
-- changelog の分割運用を導入し, 旧履歴を `changelogs/` 配下で管理する構成を追加した.
+- changelog の分割運用を導入し, 旧履歴を `changelogs/` 配下で管理する構成を追加した ([#237](https://github.com/kurorosu/pochitrain/pull/237)).
   - `changelogs/README.md` と `changelogs/1.0.x.md` から `changelogs/1.3.x.md` を新規作成し, 過去履歴を系列単位で参照できるようにした.
   - changelog の運用ルールを整理し, 最新履歴は `CHANGELOG.md`, 旧履歴は `changelogs/` に置く方針へ統一した.
   - 各変更項目の記法を統一し, 1行目を要点, 2行目をインデント補足とする形式へ揃えた.
 - GitHub の Issue Template と PR Template を導入した ([#236](https://github.com/kurorosu/pochitrain/pull/236)).
   - `bug`, `feature`, `refactor`, `test`, `documentation` のテンプレートを追加し, 起票とレビュー記述を標準化した.
+- GPU 環境セットアップガイドを追加し, CUDA/cuDNN/TensorRT のインストール手順と検証済み環境を整理した.
+  - `pochitrain/docs/gpu_environment_setup.md` を新規作成し, 環境変数設定やトラブルシューティングを含むガイドを提供した.
 
 ### Changed
-- `pochi infer` の推論ビジネスロジックを `PyTorchInferenceService` へ分離し, CLI を薄いラッパーに整理した.
+- `pochi infer` の推論ビジネスロジックを `PyTorchInferenceService` へ分離し, CLI を薄いラッパーに整理した ([#238](https://github.com/kurorosu/pochitrain/pull/238)).
   - 推論器生成・DataLoader 作成・入力サイズ検出・結果集約を Service 層に移し, 単体テストを可能にした.
 - `PochiTrainer` の訓練フローを `TrainingLoop` と `EpochRunner` へ分離し, 状態管理を改善した ([#235](https://github.com/kurorosu/pochitrain/pull/235)).
   - 訓練ループ責務を分割し, 目的関数とユニットテストの保守性を高めた.
+- TensorRT 変換ガイドを `pochitrain/tensorrt/docs/` から `pochitrain/docs/` へ移動し, ドキュメント配置を統合した.
 
 ### Fixed
 - N/A.
