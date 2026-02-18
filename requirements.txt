@@ -19,6 +19,9 @@ pyyaml>=5.4.0
 colorlog>=6.0.0
 rich>=13.0.0
 
+# Configuration validation
+pydantic>=2.0.0
+
 # Hyperparameter optimization
 optuna>=3.5.0
 plotly>=5.0.0
@@ -26,7 +29,10 @@ plotly>=5.0.0
 # ONNX and ONNX Runtime
 onnx>=1.14.0
 onnxscript>=0.1.0
-onnxruntime-gpu>=1.16.0
+# onnxruntime-gpu>=1.16.0
+# Windows: pip install onnxruntime-gpu
+# Jetson (JetPack 6.2.1): pip install onnxruntime-gpu --extra-index-url https://pypi.jetson-ai-lab.io/jp6/cu126
+# 詳細: pochitrain/docs/gpu_environment_setup.md
 
 # Development tools
 black>=25.12.0
