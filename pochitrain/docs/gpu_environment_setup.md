@@ -8,7 +8,7 @@ pochitrain で GPU 訓練・ONNX Runtime GPU 推論・TensorRT 推論を利用�
 |------|---------|-------------|-------|----------|----|
 | A | 2.9.1 | 12.9 | 9.19 | 10.14.1 | Windows 11 |
 | B | 2.9.1 | 12.1 | 8.8.1 | 10.14.1 | Windows 11 |
-| C | — | 12.6 | 9.3 | 10.3 | Linux (Jetson JetPack 6.2.1) |
+| C | 2.5 | 12.6 | 9.3 | 10.3 | Linux (Jetson JetPack 6.2.1) |
 
 > **Note**: PyTorch・CUDA・cuDNN・TensorRT はバージョン間の互換性が厳密.
 > 上記の検証済み組み合わせを推奨する.
@@ -144,6 +144,42 @@ trtexec --help
 
 # Python API の確認
 python -c "import tensorrt; print(tensorrt.__version__)"
+```
+
+## 4. ONNX Runtime (GPU)
+
+### 概要
+
+ONNX モデルの GPU 推論に必要なランタイム. pochitrain では `infer-onnx` コマンドで利用する.
+
+> ONNX Runtime を使わず PyTorch / TensorRT のみで運用する場合は, このセクションはスキップ可能.
+
+### インストール
+
+#### Windows
+
+```bash
+pip install onnxruntime-gpu
+```
+
+#### Jetson (JetPack 6.2.1)
+
+PyPI の標準パッケージは x86_64 向けのため, NVIDIA の Jetson 向けインデックスを指定する.
+
+```bash
+pip install onnxruntime-gpu --extra-index-url https://pypi.jetson-ai-lab.io/jp6/cu126
+```
+
+> **Note**: JetPack バージョンによってインデックス URL が異なる場合がある.
+> 最新の URL は [Jetson AI Lab](https://pypi.jetson-ai-lab.io/) で確認すること.
+
+### 動作確認
+
+```python
+import onnxruntime as ort
+print(ort.__version__)
+print(ort.get_available_providers())
+# CUDAExecutionProvider が含まれていれば GPU 推論が可能
 ```
 
 ## バージョン互換性
