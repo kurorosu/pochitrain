@@ -544,23 +544,26 @@ scheduler_params = {
 ## Optunaハイパーパラメータ最適化設定
 
 v1.1.0より, Optuna設定を`pochi_train_config.py`に統合しました. `pochi optimize`コマンドで使用されます.
+`study_name`や`search_space`などのフラットキー形式は廃止され, `optuna = {...}` で指定します.
 
 ### 基本設定
 
 | パラメータ | 型 | 説明 | デフォルト |
 |------------|----|----- |------------|
-| `study_name` | str | Study名 | `"pochitrain_optimization"` |
-| `direction` | str | 最適化方向 | `"maximize"` |
-| `n_trials` | int | 試行回数 | `20` |
-| `n_jobs` | int | 並列ジョブ数 | `1` |
-| `optuna_epochs` | int | 最適化時のエポック数 | `10` |
+| `optuna["study_name"]` | str | Study名 | `"pochitrain_optimization"` |
+| `optuna["direction"]` | str | 最適化方向 | `"maximize"` |
+| `optuna["n_trials"]` | int | 試行回数 | `20` |
+| `optuna["n_jobs"]` | int | 並列ジョブ数 | `1` |
+| `optuna["optuna_epochs"]` | int | 最適化時のエポック数 | `10` |
 
 ```python
-study_name = "pochitrain_optimization"
-direction = "maximize"  # "maximize"(精度最大化) or "minimize"(損失最小化)
-n_trials = 20
-n_jobs = 1
-optuna_epochs = 10  # 本格訓練より短く設定して探索を高速化
+optuna = {
+    "study_name": "pochitrain_optimization",
+    "direction": "maximize",  # "maximize"(精度最大化) or "minimize"(損失最小化)
+    "n_trials": 20,
+    "n_jobs": 1,
+    "optuna_epochs": 10,  # 本格訓練より短く設定して探索を高速化
+}
 ```
 
 ### サンプラー設定
@@ -573,7 +576,7 @@ optuna_epochs = 10  # 本格訓練より短く設定して探索を高速化
 | `GridSampler` | グリッドサーチ |
 
 ```python
-sampler = "TPESampler"
+optuna["sampler"] = "TPESampler"
 ```
 
 ### プルーナー設定
@@ -588,7 +591,7 @@ sampler = "TPESampler"
 | `None` | プルーニングなし |
 
 ```python
-pruner = "MedianPruner"
+optuna["pruner"] = "MedianPruner"
 ```
 
 ### Storage設定 (オプション)
@@ -596,8 +599,8 @@ pruner = "MedianPruner"
 探索結果をDBに保存し, 中断・再開を可能にします.
 
 ```python
-storage = None  # メモリ内のみ
-# storage = "sqlite:///optuna_study.db"  # SQLiteに保存
+optuna["storage"] = None  # メモリ内のみ
+# optuna["storage"] = "sqlite:///optuna_study.db"  # SQLiteに保存
 ```
 
 ### 探索空間
@@ -605,7 +608,7 @@ storage = None  # メモリ内のみ
 各パラメータの探索範囲を指定します.
 
 ```python
-search_space = {
+optuna["search_space"] = {
     # 学習率 (対数スケール)
     "learning_rate": {
         "type": "float",
@@ -637,7 +640,7 @@ search_space = {
 #### スケジューラーパラメータの探索例
 
 ```python
-search_space = {
+optuna["search_space"] = {
     "learning_rate": {"type": "float", "low": 1e-5, "high": 1e-1, "log": True},
     "scheduler_gamma": {"type": "float", "low": 0.85, "high": 0.99},
     "scheduler_step_size": {"type": "int", "low": 5, "high": 30},

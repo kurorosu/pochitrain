@@ -4,7 +4,6 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
-import dataclasses
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -147,9 +146,9 @@ class PochiTrainer:
 
     def setup_training_from_config(self, config: PochiConfig, num_classes: int) -> None:
         """PochiConfigから訓練設定を適用."""
-        layer_wise_lr_config = dataclasses.asdict(config.layer_wise_lr_config)
+        layer_wise_lr_config = config.layer_wise_lr_config.model_dump()
         early_stopping_config = (
-            dataclasses.asdict(config.early_stopping)
+            config.early_stopping.model_dump()
             if config.early_stopping is not None
             else None
         )
