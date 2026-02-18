@@ -159,7 +159,11 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error("設定にエラーがあります。修正してください。")
         return
 
-    pochi_config = PochiConfig.from_dict(config)
+    try:
+        pochi_config = PochiConfig.from_dict(config)
+    except ValidationError as e:
+        logger.error(f"設定にエラーがあります:\n{e}")
+        return
 
     # 設定確認ログ
     logger.debug("=== 設定確認 ===")

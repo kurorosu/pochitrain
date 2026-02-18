@@ -135,54 +135,52 @@ confusion_matrix_config = {
 # 以下の設定は optimize_hyperparams.py 実行時のみ使用されます.
 # 通常の訓練（pochi.py train）では無視されます.
 
-# Study設定
-study_name = "pochitrain_optimization"
-direction = "maximize"  # "maximize"（精度最大化）or "minimize"（損失最小化）
-n_trials = 20  # 試行回数
-n_jobs = 1  # 並列ジョブ数（1 = 順次実行）
-
-# サンプラー設定
-# 利用可能: "TPESampler", "RandomSampler", "CmaEsSampler", "GridSampler"
-sampler = "TPESampler"
-
-# プルーナー設定（オプション）
-# 利用可能: "MedianPruner", "PercentilePruner", "SuccessiveHalvingPruner",
-#           "HyperbandPruner", "NopPruner", None（プルーニングなし）
-pruner = "MedianPruner"
-
-# 最適化時のエポック数（本格訓練より短く設定することで探索を高速化）
-optuna_epochs = 10
-
-# Storage設定（オプション）
-# 指定すると探索結果をDBに保存し、中断・再開が可能
-# 例: "sqlite:///optuna_study.db"
-storage = None
-
-# 探索空間
-# 各パラメータの type, low, high, log, choices を指定
-search_space = {
-    # 学習率（対数スケール）
-    "learning_rate": {
-        "type": "float",
-        "low": 1e-5,
-        "high": 1e-1,
-        "log": True,
-    },
-    # バッチサイズ（カテゴリカル）
-    "batch_size": {
-        "type": "categorical",
-        "choices": [16, 32],
-    },
-    # オプティマイザー（カテゴリカル）
-    "optimizer": {
-        "type": "categorical",
-        "choices": ["SGD", "Adam", "AdamW"],
+# optuna は必ずネスト辞書で指定
+optuna = {
+    # Study設定
+    "study_name": "pochitrain_optimization",
+    "direction": "maximize",  # "maximize"（精度最大化）or "minimize"（損失最小化）
+    "n_trials": 20,  # 試行回数
+    "n_jobs": 1,  # 並列ジョブ数（1 = 順次実行）
+    # サンプラー設定
+    # 利用可能: "TPESampler", "RandomSampler", "CmaEsSampler", "GridSampler"
+    "sampler": "TPESampler",
+    # プルーナー設定（オプション）
+    # 利用可能: "MedianPruner", "PercentilePruner", "SuccessiveHalvingPruner",
+    #           "HyperbandPruner", "NopPruner", None（プルーニングなし）
+    "pruner": "MedianPruner",
+    # 最適化時のエポック数（本格訓練より短く設定することで探索を高速化）
+    "optuna_epochs": 10,
+    # Storage設定（オプション）
+    # 指定すると探索結果をDBに保存し、中断・再開が可能
+    # 例: "sqlite:///optuna_study.db"
+    "storage": None,
+    # 探索空間
+    # 各パラメータの type, low, high, log, choices を指定
+    "search_space": {
+        # 学習率（対数スケール）
+        "learning_rate": {
+            "type": "float",
+            "low": 1e-5,
+            "high": 1e-1,
+            "log": True,
+        },
+        # バッチサイズ（カテゴリカル）
+        "batch_size": {
+            "type": "categorical",
+            "choices": [16, 32],
+        },
+        # オプティマイザー（カテゴリカル）
+        "optimizer": {
+            "type": "categorical",
+            "choices": ["SGD", "Adam", "AdamW"],
+        },
     },
 }
 
 # 探索空間の例（コメントアウト）
 # スケジューラーパラメータの探索例:
-# search_space = {
+# optuna["search_space"] = {
 #     "learning_rate": {"type": "float", "low": 1e-5, "high": 1e-1, "log": True},
 #     "scheduler_gamma": {"type": "float", "low": 0.85, "high": 0.99},
 #     "scheduler_step_size": {"type": "int", "low": 5, "high": 30},

@@ -14,6 +14,7 @@ from pochitrain.cli.pochi import (
     infer_command,
     main,
     setup_logging,
+    train_command,
     validate_config,
 )
 
@@ -543,3 +544,53 @@ class TestInferCommandServiceDelegation:
 
         mock_service.run_inference.assert_called_once()
         mock_service.aggregate_and_export.assert_not_called()
+
+
+class TestTrainCommandValidationHandling:
+    """train_command の ValidationError ハンドリングのテスト."""
+
+    def test_train_command_validation_error_returns_early(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Pydantic 検証エラー時に早期 return することを確認する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        logger = MagicMock()
+        config = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "train_transform": transforms.Compose([transforms.ToTensor()]),
+            "val_transform": transforms.Compose([transforms.ToTensor()]),
+            "enable_layer_wise_lr": False,
+            "early_stopping": {
+                "enabled": False,
+                "patience": 0,
+            },
+        }
+
+        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
+        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
+        monkeypatch.setattr(
+            pochi_module.ConfigLoader,
+            "load_config",
+            MagicMock(return_value=config),
+        )
+        monkeypatch.setattr(pochi_module, "validate_config", lambda *_: True)
+        create_data_loaders_mock = MagicMock()
+        monkeypatch.setattr(
+            pochi_module, "create_data_loaders", create_data_loaders_mock
+        )
+
+        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        train_command(args)
+
+        create_data_loaders_mock.assert_not_called()
+        error_messages = [str(c.args[0]) for c in logger.error.call_args_list if c.args]
+        assert any("設定にエラーがあります" in msg for msg in error_messages)
