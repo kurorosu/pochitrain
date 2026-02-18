@@ -6,6 +6,8 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
+
 from .sub_configs import (
     ConfusionMatrixConfig,
     EarlyStoppingConfig,
@@ -88,19 +90,21 @@ class PochiConfig:
 
         early_stopping = None
         if config.get("early_stopping") is not None:
-            early_stopping = EarlyStoppingConfig.from_dict(config.get("early_stopping"))
+            early_stopping = EarlyStoppingConfig.model_validate(
+                config["early_stopping"]
+            )
 
         confusion_matrix_config = None
         if config.get("confusion_matrix_config") is not None:
-            confusion_matrix_config = ConfusionMatrixConfig.from_dict(
-                config.get("confusion_matrix_config")
+            confusion_matrix_config = ConfusionMatrixConfig.model_validate(
+                config["confusion_matrix_config"]
             )
 
-        gradient_tracking_config = GradientTrackingConfig.from_dict(
-            config.get("gradient_tracking_config")
+        gradient_tracking_config = GradientTrackingConfig.model_validate(
+            config.get("gradient_tracking_config") or {}
         )
-        layer_wise_lr_config = LayerWiseLRConfig.from_dict(
-            config.get("layer_wise_lr_config")
+        layer_wise_lr_config = LayerWiseLRConfig.model_validate(
+            config.get("layer_wise_lr_config") or {}
         )
 
         optuna_value = config.get("optuna")
@@ -113,7 +117,7 @@ class PochiConfig:
                 **optuna_data,
                 **{key: config.get(key) for key in _OPTUNA_KEYS if key in config},
             }
-            optuna = OptunaConfig.from_dict(merged_optuna)
+            optuna = OptunaConfig.model_validate(merged_optuna)
 
         return cls(
             model_name=config["model_name"],
@@ -153,10 +157,10 @@ class PochiConfig:
             value = getattr(self, field_info.name)
             if field_info.name == "optuna":
                 if value is not None:
-                    result.update(dataclasses.asdict(value))
+                    result.update(value.model_dump())
                 continue
-            if dataclasses.is_dataclass(value) and not isinstance(value, type):
-                result[field_info.name] = dataclasses.asdict(value)
+            if isinstance(value, BaseModel):
+                result[field_info.name] = value.model_dump()
             else:
                 result[field_info.name] = value
         return result

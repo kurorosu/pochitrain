@@ -6,7 +6,6 @@ pochitrain 統一CLI エントリーポイント.
 """
 
 import argparse
-import dataclasses
 import logging
 import re
 import signal
@@ -15,6 +14,8 @@ import time
 from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
+
+from pydantic import ValidationError
 
 from pochitrain import (
     LoggerManager,
@@ -187,7 +188,9 @@ def train_command(args: argparse.Namespace) -> None:
     enable_layer_wise_lr = pochi_config.enable_layer_wise_lr
     if enable_layer_wise_lr:
         logger.debug("層別学習率: 有効")
-        layer_wise_lr_config = dataclasses.asdict(pochi_config.layer_wise_lr_config)
+        layer_wise_lr_config = cast(
+            Dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
+        )
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
         logger.debug(f"層別学習率設定: {layer_rates}")
     else:
@@ -242,9 +245,11 @@ def train_command(args: argparse.Namespace) -> None:
         class_weights=pochi_config.class_weights,
         num_classes=len(classes),
         enable_layer_wise_lr=pochi_config.enable_layer_wise_lr,
-        layer_wise_lr_config=dataclasses.asdict(pochi_config.layer_wise_lr_config),
+        layer_wise_lr_config=cast(
+            Dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
+        ),
         early_stopping_config=(
-            dataclasses.asdict(pochi_config.early_stopping)
+            cast(Dict[str, Any], pochi_config.early_stopping.model_dump())
             if pochi_config.early_stopping is not None
             else None
         ),
@@ -282,7 +287,7 @@ def train_command(args: argparse.Namespace) -> None:
 
     # Early Stopping設定のログ出力（初期化はsetup_training()で完了済み）
     early_stopping_config = (
-        dataclasses.asdict(pochi_config.early_stopping)
+        cast(Dict[str, Any], pochi_config.early_stopping.model_dump())
         if pochi_config.early_stopping is not None
         else None
     )
@@ -293,7 +298,9 @@ def train_command(args: argparse.Namespace) -> None:
     trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
         logger.debug("勾配トレース機能が有効です")
-        gradient_config = dataclasses.asdict(pochi_config.gradient_tracking_config)
+        gradient_config = cast(
+            Dict[str, Any], pochi_config.gradient_tracking_config.model_dump()
+        )
         trainer.gradient_tracking_config.update(gradient_config)
 
     # 訓練実行
@@ -361,7 +368,11 @@ def infer_command(args: argparse.Namespace) -> None:
     else:
         config = load_config_auto(model_path)
 
-    pochi_config = PochiConfig.from_dict(config)
+    try:
+        pochi_config = PochiConfig.from_dict(config)
+    except ValidationError as e:
+        logger.error(f"設定にエラーがあります:\n{e}")
+        return
 
     # データパスの決定（--data指定 or configのval_data_root）
     if args.data:
@@ -411,7 +422,7 @@ def infer_command(args: argparse.Namespace) -> None:
     # 結果出力
     try:
         cm_config = (
-            dataclasses.asdict(pochi_config.confusion_matrix_config)
+            cast(Dict[str, Any], pochi_config.confusion_matrix_config.model_dump())
             if pochi_config.confusion_matrix_config is not None
             else None
         )
@@ -458,7 +469,11 @@ def optimize_command(args: argparse.Namespace) -> None:
         logger.error(f"設定ファイルが見つかりません: {args.config}")
         return
 
-    pochi_config = PochiConfig.from_dict(config)
+    try:
+        pochi_config = PochiConfig.from_dict(config)
+    except ValidationError as e:
+        logger.error(f"設定にエラーがあります:\n{e}")
+        return
 
     # Optuna関連のインポート（遅延インポート）
     try:
