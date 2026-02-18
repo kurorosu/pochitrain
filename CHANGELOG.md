@@ -16,17 +16,23 @@
   - `pochitrain/docs/gpu_environment_setup.md` を新規作成し, 環境変数設定やトラブルシューティングを含むガイドを提供した.
 
 ### Changed
+- `PochiConfig` と全サブ設定を `dataclass` から Pydantic `BaseModel` に移行し, 宣言的バリデーションへ統一した ([#241](https://github.com/kurorosu/pochitrain/pull/241)).
+  - `Field` 制約, `Literal` 型, `field_validator`, `model_validator` により, 設定値の不正を型レベルで検出できるようにした.
+  - CLI の `train`, `infer`, `optimize` 各コマンドで `ValidationError` をキャッチし, エラーメッセージを表示する統一ハンドリングを導入した.
+  - `dataclasses.asdict` / `dataclasses.fields` を `model_dump` / `model_fields` に置換し, dataclasses 依存を除去した.
 - `pochi infer` の推論ビジネスロジックを `PyTorchInferenceService` へ分離し, CLI を薄いラッパーに整理した ([#238](https://github.com/kurorosu/pochitrain/pull/238)).
   - 推論器生成・DataLoader 作成・入力サイズ検出・結果集約を Service 層に移し, 単体テストを可能にした.
 - `PochiTrainer` の訓練フローを `TrainingLoop` と `EpochRunner` へ分離し, 状態管理を改善した ([#235](https://github.com/kurorosu/pochitrain/pull/235)).
   - 訓練ループ責務を分割し, 目的関数とユニットテストの保守性を高めた.
 - TensorRT 変換ガイドを `pochitrain/tensorrt/docs/` から `pochitrain/docs/` へ移動し, ドキュメント配置を統合した.
+- Optuna 設定ドキュメントをネスト辞書形式 (`optuna = {...}`) に更新し, フラットキー形式の記述を廃止した ([#241](https://github.com/kurorosu/pochitrain/pull/241)).
 
 ### Fixed
 - N/A.
 
 ### Removed
-- N/A.
+- `pochitrain/validation/` ディレクトリを削除し, Chain of Responsibility パターンによる手動バリデーションを Pydantic の宣言的バリデーションに置換した ([#241](https://github.com/kurorosu/pochitrain/pull/241)).
+  - 13のバリデータソースファイルと対応する13のテストファイルを除去し, バリデーションロジックを `PochiConfig` に集約した.
 
 ## v1.4.3 (2026-02-14)
 

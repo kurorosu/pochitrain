@@ -77,6 +77,16 @@ class PochiConfig(BaseModel):
             raise ValueError("パスは空文字を許可しません")
         return v
 
+    @field_validator(
+        "num_classes", "epochs", "batch_size", "num_workers", mode="before"
+    )
+    @classmethod
+    def reject_bool_for_int_fields(cls, v: Any) -> Any:
+        """Int 設定に bool が渡されるケースを明示的に拒否する."""
+        if isinstance(v, bool):
+            raise ValueError("bool は整数設定として使用できません")
+        return v
+
     @field_validator("train_transform", "val_transform")
     @classmethod
     def transform_must_exist(cls, v: Any) -> Any:

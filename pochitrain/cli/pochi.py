@@ -33,7 +33,6 @@ from pochitrain.utils import (
     validate_model_path,
 )
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
-from pochitrain.validation import ConfigValidator
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
@@ -119,21 +118,6 @@ def find_best_model(work_dir: str) -> Path:
     return best_model
 
 
-def validate_config(config: Dict[str, Any], logger: logging.Logger) -> bool:
-    """
-    設定のバリデーション.
-
-    Args:
-        config (dict): 設定辞書
-        logger: ロガー
-
-    Returns:
-        bool: バリデーション結果
-    """
-    validator = ConfigValidator(logger)
-    return validator.validate(config)
-
-
 def train_command(args: argparse.Namespace) -> None:
     """訓練サブコマンドの実行."""
     # Ctrl+Cの安全な処理を設定
@@ -154,15 +138,21 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error("configs/pochi_train_config.py を作成してください。")
         return
 
-    # 設定のバリデーション
-    if not validate_config(config, logger):
-        logger.error("設定にエラーがあります。修正してください。")
-        return
-
     try:
         pochi_config = PochiConfig.from_dict(config)
     except ValidationError as e:
         logger.error(f"設定にエラーがあります:\n{e}")
+        return
+
+    # train_data_root / val_data_root の存在チェック (train のみ)
+    if not Path(pochi_config.train_data_root).exists():
+        logger.error(f"訓練データパスが存在しません: {pochi_config.train_data_root}")
+        return
+    if (
+        pochi_config.val_data_root is not None
+        and not Path(pochi_config.val_data_root).exists()
+    ):
+        logger.error(f"検証データパスが存在しません: {pochi_config.val_data_root}")
         return
 
     # 設定確認ログ

@@ -149,6 +149,15 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
+    def test_bool_num_classes_raises_error(self) -> None:
+        """num_classes に bool を指定すると ValidationError になることを確認する."""
+        payload = _build_minimum_config()
+        payload["num_classes"] = True
+        with pytest.raises(
+            ValidationError, match="bool は整数設定として使用できません"
+        ):
+            PochiConfig.from_dict(payload)
+
     # --- epochs ---
     def test_zero_epochs_raises_error(self) -> None:
         """epochs が 0 の場合に ValidationError になることを確認する."""
@@ -157,12 +166,30 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
+    def test_bool_epochs_raises_error(self) -> None:
+        """epochs に bool を指定すると ValidationError になることを確認する."""
+        payload = _build_minimum_config()
+        payload["epochs"] = True
+        with pytest.raises(
+            ValidationError, match="bool は整数設定として使用できません"
+        ):
+            PochiConfig.from_dict(payload)
+
     # --- batch_size ---
     def test_negative_batch_size_raises_error(self) -> None:
         """batch_size が負の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
         payload["batch_size"] = -1
         with pytest.raises(ValidationError):
+            PochiConfig.from_dict(payload)
+
+    def test_bool_batch_size_raises_error(self) -> None:
+        """batch_size に bool を指定すると ValidationError になることを確認する."""
+        payload = _build_minimum_config()
+        payload["batch_size"] = True
+        with pytest.raises(
+            ValidationError, match="bool は整数設定として使用できません"
+        ):
             PochiConfig.from_dict(payload)
 
     # --- learning_rate ---
