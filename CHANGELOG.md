@@ -9,13 +9,14 @@
 - N/A.
 
 ### Changed
-- N/A.
+- `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした.
+  - `[dependency-groups] onnx` グループを削除した.
 
 ### Fixed
 - N/A.
 
 ### Removed
-- N/A.
+- `requirements.txt` から未使用の `scipy>=1.11.0` を削除した.
 
 ## v1.5.0 (2026-02-19)
 
