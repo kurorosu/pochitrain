@@ -1,6 +1,6 @@
 [project]
 name = "pochitrain"
-version = "1.4.3"
+version = "1.5.0"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,7 @@ dependencies = [
     "optuna>=3.5.0",
     "plotly>=5.0.0",
     "matplotlib-fontja>=1.1.0",
+    "pydantic>=2.0.0",
 ]
 
 [[tool.uv.index]]

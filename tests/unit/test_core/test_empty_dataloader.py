@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from pochitrain.pochi_trainer import PochiTrainer
+from pochitrain.training.epoch_runner import EpochRunner
 from pochitrain.training.evaluator import Evaluator
 
 
@@ -15,7 +16,7 @@ def _empty_loader(batch_size: int = 4) -> DataLoader:
     return DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
 
-def test_train_epoch_with_empty_loader():
+def test_epoch_runner_with_empty_loader():
     with tempfile.TemporaryDirectory() as temp_dir:
         trainer = PochiTrainer(
             model_name="resnet18",
@@ -28,13 +29,22 @@ def test_train_epoch_with_empty_loader():
             learning_rate=0.001, optimizer_name="Adam", num_classes=2
         )
 
-        metrics = trainer.train_epoch(_empty_loader())
+        assert trainer.optimizer is not None
+        assert trainer.criterion is not None
+        epoch_runner = EpochRunner(device=trainer.device, logger=trainer.logger)
+        metrics = epoch_runner.run(
+            model=trainer.model,
+            optimizer=trainer.optimizer,
+            criterion=trainer.criterion,
+            train_loader=_empty_loader(),
+            epoch=0,
+        )
 
         assert metrics["loss"] == 0.0
         assert metrics["accuracy"] == 0.0
 
 
-def test_train_epoch_sample_weighted_loss():
+def test_epoch_runner_sample_weighted_loss():
     """不均一バッチサイズでサンプル重み付け平均が正しく計算される.
 
     criterion をモックして固定 loss を返すことで,
@@ -60,9 +70,11 @@ def test_train_epoch_sample_weighted_loss():
         dataset = TensorDataset(data, targets)
         loader = DataLoader(dataset, batch_size=4, shuffle=False)
 
+        assert trainer.optimizer is not None
+        epoch_runner = EpochRunner(device=trainer.device, logger=trainer.logger)
+
         # criterion をモックしてバッチごとに固定 loss を返す
         call_count = 0
-        original_criterion = trainer.criterion
 
         def fake_criterion(output, target):
             nonlocal call_count
@@ -72,8 +84,13 @@ def test_train_epoch_sample_weighted_loss():
                 return torch.tensor(1.0, requires_grad=True)
             return torch.tensor(2.0, requires_grad=True)
 
-        trainer.criterion = fake_criterion  # type: ignore[assignment]
-        metrics = trainer.train_epoch(loader)
+        metrics = epoch_runner.run(
+            model=trainer.model,
+            optimizer=trainer.optimizer,
+            criterion=fake_criterion,  # type: ignore[arg-type]
+            train_loader=loader,
+            epoch=0,
+        )
 
         # サンプル重み付け平均: (1.0*4 + 2.0*1) / 5 = 1.2
         expected_loss = (1.0 * 4 + 2.0 * 1) / 5

@@ -1,6 +1,5 @@
 """最適化結果エクスポーター実装（SRP: 単一責任原則）."""
 
-import dataclasses
 import json
 import pprint
 from datetime import datetime
@@ -8,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import optuna
+from pydantic import BaseModel
 
 from pochitrain.config.pochi_config import PochiConfig
 from pochitrain.optimization.interfaces import IResultExporter
@@ -199,8 +199,7 @@ class ConfigExporter(IResultExporter):
 
         # ベース設定のうち、最適化対象外のものを出力
         transform_lines: list[str] = []
-        for field_info in dataclasses.fields(self._base_config):
-            key = field_info.name
+        for key in type(self._base_config).model_fields:
             if key in best_params or key in self._SKIP_FIELDS:
                 continue
             value = getattr(self._base_config, key)
@@ -216,10 +215,10 @@ class ConfigExporter(IResultExporter):
             # モジュールオブジェクトは出力しない
             if isinstance(value, type(json)):
                 continue
-            # sub-dataclassは辞書に変換して整形
-            if dataclasses.is_dataclass(value) and not isinstance(value, type):
+            # sub-modelは辞書に変換して整形
+            if isinstance(value, BaseModel):
                 lines.append(
-                    f"{key} = {self._dict_formatter.format(dataclasses.asdict(value))}"
+                    f"{key} = {self._dict_formatter.format(value.model_dump())}"
                 )
             # 辞書型は整形して出力
             elif isinstance(value, dict):

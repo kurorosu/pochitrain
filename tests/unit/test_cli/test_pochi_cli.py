@@ -2,7 +2,7 @@
 
 import argparse
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torchvision.transforms as transforms
@@ -11,9 +11,10 @@ from pochitrain.cli.pochi import (
     create_signal_handler,
     find_best_model,
     get_indexed_output_dir,
+    infer_command,
     main,
     setup_logging,
-    validate_config,
+    train_command,
 )
 
 
@@ -135,86 +136,6 @@ class TestGetIndexedOutputDir:
 
         # 次の連番が選択されることを確認
         assert result.name == "output_003"
-
-
-class TestValidateConfig:
-    """validate_config関数のテスト."""
-
-    def test_validate_config_valid(self, tmp_path):
-        """有効な設定がTrueを返すことを確認."""
-        # テスト用のデータディレクトリを作成
-        train_dir = tmp_path / "train"
-        val_dir = tmp_path / "val"
-        train_dir.mkdir()
-        val_dir.mkdir()
-
-        # テスト用のtransformを作成
-        test_transform = transforms.Compose(
-            [
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-            ]
-        )
-
-        logger = setup_logging()
-        config = {
-            "model_name": "resnet18",
-            "num_classes": 10,
-            "pretrained": True,
-            "train_data_root": str(train_dir),
-            "val_data_root": str(val_dir),
-            "batch_size": 32,
-            "epochs": 10,
-            "learning_rate": 0.001,
-            "optimizer": "Adam",
-            "device": "cpu",
-            "work_dir": "work_dirs",
-            "num_workers": 0,
-            "train_transform": test_transform,
-            "val_transform": test_transform,
-            "enable_layer_wise_lr": False,
-        }
-
-        result = validate_config(config, logger)
-        assert result is True
-
-    def test_validate_config_invalid_optimizer(self, tmp_path):
-        """無効なオプティマイザーがFalseを返すことを確認."""
-        # テスト用のデータディレクトリを作成
-        train_dir = tmp_path / "train"
-        val_dir = tmp_path / "val"
-        train_dir.mkdir()
-        val_dir.mkdir()
-
-        # テスト用のtransformを作成
-        test_transform = transforms.Compose(
-            [
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-            ]
-        )
-
-        logger = setup_logging()
-        config = {
-            "model_name": "resnet18",
-            "num_classes": 10,
-            "pretrained": True,
-            "train_data_root": str(train_dir),
-            "val_data_root": str(val_dir),
-            "batch_size": 32,
-            "epochs": 10,
-            "learning_rate": 0.001,
-            "optimizer": "InvalidOptimizer",
-            "device": "cpu",
-            "work_dir": "work_dirs",
-            "num_workers": 0,
-            "train_transform": test_transform,
-            "val_transform": test_transform,
-            "enable_layer_wise_lr": False,
-        }
-
-        result = validate_config(config, logger)
-        assert result is False
 
 
 class TestMainArgumentParsing:
@@ -376,3 +297,308 @@ class TestMainDispatch:
         assert "args" in called
         assert getattr(called["args"], "command") == "convert"
         assert getattr(called["args"], "onnx_path") == "model.onnx"
+
+
+class TestInferCommandServiceDelegation:
+    """infer_command が PyTorchInferenceService に正しく委譲するテスト."""
+
+    def _make_args(self, tmp_path: Path) -> argparse.Namespace:
+        """テスト用の argparse.Namespace を生成する."""
+        model_path = tmp_path / "models" / "best.pth"
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        model_path.touch()
+
+        data_path = tmp_path / "data"
+        data_path.mkdir(exist_ok=True)
+
+        config_path = tmp_path / "config.py"
+
+        return argparse.Namespace(
+            debug=False,
+            model_path=str(model_path),
+            data=str(data_path),
+            config_path=str(config_path),
+            output=str(tmp_path / "output"),
+        )
+
+    @patch("pochitrain.cli.pochi.PyTorchInferenceService")
+    @patch("pochitrain.cli.pochi.InferenceWorkspaceManager")
+    @patch("pochitrain.cli.pochi.ConfigLoader")
+    @patch("pochitrain.cli.pochi.validate_data_path")
+    @patch("pochitrain.cli.pochi.validate_model_path")
+    def test_delegates_to_service(
+        self,
+        mock_validate_model: MagicMock,
+        mock_validate_data: MagicMock,
+        mock_config_loader: MagicMock,
+        mock_workspace_mgr_cls: MagicMock,
+        mock_service_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Service の各メソッドが呼ばれることを検証する."""
+        mock_config_loader.load_config.return_value = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "num_workers": 0,
+            "train_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "val_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "enable_layer_wise_lr": False,
+        }
+
+        mock_service = mock_service_cls.return_value
+        mock_service.create_predictor.return_value = MagicMock()
+        mock_service.create_dataloader.return_value = (MagicMock(), MagicMock())
+        mock_service.detect_input_size.return_value = (3, 224, 224)
+        mock_service.run_inference.return_value = ([0, 1], [0.9, 0.8], {}, 100.0)
+
+        mock_workspace = mock_workspace_mgr_cls.return_value
+        mock_workspace.create_workspace.return_value = tmp_path / "workspace"
+        mock_workspace.get_workspace_info.return_value = {
+            "workspace_name": "test_workspace"
+        }
+
+        args = self._make_args(tmp_path)
+        infer_command(args)
+
+        mock_service.create_predictor.assert_called_once()
+        mock_service.create_dataloader.assert_called_once()
+        mock_service.detect_input_size.assert_called_once()
+        mock_service.run_inference.assert_called_once()
+        mock_service.aggregate_and_export.assert_called_once()
+
+    @patch("pochitrain.cli.pochi.PyTorchInferenceService")
+    @patch("pochitrain.cli.pochi.ConfigLoader")
+    @patch("pochitrain.cli.pochi.validate_data_path")
+    @patch("pochitrain.cli.pochi.validate_model_path")
+    def test_predictor_error_returns_early(
+        self,
+        mock_validate_model: MagicMock,
+        mock_validate_data: MagicMock,
+        mock_config_loader: MagicMock,
+        mock_service_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """推論器作成エラー時に早期 return すること."""
+        mock_config_loader.load_config.return_value = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "num_workers": 0,
+            "train_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "val_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "enable_layer_wise_lr": False,
+        }
+
+        mock_service = mock_service_cls.return_value
+        mock_service.create_predictor.side_effect = RuntimeError("model error")
+
+        args = self._make_args(tmp_path)
+        infer_command(args)
+
+        mock_service.create_predictor.assert_called_once()
+        mock_service.create_dataloader.assert_not_called()
+
+    @patch("pochitrain.cli.pochi.PyTorchInferenceService")
+    @patch("pochitrain.cli.pochi.ConfigLoader")
+    @patch("pochitrain.cli.pochi.validate_data_path")
+    @patch("pochitrain.cli.pochi.validate_model_path")
+    def test_inference_error_returns_early(
+        self,
+        mock_validate_model: MagicMock,
+        mock_validate_data: MagicMock,
+        mock_config_loader: MagicMock,
+        mock_service_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """推論実行エラー時に早期 return すること."""
+        mock_config_loader.load_config.return_value = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "num_workers": 0,
+            "train_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "val_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "enable_layer_wise_lr": False,
+        }
+
+        mock_service = mock_service_cls.return_value
+        mock_service.create_predictor.return_value = MagicMock()
+        mock_service.create_dataloader.return_value = (MagicMock(), MagicMock())
+        mock_service.detect_input_size.return_value = None
+        mock_service.run_inference.side_effect = RuntimeError("inference error")
+
+        args = self._make_args(tmp_path)
+        infer_command(args)
+
+        mock_service.run_inference.assert_called_once()
+        mock_service.aggregate_and_export.assert_not_called()
+
+
+class TestTrainCommandValidationHandling:
+    """train_command の ValidationError ハンドリングのテスト."""
+
+    def test_train_command_validation_error_returns_early(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Pydantic 検証エラー時に早期 return することを確認する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        logger = MagicMock()
+        config = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "train_transform": transforms.Compose([transforms.ToTensor()]),
+            "val_transform": transforms.Compose([transforms.ToTensor()]),
+            "enable_layer_wise_lr": False,
+            "early_stopping": {
+                "enabled": False,
+                "patience": 0,
+            },
+        }
+
+        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
+        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
+        monkeypatch.setattr(
+            pochi_module.ConfigLoader,
+            "load_config",
+            MagicMock(return_value=config),
+        )
+        create_data_loaders_mock = MagicMock()
+        monkeypatch.setattr(
+            pochi_module, "create_data_loaders", create_data_loaders_mock
+        )
+
+        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        train_command(args)
+
+        create_data_loaders_mock.assert_not_called()
+        error_messages = [str(c.args[0]) for c in logger.error.call_args_list if c.args]
+        assert any("設定にエラーがあります" in msg for msg in error_messages)
+
+    def test_train_command_returns_early_when_train_data_root_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """train_data_root が存在しない場合に早期 return することを確認する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        logger = MagicMock()
+        missing_train = tmp_path / "missing_train"
+        existing_val = tmp_path / "val"
+        existing_val.mkdir()
+
+        config = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": str(missing_train),
+            "val_data_root": str(existing_val),
+            "train_transform": transforms.Compose([transforms.ToTensor()]),
+            "val_transform": transforms.Compose([transforms.ToTensor()]),
+            "enable_layer_wise_lr": False,
+        }
+
+        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
+        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
+        monkeypatch.setattr(
+            pochi_module.ConfigLoader,
+            "load_config",
+            MagicMock(return_value=config),
+        )
+        create_data_loaders_mock = MagicMock()
+        monkeypatch.setattr(
+            pochi_module, "create_data_loaders", create_data_loaders_mock
+        )
+
+        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        train_command(args)
+
+        create_data_loaders_mock.assert_not_called()
+        error_messages = [str(c.args[0]) for c in logger.error.call_args_list if c.args]
+        assert any("訓練データパスが存在しません" in msg for msg in error_messages)
+
+    def test_train_command_returns_early_when_val_data_root_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """val_data_root が存在しない場合に早期 return することを確認する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        logger = MagicMock()
+        existing_train = tmp_path / "train"
+        existing_train.mkdir()
+        missing_val = tmp_path / "missing_val"
+
+        config = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": str(existing_train),
+            "val_data_root": str(missing_val),
+            "train_transform": transforms.Compose([transforms.ToTensor()]),
+            "val_transform": transforms.Compose([transforms.ToTensor()]),
+            "enable_layer_wise_lr": False,
+        }
+
+        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
+        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
+        monkeypatch.setattr(
+            pochi_module.ConfigLoader,
+            "load_config",
+            MagicMock(return_value=config),
+        )
+        create_data_loaders_mock = MagicMock()
+        monkeypatch.setattr(
+            pochi_module, "create_data_loaders", create_data_loaders_mock
+        )
+
+        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        train_command(args)
+
+        create_data_loaders_mock.assert_not_called()
+        error_messages = [str(c.args[0]) for c in logger.error.call_args_list if c.args]
+        assert any("検証データパスが存在しません" in msg for msg in error_messages)

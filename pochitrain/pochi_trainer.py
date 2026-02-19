@@ -4,7 +4,6 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 複雑なレジストリシステムを使わない、直接的なトレーナー
 """
 
-import dataclasses
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,9 +18,10 @@ from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .training.checkpoint_store import CheckpointStore
 from .training.early_stopping import EarlyStopping
+from .training.epoch_runner import EpochRunner
 from .training.evaluator import Evaluator
-from .training.metrics_tracker import MetricsTracker
 from .training.training_configurator import TrainingConfigurator
+from .training.training_loop import TrainingLoop
 from .utils.directory_manager import PochiWorkspaceManager
 
 
@@ -94,6 +94,7 @@ class PochiTrainer:
 
         # 訓練コンフィギュレータの初期化
         self.training_configurator = TrainingConfigurator(self.device, self.logger)
+        self.epoch_runner = EpochRunner(device=self.device, logger=self.logger)
 
         # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
@@ -145,9 +146,9 @@ class PochiTrainer:
 
     def setup_training_from_config(self, config: PochiConfig, num_classes: int) -> None:
         """PochiConfigから訓練設定を適用."""
-        layer_wise_lr_config = dataclasses.asdict(config.layer_wise_lr_config)
+        layer_wise_lr_config = config.layer_wise_lr_config.model_dump()
         early_stopping_config = (
-            dataclasses.asdict(config.early_stopping)
+            config.early_stopping.model_dump()
             if config.early_stopping is not None
             else None
         )
@@ -238,61 +239,88 @@ class PochiTrainer:
                 f"monitor={self.early_stopping.monitor})"
             )
 
-    def train_epoch(self, train_loader: DataLoader) -> Dict[str, float]:
-        """1エポックの訓練."""
-        self.model.train()
-        total_loss = 0.0
-        correct = 0
-        total = 0
+    def _ensure_training_configured(self) -> None:
+        """訓練に必要なコンポーネントが設定済みか検証.
 
-        for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(self.device), target.to(self.device)
+        Raises:
+            RuntimeError: setup_training() が未実行の場合.
+        """
+        if self.optimizer is None or self.criterion is None:
+            raise RuntimeError(
+                "訓練コンポーネントが未設定です. "
+                "train() の前に setup_training() を呼び出してください."
+            )
 
-            # 勾配をゼロにリセット
-            if self.optimizer is not None:
-                self.optimizer.zero_grad()
+    def _require_training_components(self) -> tuple[optim.Optimizer, nn.Module]:
+        """訓練に必要なコンポーネントを取得.
 
-            # 順伝播
-            output = self.model(data)
-            if self.criterion is not None:
-                loss = self.criterion(output, target)
-            else:
-                raise RuntimeError("criterion is not set")
+        Returns:
+            tuple[optim.Optimizer, nn.Module]: (optimizer, criterion).
 
-            # 逆伝播
-            loss.backward()
-            if self.optimizer is not None:
-                self.optimizer.step()
+        Raises:
+            RuntimeError: setup_training() が未実行の場合.
+        """
+        self._ensure_training_configured()
+        if self.optimizer is None or self.criterion is None:
+            # mypy向けの型保証. 実運用上は _ensure_training_configured で到達しない.
+            raise RuntimeError(
+                "訓練コンポーネントが未設定です. "
+                "train() の前に setup_training() を呼び出してください."
+            )
+        return self.optimizer, self.criterion
 
-            # 統計情報の更新
-            batch_size = target.size(0)
-            total_loss += loss.item() * batch_size
-            _, predicted = output.max(1)
-            total += batch_size
-            correct += predicted.eq(target).sum().item()
+    def _require_criterion(self) -> nn.Module:
+        """損失関数を取得.
 
-            # ログ出力
-            if batch_idx % 100 == 0:
-                self.logger.debug(
-                    f"エポック {self.epoch}, バッチ {batch_idx}/{len(train_loader)}, "
-                    f"損失: {loss.item():.4f}, 精度: {100.0 * correct / total:.2f}%"
-                )
+        Returns:
+            nn.Module: criterion.
 
-        # エポックの統計情報
-        # 例外回避のための防御的ガード. 本来はバリデーションで止めるのが望ましい
-        avg_loss = total_loss / total if total > 0 else 0.0
-        accuracy = 100.0 * correct / total if total > 0 else 0.0
+        Raises:
+            RuntimeError: criterion が未設定の場合.
+        """
+        if self.criterion is None:
+            raise RuntimeError("criterion is not set")
+        return self.criterion
 
-        return {"loss": avg_loss, "accuracy": accuracy}
+    def _set_epoch(self, epoch: int) -> None:
+        """現在エポックを更新."""
+        self.epoch = epoch
+
+    def _run_train_epoch(self, train_loader: DataLoader[Any]) -> Dict[str, float]:
+        """1エポック訓練を実行."""
+        optimizer, criterion = self._require_training_components()
+        return self.epoch_runner.run(
+            model=self.model,
+            optimizer=optimizer,
+            criterion=criterion,
+            train_loader=train_loader,
+            epoch=self.epoch,
+        )
+
+    def train_one_epoch(
+        self,
+        epoch: int,
+        train_loader: DataLoader[Any],
+    ) -> Dict[str, float]:
+        """指定エポックで1エポック訓練を実行.
+
+        Args:
+            epoch: 実行するエポック番号.
+            train_loader: 訓練データローダー.
+
+        Returns:
+            Dict[str, float]: 訓練メトリクス.
+        """
+        self._set_epoch(epoch)
+        return self._run_train_epoch(train_loader)
 
     def validate(self, val_loader: DataLoader[Any]) -> Dict[str, float]:
         """検証 (Evaluator に委譲)."""
-        if self.criterion is None:
-            raise RuntimeError("criterion is not set")
+        criterion = self._require_criterion()
         return self.evaluator.validate(
             model=self.model,
             val_loader=val_loader,
-            criterion=self.criterion,
+            criterion=criterion,
             num_classes_for_cm=self.num_classes_for_cm,
             epoch=self.epoch,
             workspace_path=self.current_workspace,
@@ -314,162 +342,50 @@ class PochiTrainer:
             epochs (int): エポック数
             stop_flag_callback (callable, optional): 停止フラグをチェックするコールバック関数
         """
+        self._ensure_training_configured()
         self.logger.debug(f"訓練を開始 - エポック数: {epochs}")
 
-        # MetricsTrackerの初期化（ワークスペースがある場合のみ）
-        tracker = None
-        if self.current_workspace is not None:
-            tracker = MetricsTracker(
-                logger=self.logger,
-                visualization_dir=self.workspace_manager.get_visualization_dir(),
-                enable_metrics_export=self.enable_metrics_export,
-                enable_gradient_tracking=self.enable_gradient_tracking,
-                gradient_tracking_config=self.gradient_tracking_config,
-                layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
-            )
-            tracker.initialize()
+        training_loop = TrainingLoop(
+            logger=self.logger,
+            checkpoint_store=self.checkpoint_store,
+            early_stopping=self.early_stopping,
+        )
 
-        for epoch in range(1, epochs + 1):
-            self.epoch = epoch
+        visualization_dir = (
+            self.workspace_manager.get_visualization_dir()
+            if self.current_workspace is not None
+            else None
+        )
+        tracker = TrainingLoop.create_metrics_tracker(
+            logger=self.logger,
+            current_workspace=self.current_workspace,
+            visualization_dir=visualization_dir,
+            enable_metrics_export=self.enable_metrics_export,
+            enable_gradient_tracking=self.enable_gradient_tracking,
+            gradient_tracking_config=self.gradient_tracking_config,
+            layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
+        )
 
-            # 停止フラグのチェック（エポック開始前）
-            if stop_flag_callback and stop_flag_callback():
-                self.logger.warning(
-                    f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
-                )
-                self.checkpoint_store.save_last_model(
-                    epoch=self.epoch,
-                    model=self.model,
-                    optimizer=self.optimizer,
-                    scheduler=self.scheduler,
-                    best_accuracy=self.best_accuracy,
-                )  # 現在の状態を保存
-                break
+        last_epoch, best_accuracy = training_loop.run(
+            epochs=epochs,
+            train_epoch_fn=self._run_train_epoch,
+            validate_fn=self.validate,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            model=self.model,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            tracker=tracker,
+            get_learning_rate_fn=self._get_base_learning_rate,
+            get_layer_wise_rates_fn=self.get_layer_wise_learning_rates,
+            is_layer_wise_lr_fn=self.is_layer_wise_lr_enabled,
+            initial_best_accuracy=self.best_accuracy,
+            set_epoch_fn=self._set_epoch,
+            stop_flag_callback=stop_flag_callback,
+        )
 
-            self.logger.debug(f"エポック {epoch}/{epochs} を開始")
-
-            # 1エポック訓練
-            train_metrics = self.train_epoch(train_loader)
-
-            # 検証
-            val_metrics = {}
-            if val_loader:
-                val_metrics = self.validate(val_loader)
-
-            # スケジューラーの更新
-            if self.scheduler is not None:
-                self.scheduler.step()
-
-            # ログ出力
-            self.logger.info(
-                f"エポック {epoch} 完了 - "
-                f"訓練損失: {train_metrics['loss']:.4f}, "
-                f"訓練精度: {train_metrics['accuracy']:.2f}%"
-            )
-
-            if val_metrics:
-                self.logger.info(
-                    f"検証損失: {val_metrics['val_loss']:.4f}, "
-                    f"検証精度: {val_metrics['val_accuracy']:.2f}%"
-                )
-
-                # ベストモデルの更新（精度が前回以上なら保存）
-                if val_metrics["val_accuracy"] >= self.best_accuracy:
-                    self.best_accuracy = val_metrics["val_accuracy"]
-                    self.checkpoint_store.save_best_model(
-                        epoch=epoch,
-                        model=self.model,
-                        optimizer=self.optimizer,
-                        scheduler=self.scheduler,
-                        best_accuracy=self.best_accuracy,
-                    )
-
-                # Early Stopping判定
-                if self.early_stopping is not None:
-                    monitor = self.early_stopping.monitor
-                    monitor_value = val_metrics.get(monitor)
-                    if monitor_value is not None:
-                        if self.early_stopping.step(monitor_value, epoch):
-                            self.checkpoint_store.save_last_model(
-                                epoch=self.epoch,
-                                model=self.model,
-                                optimizer=self.optimizer,
-                                scheduler=self.scheduler,
-                                best_accuracy=self.best_accuracy,
-                            )
-                            break
-
-            # ラストモデルの保存（毎エポック上書き）
-            self.checkpoint_store.save_last_model(
-                epoch=self.epoch,
-                model=self.model,
-                optimizer=self.optimizer,
-                scheduler=self.scheduler,
-                best_accuracy=self.best_accuracy,
-            )
-
-            # メトリクスと勾配の記録
-            if tracker is not None:
-                layer_wise_rates = {}
-                if self.is_layer_wise_lr_enabled():
-                    layer_rates = self.get_layer_wise_learning_rates()
-                    for layer_name, lr in layer_rates.items():
-                        layer_wise_rates[f"lr_{layer_name}"] = lr
-
-                tracker.record_epoch(
-                    epoch=epoch,
-                    train_metrics=train_metrics,
-                    val_metrics=val_metrics,
-                    model=self.model,
-                    learning_rate=self._get_base_learning_rate(),
-                    layer_wise_lr_enabled=self.is_layer_wise_lr_enabled(),
-                    layer_wise_rates=layer_wise_rates,
-                )
-
-            # 停止フラグのチェック（エポック完了後）
-            if stop_flag_callback and stop_flag_callback():
-                self.logger.warning(
-                    f"安全停止が要求されました。エポック {epoch} で訓練を終了します。"
-                )
-                break
-
-        # Early Stoppingによる停止の場合、その旨をログ出力
-        if self.early_stopping is not None and self.early_stopping.should_stop:
-            self.logger.info(
-                f"Early Stoppingにより訓練を停止しました "
-                f"(最終エポック: {self.epoch}, "
-                f"ベスト{self.early_stopping.monitor}: "
-                f"{self.early_stopping.best_value:.4f}, "
-                f"ベストエポック: {self.early_stopping.best_epoch})"
-            )
-        else:
-            self.logger.info("訓練が完了しました")
-        if val_loader:
-            self.logger.info(f"最高精度: {self.best_accuracy:.2f}%")
-
-        # 訓練完了後のエクスポート処理
-        if tracker is not None:
-            csv_path, graph_paths = tracker.finalize()
-            if csv_path:
-                self.logger.info(f"メトリクスCSVを出力: {csv_path}")
-            if graph_paths:
-                for graph_path in graph_paths:
-                    self.logger.info(f"メトリクスグラフを出力: {graph_path}")
-
-            # サマリー情報の表示
-            summary = tracker.get_summary()
-            if summary:
-                self.logger.info("=== 訓練サマリー ===")
-                self.logger.info(f"総エポック数: {summary['total_epochs']}")
-                self.logger.info(f"最終訓練損失: {summary['final_train_loss']:.4f}")
-                self.logger.info(
-                    f"最終訓練精度: {summary['final_train_accuracy']:.2f}%"
-                )
-                if "best_val_accuracy" in summary:
-                    self.logger.info(
-                        f"最高検証精度: {summary['best_val_accuracy']:.2f}% "
-                        f"(エポック {summary['best_val_accuracy_epoch']})"
-                    )
+        self.epoch = last_epoch
+        self.best_accuracy = best_accuracy
 
     def _get_base_learning_rate(self) -> float:
         """現在の基本学習率を取得.

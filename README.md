@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
@@ -12,8 +12,9 @@ A tiny but clever CNN pipeline for images — as friendly as Pochi!
 
 ## 📚 ドキュメント
 
+- [GPU環境セットアップガイド](pochitrain/docs/gpu_environment_setup.md) - CUDA/cuDNN/TensorRT のインストールと環境構築
 - [設定ファイルガイド](configs/docs/configuration.md) - 詳細な設定方法とカスタマイズ
-- [TensorRT変換ガイド](pochitrain/tensorrt/docs/conversion_guide.md) - 動的シェイプ対応と精度モード別の変換手順
+- [TensorRT変換ガイド](pochitrain/docs/conversion_guide.md) - 動的シェイプ対応と精度モード別の変換手順
 
 ## 🚀 クイックスタート
 

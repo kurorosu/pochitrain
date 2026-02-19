@@ -110,7 +110,7 @@ class ClassificationObjective(IObjectiveFunction):
 
         for epoch in range(1, self._optuna_epochs + 1):
             # 1エポック訓練
-            trainer.train_epoch(self._train_loader)
+            trainer.train_one_epoch(epoch=epoch, train_loader=self._train_loader)
 
             # 検証
             val_metrics = trainer.validate(self._val_loader)
