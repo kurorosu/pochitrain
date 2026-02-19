@@ -12,7 +12,6 @@ numpy==1.26.1
 pandas>=2.0.0
 pillow>=8.0.0
 scikit-learn>=0.24.0
-scipy>=1.11.0
 
 # Configuration and logging
 pyyaml>=5.4.0
