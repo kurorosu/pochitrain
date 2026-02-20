@@ -43,9 +43,11 @@ class ExecutionService:
 
         start_event = None
         end_event = None
+        timing_stream = None
         if request.use_cuda_timing and runtime.use_cuda_timing:
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
+            timing_stream = runtime.get_timing_stream()
 
         for batch_idx, (images, labels) in enumerate(data_loader):
             if batch_idx < request.skip_measurement_batches:
@@ -58,10 +60,16 @@ class ExecutionService:
                 runtime.set_input(images, request)
 
                 if start_event is not None and end_event is not None:
-                    start_event.record()
-                    runtime.run_inference()
-                    end_event.record()
-                    torch.cuda.synchronize()
+                    if timing_stream is not None:
+                        start_event.record(timing_stream)
+                        runtime.run_inference()
+                        end_event.record(timing_stream)
+                        timing_stream.synchronize()
+                    else:
+                        start_event.record()
+                        runtime.run_inference()
+                        end_event.record()
+                        torch.cuda.synchronize()
                     inference_time_ms = start_event.elapsed_time(end_event)
                 else:
                     start_time = time.perf_counter()
@@ -106,7 +114,7 @@ class ExecutionService:
             return
 
         dataset = data_loader.dataset
-        if len(dataset) == 0:
+        if len(dataset) == 0:  # type: ignore[arg-type]
             return
 
         image, _ = dataset[0]

@@ -1,6 +1,7 @@
 """ONNX推論をExecutionServiceへ接続するアダプタ."""
 
 import numpy as np
+import torch
 from torch import Tensor
 
 from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
@@ -28,6 +29,14 @@ class OnnxRuntimeAdapter(IRuntimeAdapter):
             GPU推論が有効な場合True.
         """
         return self.inference.use_gpu
+
+    def get_timing_stream(self) -> torch.cuda.Stream | None:
+        """CUDA Event 計測に使うストリームを返す.
+
+        Returns:
+            ONNX Runtime では専用ストリームを公開していないためNone.
+        """
+        return None
 
     def warmup(self, image: Tensor, request: ExecutionRequest) -> None:
         """単一画像でウォームアップを行う.

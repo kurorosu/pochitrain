@@ -1,6 +1,6 @@
 """ExecutionService の単体テスト."""
 
-from typing import List
+from typing import List, cast
 
 import numpy as np
 import pytest
@@ -18,15 +18,18 @@ class _DummyRuntimeAdapter:
         self,
         logits_sequence: List[np.ndarray],
         use_cuda_timing: bool = False,
+        timing_stream: torch.cuda.Stream | None = None,
     ) -> None:
         """ダミーランタイムを初期化する.
 
         Args:
             logits_sequence: get_output で返すロジット配列の順序.
             use_cuda_timing: CUDA Event 計測を使用可能かどうか.
+            timing_stream: CUDA Event 計測対象のストリーム.
         """
         self._logits_sequence = list(logits_sequence)
         self._use_cuda_timing = use_cuda_timing
+        self._timing_stream = timing_stream
         self.warmup_called = False
         self.warmup_repeats = 0
         self.set_input_calls = 0
@@ -36,6 +39,10 @@ class _DummyRuntimeAdapter:
     def use_cuda_timing(self) -> bool:
         """CUDA Event 計測の可否を返す."""
         return self._use_cuda_timing
+
+    def get_timing_stream(self) -> torch.cuda.Stream | None:
+        """CUDA Event 計測対象のストリームを返す."""
+        return self._timing_stream
 
     def warmup(self, image: torch.Tensor, request: ExecutionRequest) -> None:
         """ウォームアップ呼び出しを記録する."""
@@ -162,7 +169,7 @@ def test_run_uses_cuda_event_timing_when_available(monkeypatch) -> None:
         def __init__(self, enable_timing: bool = True) -> None:
             self.enable_timing = enable_timing
 
-        def record(self) -> None:
+        def record(self, stream: object | None = None) -> None:
             return None
 
         def elapsed_time(self, other: object) -> float:
@@ -189,3 +196,67 @@ def test_run_uses_cuda_event_timing_when_available(monkeypatch) -> None:
     assert result.total_samples == 1
     assert result.total_inference_time_ms == pytest.approx(12.5)
     assert result.e2e_total_time_ms == pytest.approx(800.0)
+
+
+def test_run_records_cuda_events_on_runtime_stream(monkeypatch) -> None:
+    """計測ストリーム指定時に Event が同一ストリームへ記録されることを確認する."""
+    loader = _build_loader([0, 1])
+
+    class _FakeStream:
+        def __init__(self) -> None:
+            self.synchronized = False
+
+        def synchronize(self) -> None:
+            self.synchronized = True
+
+    fake_stream = _FakeStream()
+    runtime = _DummyRuntimeAdapter(
+        logits_sequence=[
+            np.array([[0.9, 0.1]], dtype=np.float32),
+            np.array([[0.2, 0.8]], dtype=np.float32),
+        ],
+        use_cuda_timing=True,
+        timing_stream=cast(torch.cuda.Stream, fake_stream),
+    )
+    request = ExecutionRequest(
+        use_gpu_pipeline=True,
+        warmup_repeats=1,
+        skip_measurement_batches=1,
+        use_cuda_timing=True,
+    )
+
+    class _FakeCudaEvent:
+        recorded_streams: List[object | None] = []
+
+        def __init__(self, enable_timing: bool = True) -> None:
+            self.enable_timing = enable_timing
+
+        def record(self, stream: object | None = None) -> None:
+            _FakeCudaEvent.recorded_streams.append(stream)
+
+        def elapsed_time(self, other: object) -> float:
+            return 7.5
+
+    perf_counter_values = iter([10.0, 10.8])
+    synchronize_calls = {"count": 0}
+
+    monkeypatch.setattr(
+        "pochitrain.inference.services.execution_service.time.perf_counter",
+        lambda: next(perf_counter_values),
+    )
+    monkeypatch.setattr(
+        "pochitrain.inference.services.execution_service.torch.cuda.Event",
+        _FakeCudaEvent,
+    )
+    monkeypatch.setattr(
+        "pochitrain.inference.services.execution_service.torch.cuda.synchronize",
+        lambda: synchronize_calls.__setitem__("count", synchronize_calls["count"] + 1),
+    )
+
+    result = ExecutionService().run(loader, runtime, request)
+
+    assert _FakeCudaEvent.recorded_streams == [fake_stream, fake_stream]
+    assert fake_stream.synchronized is True
+    assert synchronize_calls["count"] == 0
+    assert result.total_samples == 1
+    assert result.total_inference_time_ms == pytest.approx(7.5)

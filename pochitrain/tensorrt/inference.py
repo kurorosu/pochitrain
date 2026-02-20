@@ -174,10 +174,12 @@ class TensorRTInference:
         """GPU上のテンソルを直接入力として設定.
 
         GPU-to-GPUコピーのみ行い, CPU経由のH2D転送をスキップする.
+        事前にデフォルトストリームの完了を待機して, ストリーム間競合を防ぐ.
 
         Args:
             tensor: GPU上のfloat32テンソル (1, channels, height, width)
         """
+        self._stream.wait_stream(torch.cuda.default_stream())
         with torch.cuda.stream(self._stream):
             self._d_input.copy_(tensor)
 

@@ -3,6 +3,7 @@
 from typing import Protocol
 
 import numpy as np
+import torch
 from torch import Tensor
 
 from pochitrain.inference.types.execution_types import ExecutionRequest
@@ -17,6 +18,14 @@ class IRuntimeAdapter(Protocol):
 
         Returns:
             CUDA Event計測を使用可能ならTrue.
+        """
+        ...
+
+    def get_timing_stream(self) -> torch.cuda.Stream | None:
+        """CUDA Event 計測に使うストリームを返す.
+
+        Returns:
+            計測対象ストリーム. ストリーム指定しない場合はNone.
         """
         ...
 

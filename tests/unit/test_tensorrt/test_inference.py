@@ -7,8 +7,10 @@ TensorRT の有無に応じた初期化挙動をテストする.
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Literal, cast
 
 import pytest
+from torch import Tensor
 
 from pochitrain.tensorrt.inference import TensorRTInference, check_tensorrt_availability
 
@@ -61,6 +63,31 @@ class _StubStream:
                 CUDA ストリームハンドル.
         """
         self.cuda_stream = cuda_stream
+        self.waited_for: list[object] = []
+
+    def wait_stream(self, stream: object) -> None:
+        """指定ストリームの完了待ちを記録する.
+
+        Args:
+            stream: 待機対象の CUDA ストリーム.
+        """
+        self.waited_for.append(stream)
+
+
+class _StubBuffer:
+    """copy_ 呼び出しを記録する GPU バッファスタブ."""
+
+    def __init__(self) -> None:
+        """スタブを初期化する."""
+        self.copied_value: object | None = None
+
+    def copy_(self, value: object) -> None:
+        """コピー対象を記録する.
+
+        Args:
+            value: copy_ に渡された入力.
+        """
+        self.copied_value = value
 
 
 class _StubEngine:
@@ -111,6 +138,72 @@ class TestExecute:
         instance.execute()
 
         assert instance.context.called_with == 12345
+
+
+class TestSetInputGpu:
+    """set_input_gpu メソッドのテスト (TensorRT 不要)."""
+
+    def test_waits_default_stream_before_copy(self, monkeypatch: Any) -> None:
+        """デフォルトストリーム待機後に copy_ されることを確認する."""
+        instance = object.__new__(TensorRTInference)
+        stub_stream = _StubStream(12345)
+        stub_buffer = _StubBuffer()
+        setattr(instance, "_stream", stub_stream)
+        setattr(instance, "_d_input", stub_buffer)
+
+        default_stream_obj = object()
+
+        class _NoopStreamContext:
+            """`torch.cuda.stream` 代替の no-op コンテキスト."""
+
+            def __init__(self, stream: object) -> None:
+                """コンテキストを初期化する.
+
+                Args:
+                    stream: テスト対象が渡す CUDA ストリーム.
+                """
+                self.stream = stream
+
+            def __enter__(self) -> "_NoopStreamContext":
+                """コンテキスト開始時に自身を返す.
+
+                Returns:
+                    自身.
+                """
+                return self
+
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: object | None,
+            ) -> Literal[False]:
+                """例外を抑制せずにコンテキストを終了する.
+
+                Args:
+                    exc_type: 例外型.
+                    exc: 例外インスタンス.
+                    tb: トレースバック.
+
+                Returns:
+                    例外を抑制しないため常に False.
+                """
+                return False
+
+        monkeypatch.setattr(
+            "pochitrain.tensorrt.inference.torch.cuda.default_stream",
+            lambda: default_stream_obj,
+        )
+        monkeypatch.setattr(
+            "pochitrain.tensorrt.inference.torch.cuda.stream",
+            lambda stream: _NoopStreamContext(stream),
+        )
+
+        tensor_obj = cast(Tensor, object())
+        instance.set_input_gpu(tensor_obj)
+
+        assert stub_stream.waited_for == [default_stream_obj]
+        assert stub_buffer.copied_value is tensor_obj
 
 
 class TestStreamProperty:

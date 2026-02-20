@@ -1,6 +1,7 @@
 """TensorRT推論をExecutionServiceへ接続するアダプタ."""
 
 import numpy as np
+import torch
 from torch import Tensor
 
 from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
@@ -28,6 +29,14 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
             TensorRTは常にGPU実行のためTrue.
         """
         return True
+
+    def get_timing_stream(self) -> torch.cuda.Stream:
+        """CUDA Event 計測に使うストリームを返す.
+
+        Returns:
+            TensorRT 実行に使用する CUDA ストリーム.
+        """
+        return self.inference.stream
 
     def warmup(self, image: Tensor, request: ExecutionRequest) -> None:
         """単一画像でウォームアップを行う.
