@@ -236,6 +236,7 @@ def main() -> None:
         warmup_repeats=10,
         skip_measurement_batches=1,
         use_cuda_timing=use_gpu,
+        gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
     )
     logger.debug("ウォームアップ中...")
     execution_service = ExecutionService()
