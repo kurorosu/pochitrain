@@ -490,3 +490,17 @@ class TestGpuNormalize:
         assert normalized.shape == (1, 3, 2, 2)
         assert normalized.dtype == torch.float32
         assert torch.allclose(normalized, expected, atol=1e-6)
+
+    def test_gpu_normalize_non_blocking_flag_keeps_numerical_result(self):
+        """non_blocking の有無で正規化結果が一致することを確認."""
+        images = torch.randint(0, 256, (2, 3, 4, 4), dtype=torch.uint8)
+        mean_255, std_255 = create_scaled_normalize_tensors(
+            [0.5, 0.25, 0.125],
+            [0.1, 0.2, 0.4],
+            device="cpu",
+        )
+
+        out_non_block = gpu_normalize(images, mean_255, std_255, non_blocking=True)
+        out_block = gpu_normalize(images, mean_255, std_255, non_blocking=False)
+
+        assert torch.allclose(out_non_block, out_block, atol=1e-6)

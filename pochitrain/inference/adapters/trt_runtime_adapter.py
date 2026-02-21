@@ -48,7 +48,12 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
         for _ in range(request.warmup_repeats):
             if request.use_gpu_pipeline:
                 assert request.mean_255 is not None and request.std_255 is not None
-                gpu_tensor = gpu_normalize(image, request.mean_255, request.std_255)
+                gpu_tensor = gpu_normalize(
+                    image,
+                    request.mean_255,
+                    request.std_255,
+                    non_blocking=request.gpu_non_blocking,
+                )
                 self.inference.set_input_gpu(gpu_tensor)
             else:
                 image_np = image.numpy()[np.newaxis, ...]
@@ -66,7 +71,12 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
         """
         if request.use_gpu_pipeline:
             assert request.mean_255 is not None and request.std_255 is not None
-            gpu_tensor = gpu_normalize(images, request.mean_255, request.std_255)
+            gpu_tensor = gpu_normalize(
+                images,
+                request.mean_255,
+                request.std_255,
+                non_blocking=request.gpu_non_blocking,
+            )
             self.inference.set_input_gpu(gpu_tensor)
             return
 

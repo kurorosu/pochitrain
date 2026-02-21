@@ -272,6 +272,7 @@ def gpu_normalize(
     images: Tensor,
     mean_255: Tensor,
     std_255: Tensor,
+    non_blocking: bool = True,
 ) -> Tensor:
     """uint8テンソルをfloat変換+正規化する.
 
@@ -284,6 +285,7 @@ def gpu_normalize(
         images: uint8テンソル (C,H,W) or (N,C,H,W)
         mean_255: 255倍済み平均テンソル (1,3,1,1)
         std_255: 255倍済み標準偏差テンソル (1,3,1,1)
+        non_blocking: 変換時に non_blocking 転送を使うかどうか.
 
     Returns:
         正規化済み float32 テンソル (N,C,H,W)
@@ -292,7 +294,11 @@ def gpu_normalize(
         images = images.unsqueeze(0)
 
     device = mean_255.device
-    images_float = images.to(device=device, dtype=torch.float32, non_blocking=True)
+    images_float = images.to(
+        device=device,
+        dtype=torch.float32,
+        non_blocking=non_blocking,
+    )
     return (images_float - mean_255) / std_255
 
 

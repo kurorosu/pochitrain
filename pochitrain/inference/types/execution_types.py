@@ -16,6 +16,7 @@ class ExecutionRequest:
     warmup_repeats: int = 10
     skip_measurement_batches: int = 1
     use_cuda_timing: bool = False
+    gpu_non_blocking: bool = True
 
 
 @dataclass(frozen=True)

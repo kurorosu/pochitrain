@@ -11,6 +11,8 @@
 ### Changed
 - `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした.
   - `[dependency-groups] onnx` グループを削除した.
+- ONNX/TRT の `pipeline=gpu` 前処理で使う `gpu_non_blocking` 設定を導入し, 非同期転送の A/B 比較を構成ファイルで切り替え可能にした.
+  - `configs/pochi_train_config.py` に `gpu_non_blocking = True` を追加し, 既定挙動を明示した.
 
 ### Fixed
 - N/A.
