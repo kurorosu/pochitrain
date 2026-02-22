@@ -6,20 +6,29 @@
 ## [Unreleased]
 
 ### Added
-- 推論ベンチマーク記録用ドキュメントを追加し, `gpu_non_blocking` の実測結果と `pin_memory` 計測テンプレートを整理した.
+- 推論ベンチマーク記録用ドキュメントを追加し, `gpu_non_blocking` の実測結果と `pin_memory` 計測テンプレートを整理した ([#249](https://github.com/kurorosu/pochitrain/pull/249)).
   - `pochitrain/docs/benchmark.md` を追加し, Windows/Jetson の計測値と計測日を記録した.
+- 推論ベンチマークの任意実行基盤を追加し, 条件定義から実行・集計までを自動化した ([#252](https://github.com/kurorosu/pochitrain/pull/252)).
+  - `infer-trt` / `infer-onnx` に `--benchmark-json`, `--benchmark-env-name` を追加し, オプトインで `benchmark_result.json` を出力できるようにした.
+  - `tools/benchmark/suites.yaml`, `tools/benchmark/run_benchmark.py`, `loader.py`, `runner.py`, `aggregator.py` を追加し, suite 定義に基づく実行と集計を実装した.
 
 ### Changed
-- `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした.
+- `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした ([#244](https://github.com/kurorosu/pochitrain/pull/244)).
   - `[dependency-groups] onnx` グループを削除した.
-- ONNX/TRT の `pipeline=gpu` 前処理で使う `gpu_non_blocking` 設定を導入し, 非同期転送の A/B 比較を構成ファイルで切り替え可能にした.
+- ONNX/TRT の `pipeline=gpu` 前処理で使う `gpu_non_blocking` 設定を導入し, 非同期転送の A/B 比較を構成ファイルで切り替え可能にした ([#248](https://github.com/kurorosu/pochitrain/pull/248)).
   - `configs/pochi_train_config.py` に `gpu_non_blocking = True` を追加し, 既定挙動を明示した.
+- ベンチマーク出力形式を整理し, 実運用時に不要な生成物を削減した ([#252](https://github.com/kurorosu/pochitrain/pull/252)).
+  - 出力先を `benchmark_runs/<suite>_<timestamp>/` に固定し, `.gitignore` で `benchmark_runs/` を無視対象にした.
+  - `benchmark_result.json` の時刻を JST (`YYYY-MM-DD HH:MM:SS`) へ統一し, `schema_version=1.0.0` を維持した.
+  - `benchmark_summary.csv/json` から `config.py` と重複する設定値を除外し, 性能指標中心の集計に変更した.
+  - `execution_manifest.json`, `stdout.log`, `stderr.log` の出力を廃止した.
+  - `pochitrain/docs/benchmark.md` に suites 設定, 実行, 再集計, 出力物の運用手順を追記した.
 
 ### Fixed
 - N/A.
 
 ### Removed
-- `requirements.txt` から未使用の `scipy>=1.11.0` を削除した.
+- `requirements.txt` から未使用の `scipy>=1.11.0` を削除した ([#244](https://github.com/kurorosu/pochitrain/pull/244)).
 
 ## v1.5.0 (2026-02-19)
 
