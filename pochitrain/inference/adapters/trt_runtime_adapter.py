@@ -1,6 +1,7 @@
 """TensorRT推論をExecutionServiceへ接続するアダプタ."""
 
 import numpy as np
+import torch
 from torch import Tensor
 
 from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
@@ -29,6 +30,14 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
         """
         return True
 
+    def get_timing_stream(self) -> torch.cuda.Stream:
+        """CUDA Event 計測に使うストリームを返す.
+
+        Returns:
+            TensorRT 実行に使用する CUDA ストリーム.
+        """
+        return self.inference.stream
+
     def warmup(self, image: Tensor, request: ExecutionRequest) -> None:
         """単一画像でウォームアップを行う.
 
@@ -39,7 +48,12 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
         for _ in range(request.warmup_repeats):
             if request.use_gpu_pipeline:
                 assert request.mean_255 is not None and request.std_255 is not None
-                gpu_tensor = gpu_normalize(image, request.mean_255, request.std_255)
+                gpu_tensor = gpu_normalize(
+                    image,
+                    request.mean_255,
+                    request.std_255,
+                    non_blocking=request.gpu_non_blocking,
+                )
                 self.inference.set_input_gpu(gpu_tensor)
             else:
                 image_np = image.numpy()[np.newaxis, ...]
@@ -57,7 +71,12 @@ class TensorRTRuntimeAdapter(IRuntimeAdapter):
         """
         if request.use_gpu_pipeline:
             assert request.mean_255 is not None and request.std_255 is not None
-            gpu_tensor = gpu_normalize(images, request.mean_255, request.std_255)
+            gpu_tensor = gpu_normalize(
+                images,
+                request.mean_255,
+                request.std_255,
+                non_blocking=request.gpu_non_blocking,
+            )
             self.inference.set_input_gpu(gpu_tensor)
             return
 

@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
+from pochitrain.inference.benchmark.result_exporter import write_benchmark_result_json
 from pochitrain.inference.services.result_export_service import ResultExportService
+from pochitrain.inference.types.benchmark_types import (
+    BenchmarkMetrics,
+    BenchmarkOptions,
+    BenchmarkResult,
+    BenchmarkSamples,
+)
 from pochitrain.inference.types.result_export_types import ResultExportRequest
 
 
@@ -71,6 +78,47 @@ def _build_request(tmp_path: Path) -> ResultExportRequest:
         extra_info={"pipeline": "gpu"},
         cm_config={"title": "cm"},
     )
+
+
+def test_write_benchmark_result_json(tmp_path: Path) -> None:
+    """ベンチマーク結果JSONを保存できることを確認する."""
+    output_dir = tmp_path / "output"
+    benchmark_result = BenchmarkResult(
+        timestamp_jst="2026-02-22 19:00:00",
+        env_name="Windows-RTX4070Ti",
+        runtime="onnx",
+        model_name="resnet18",
+        pipeline="gpu",
+        device="cuda",
+        precision="fp32",
+        options=BenchmarkOptions(
+            gpu_non_blocking=True,
+            pin_memory=False,
+            batch_size=1,
+            image_size=(512, 512),
+        ),
+        metrics=BenchmarkMetrics(
+            avg_inference_ms=3.47,
+            avg_e2e_ms=5.04,
+            throughput_inference_ips=288.2,
+            throughput_e2e_ips=198.4,
+            accuracy_percent=100.0,
+        ),
+        samples=BenchmarkSamples(
+            num_samples=38,
+            measured_samples=37,
+            warmup_samples=1,
+        ),
+    )
+
+    output_path = write_benchmark_result_json(output_dir, benchmark_result)
+
+    assert output_path.exists()
+    with open(output_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    assert payload["env_name"] == "Windows-RTX4070Ti"
+    assert payload["runtime"] == "onnx"
+    assert payload["metrics"]["avg_e2e_ms"] == pytest.approx(5.04)
 
 
 def test_export_writes_all_artifacts(tmp_path: Path):
