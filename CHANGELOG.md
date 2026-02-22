@@ -6,7 +6,8 @@
 ## [Unreleased]
 
 ### Added
-- N/A.
+- 推論ベンチマーク記録用ドキュメントを追加し, `gpu_non_blocking` の実測結果と `pin_memory` 計測テンプレートを整理した.
+  - `pochitrain/docs/benchmark.md` を追加し, Windows/Jetson の計測値と計測日を記録した.
 
 ### Changed
 - `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした.
