@@ -25,3 +25,20 @@ def test_main_nonexistent_engine_exits(tmp_path) -> None:
     with patch("sys.argv", ["infer-trt", fake_engine]):
         with pytest.raises(SystemExit):
             main()
+
+
+def test_main_accepts_benchmark_options(tmp_path) -> None:
+    """ベンチマーク関連オプションを受け付けることを確認する."""
+    fake_engine = str(tmp_path / "nonexistent.engine")
+    with patch(
+        "sys.argv",
+        [
+            "infer-trt",
+            fake_engine,
+            "--benchmark-json",
+            "--benchmark-env-name",
+            "TestEnv",
+        ],
+    ):
+        with pytest.raises(SystemExit):
+            main()

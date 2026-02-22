@@ -3,6 +3,7 @@
 実際のONNX推論ロジックは test_onnx/test_inference.py でテスト済み.
 """
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -225,3 +226,54 @@ class TestGpuFallbackReresolution:
             main()
 
         mock_set_input_gpu.assert_not_called()
+
+    def test_main_writes_benchmark_json_when_enabled(
+        self,
+        gpu_fallback_test_env,
+        tmp_path,
+    ) -> None:
+        """`--benchmark-json` 指定時にJSONが出力されることを確認する."""
+        from pochitrain.cli.infer_onnx import main
+
+        model_path, data_path = gpu_fallback_test_env
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "infer-onnx",
+                    str(model_path),
+                    "--data",
+                    str(data_path),
+                    "-o",
+                    str(output_dir),
+                    "--pipeline",
+                    "gpu",
+                    "--benchmark-json",
+                    "--benchmark-env-name",
+                    "TestEnv",
+                ],
+            ),
+            patch(
+                "pochitrain.onnx.inference.check_gpu_availability",
+                return_value=False,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
+                side_effect=_create_dummy_artifact,
+            ),
+            patch(
+                "pochitrain.inference.services.result_export_service.save_classification_report",
+                side_effect=_create_dummy_artifact,
+            ),
+        ):
+            main()
+
+        benchmark_json_path = output_dir / "benchmark_result.json"
+        assert benchmark_json_path.exists()
+        payload = json.loads(benchmark_json_path.read_text(encoding="utf-8"))
+        assert payload["env_name"] == "TestEnv"
+        assert payload["runtime"] == "onnx"
+        assert payload["pipeline"] == "fast"

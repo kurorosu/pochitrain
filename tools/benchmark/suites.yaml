@@ -1,0 +1,19 @@
+suites:
+  base:
+    description: config.py の現在設定で runtime 別に計測する.
+    repeats: 1
+    defaults:
+      pipelines:
+        - gpu
+        - fast
+        - current
+      benchmark_env_name: windows11
+      model_paths:
+        trt: work_dirs/20260206_001/models/best_epoch50_int8.engine
+        onnx: work_dirs/20260206_001/models/best_epoch50.onnx
+    cases:
+      - name: trt_default
+        runtime: trt
+
+      - name: onnx_default
+        runtime: onnx

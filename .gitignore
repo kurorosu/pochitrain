@@ -224,3 +224,4 @@ work_dirs/*
 configs/work_dirs/*
 results/*
 *.bat
+benchmark_runs/

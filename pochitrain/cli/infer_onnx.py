@@ -16,6 +16,11 @@ from typing import Any, List, Optional, Tuple
 from torch.utils.data import DataLoader
 
 from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
+from pochitrain.inference.benchmark import (
+    build_onnx_benchmark_result,
+    resolve_env_name,
+    write_benchmark_result_json,
+)
 from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
@@ -104,6 +109,16 @@ def main() -> None:
         choices=PIPELINE_CHOICES,
         default="auto",
         help="前処理パイプライン: auto(デフォルト), current(PIL), fast(CPU最適化), gpu(GPU前処理)",
+    )
+    parser.add_argument(
+        "--benchmark-json",
+        action="store_true",
+        help="ベンチマーク結果を benchmark_result.json として出力する",
+    )
+    parser.add_argument(
+        "--benchmark-env-name",
+        default=None,
+        help="ベンチマーク結果の環境ラベル（省略時は自動決定）",
     )
 
     args = parser.parse_args()
@@ -197,6 +212,9 @@ def main() -> None:
             pipeline=pipeline,
             use_gpu=use_gpu,
         )
+        batch_size = runtime_options.batch_size
+        num_workers = runtime_options.num_workers
+        pin_memory = runtime_options.pin_memory
         dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
             pipeline, data_path, val_transform
         )
@@ -303,6 +321,44 @@ def main() -> None:
             cm_config=config.get("confusion_matrix_config", None),
         )
     )
+
+    if args.benchmark_json:
+        configured_env_name = args.benchmark_env_name or config.get(
+            "benchmark_env_name"
+        )
+        env_name = resolve_env_name(
+            use_gpu=use_gpu,
+            configured_env_name=(
+                str(configured_env_name) if configured_env_name is not None else None
+            ),
+        )
+        benchmark_result = build_onnx_benchmark_result(
+            use_gpu=use_gpu,
+            pipeline=pipeline,
+            model_name=str(config.get("model_name", model_path.stem)),
+            batch_size=batch_size,
+            gpu_non_blocking=execution_request.gpu_non_blocking,
+            pin_memory=pin_memory,
+            input_size=input_size,
+            avg_time_per_image=avg_time_per_image,
+            avg_total_time_per_image=avg_total_time_per_image,
+            num_samples=num_samples,
+            total_samples=total_samples,
+            warmup_samples=warmup_samples,
+            accuracy=(correct / num_samples * 100.0 if num_samples > 0 else 0.0),
+            env_name=env_name,
+        )
+        try:
+            benchmark_json_path = write_benchmark_result_json(
+                output_dir=output_dir,
+                benchmark_result=benchmark_result,
+            )
+            logger.info(f"ベンチマークJSONを出力しました: {benchmark_json_path.name}")
+        except Exception as exc:  # pragma: no cover
+            logger.warning(
+                f"ベンチマークJSONの保存に失敗しました, error: {exc}",
+            )
+
     logger.info(f"ワークスペース: {output_dir.name}にサマリーファイルを出力しました")
 
 

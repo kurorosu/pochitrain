@@ -3,7 +3,7 @@
 ## 計測メタ情報
 
 - 最終更新日: 2026-02-22
-- 時刻表記: ローカル時刻
+- 時刻表記: `YYYY-MM-DD HH:MM:SS` (JST)
 
 ## 指標定義
 
@@ -18,6 +18,39 @@
 - バッチサイズ: `1`
 - モデル: `resnet18`, `resnet50`
 - 各条件 10 回計測し `Ave` を採用
+
+## 運用手順
+
+### 1. suites 設定
+
+- `tools/benchmark/suites.yaml` の `suites.<suite_name>` を編集する.
+- 主要項目:
+  - `repeats`: 反復回数
+  - `defaults.pipelines`: `gpu`, `fast`, `current` など
+  - `defaults.model_paths`: `trt`, `onnx` のモデルパス
+  - `cases`: 実行ケース名と runtime
+
+### 2. ベンチ実行
+
+```bash
+uv run python tools/benchmark/run_benchmark.py --suite <suite_name>
+```
+
+### 3. 再集計のみ実行
+
+```bash
+uv run python tools/benchmark/run_benchmark.py --aggregate-only --input-dir benchmark_runs/<suite_name>_<timestamp>
+```
+
+### 4. 出力物
+
+- `benchmark_runs/<suite_name>_<timestamp>/raw/`
+  - ケースごとの実行結果 (`benchmark_result.json`)
+- `benchmark_runs/<suite_name>_<timestamp>/summary/`
+  - `benchmark_summary.csv`
+  - `benchmark_summary.json`
+- `benchmark_runs/<suite_name>_<timestamp>/configs/`
+  - 実行時に参照した `config.py` のコピー
 
 ## 1. gpu_non_blocking A/B
 
