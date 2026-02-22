@@ -20,7 +20,7 @@
 ## v1.6.0 (2026-02-22)
 
 ### 概要
-- 推論ベンチマークの任意実行基盤を追加し, ONNX/TRT 依存パッケージの管理と `gpu_non_blocking` 設定を整理したリリースです.
+- 推論ベンチマークの任意実行基盤を追加し, TensorRT GPU パイプラインの計測バグ修正, ONNX/TRT 依存パッケージの管理と `gpu_non_blocking` 設定を整理したリリースです.
 
 ### Added
 - 推論ベンチマーク記録用ドキュメントを追加し, `gpu_non_blocking` の実測結果と `pin_memory` 計測テンプレートを整理した ([#249](https://github.com/kurorosu/pochitrain/pull/249)).
@@ -42,7 +42,9 @@
   - `pochitrain/docs/benchmark.md` に suites 設定, 実行, 再集計, 出力物の運用手順を追記した.
 
 ### Fixed
-- なし.
+- TensorRT GPU パイプラインの精度低下と計測異常を修正した ([#245](https://github.com/kurorosu/pochitrain/pull/245)).
+  - GPU 入力時にデフォルトストリーム待機を追加し, INT8 精度低下を解消した.
+  - CUDA Event 計測を TRT 実行ストリームに統一し, 推論時間が異常に短く記録される問題を修正した.
 
 ### Removed
 - `requirements.txt` から未使用の `scipy>=1.11.0` を削除した ([#244](https://github.com/kurorosu/pochitrain/pull/244)).
