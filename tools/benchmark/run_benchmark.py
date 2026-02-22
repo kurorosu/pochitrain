@@ -77,7 +77,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 1
         try:
             csv_path, json_path = aggregate_results(Path(args.input_dir))
-            LOGGER.info("summary csv: %s", csv_path)
+            LOGGER.info("summary csv : %s", csv_path)
             LOGGER.info("summary json: %s", json_path)
             return 0
         except Exception as exc:
@@ -107,7 +107,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         csv_path, json_path = aggregate_results(run_dir)
         LOGGER.info("run dir: %s", run_dir)
-        LOGGER.info("summary csv: %s", csv_path)
+        LOGGER.info("summary csv : %s", csv_path)
         LOGGER.info("summary json: %s", json_path)
         return 0
     except Exception as exc:

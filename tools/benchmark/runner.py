@@ -95,6 +95,8 @@ def run_suite(suite: SuiteConfig, output_root: Path, fail_fast: bool) -> Path:
     run_dir = output_root / f"{suite.name}_{now_local_timestamp()}"
     raw_dir = run_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
+    runtime_width = max(len(case.runtime) for case in suite.cases)
+    pipeline_width = max(len(case.pipeline) for case in suite.cases)
 
     for case_index, case in enumerate(suite.cases, start=1):
         case_dir = raw_dir / f"case_{case_index:03d}_{case.name}"
@@ -105,13 +107,14 @@ def run_suite(suite: SuiteConfig, output_root: Path, fail_fast: bool) -> Path:
             run_output_dir.mkdir(parents=True, exist_ok=True)
             command = _build_command(case, run_output_dir)
             LOGGER.info(
-                "case=%s repeat=%s/%s runtime=%s",
-                case.name,
+                "suite=%s runtime=%s pipeline=%s repeat=%s/%s",
+                suite.name,
+                case.runtime.ljust(runtime_width),
+                case.pipeline.ljust(pipeline_width),
                 repeat_index,
                 case.repeats,
-                case.runtime,
             )
-            LOGGER.debug("command=%s", " ".join(command))
+            LOGGER.debug("case=%s command=%s", case.name, " ".join(command))
 
             completed = subprocess.run(
                 command,
@@ -134,9 +137,12 @@ def run_suite(suite: SuiteConfig, output_root: Path, fail_fast: bool) -> Path:
 
             if status != "ok":
                 LOGGER.warning(
-                    "実行失敗 case=%s repeat=%s error=%s",
-                    case.name,
+                    "実行失敗 suite=%s runtime=%s pipeline=%s repeat=%s/%s error=%s",
+                    suite.name,
+                    case.runtime.ljust(runtime_width),
+                    case.pipeline.ljust(pipeline_width),
                     repeat_index,
+                    case.repeats,
                     error,
                 )
                 if fail_fast:
