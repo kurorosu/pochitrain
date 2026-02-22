@@ -13,7 +13,7 @@ from pochitrain.inference.types.benchmark_types import (
 def test_benchmark_result_to_dict_contains_expected_values():
     """to_dict が仕様どおりのキーと値を返すことを確認する."""
     result = BenchmarkResult(
-        timestamp_utc="2026-02-22T12:34:56Z",
+        timestamp_jst="2026-02-22 21:34:56",
         env_name="Windows-RTX4070Ti",
         runtime="tensorrt",
         precision="int8",
@@ -56,7 +56,7 @@ def test_benchmark_result_to_dict_contains_expected_values():
 def test_benchmark_result_default_schema_version():
     """schema_version の既定値が定数と一致することを確認する."""
     result = BenchmarkResult(
-        timestamp_utc="2026-02-22T12:34:56Z",
+        timestamp_jst="2026-02-22 21:34:56",
         env_name="Jetson-Orin-Nano",
         runtime="onnx",
         model_name="resnet18",
@@ -88,7 +88,7 @@ def test_benchmark_json_schema_has_required_top_level_keys():
 
     assert required == {
         "schema_version",
-        "timestamp_utc",
+        "timestamp_jst",
         "env_name",
         "runtime",
         "model_name",

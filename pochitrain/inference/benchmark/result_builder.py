@@ -1,6 +1,6 @@
 """ベンチマーク結果型の生成処理."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -10,6 +10,13 @@ from pochitrain.inference.types.benchmark_types import (
     BenchmarkResult,
     BenchmarkSamples,
 )
+
+JST = timezone(timedelta(hours=9))
+
+
+def _now_jst_timestamp() -> str:
+    """現在時刻を `YYYY-MM-DD HH:MM:SS` 形式で返す."""
+    return datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def build_onnx_benchmark_result(
@@ -57,10 +64,10 @@ def build_onnx_benchmark_result(
         1000.0 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0.0
     )
     image_size = (input_size[1], input_size[2]) if input_size is not None else None
-    timestamp_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    timestamp_jst = _now_jst_timestamp()
 
     return BenchmarkResult(
-        timestamp_utc=timestamp_utc,
+        timestamp_jst=timestamp_jst,
         env_name=env_name,
         runtime="onnx",
         precision="fp32",
@@ -152,10 +159,10 @@ def build_trt_benchmark_result(
         1000.0 / avg_total_time_per_image if avg_total_time_per_image > 0 else 0.0
     )
     image_size = (input_size[1], input_size[2]) if input_size is not None else None
-    timestamp_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    timestamp_jst = _now_jst_timestamp()
 
     return BenchmarkResult(
-        timestamp_utc=timestamp_utc,
+        timestamp_jst=timestamp_jst,
         env_name=env_name,
         runtime="tensorrt",
         precision=_resolve_trt_precision(engine_path),

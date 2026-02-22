@@ -84,7 +84,7 @@ def test_write_benchmark_result_json(tmp_path: Path) -> None:
     """ベンチマーク結果JSONを保存できることを確認する."""
     output_dir = tmp_path / "output"
     benchmark_result = BenchmarkResult(
-        timestamp_utc="2026-02-22T10:00:00Z",
+        timestamp_jst="2026-02-22 19:00:00",
         env_name="Windows-RTX4070Ti",
         runtime="onnx",
         model_name="resnet18",

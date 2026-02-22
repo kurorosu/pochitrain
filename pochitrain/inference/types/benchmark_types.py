@@ -82,7 +82,7 @@ class BenchmarkSamples:
 class BenchmarkResult:
     """`benchmark_result.json` のルート型."""
 
-    timestamp_utc: str
+    timestamp_jst: str
     env_name: str
     runtime: str
     model_name: str
@@ -104,7 +104,7 @@ class BenchmarkResult:
         """
         return {
             "schema_version": self.schema_version,
-            "timestamp_utc": self.timestamp_utc,
+            "timestamp_jst": self.timestamp_jst,
             "env_name": self.env_name,
             "suite_name": self.suite_name,
             "repeat_index": self.repeat_index,
@@ -145,7 +145,7 @@ def benchmark_result_json_schema() -> Dict[str, Any]:
         "additionalProperties": False,
         "required": [
             "schema_version",
-            "timestamp_utc",
+            "timestamp_jst",
             "env_name",
             "runtime",
             "model_name",
@@ -160,9 +160,9 @@ def benchmark_result_json_schema() -> Dict[str, Any]:
                 "type": "string",
                 "const": BENCHMARK_RESULT_SCHEMA_VERSION,
             },
-            "timestamp_utc": {
+            "timestamp_jst": {
                 "type": "string",
-                "format": "date-time",
+                "pattern": r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$",
             },
             "env_name": {"type": "string"},
             "suite_name": nullable_string_schema,
