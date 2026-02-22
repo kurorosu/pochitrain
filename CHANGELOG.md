@@ -9,7 +9,7 @@
 - N/A.
 
 ### Changed
-- N/A.
+- `.github/ISSUE_TEMPLATE/refactor_request.md` のラベル表記を `refactoring` から `refactor` へ統一した.
 
 ### Fixed
 - N/A.
