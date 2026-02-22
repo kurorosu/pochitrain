@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 BENCHMARK_RESULT_SCHEMA_VERSION = "1.0.0"
+BENCHMARK_RESULT_FILENAME = "benchmark_result.json"
 
 
 @dataclass(frozen=True)
