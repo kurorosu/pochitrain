@@ -79,7 +79,7 @@ class PochiWorkspaceManager:
         """
         if self.current_workspace is None:
             raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
             )
 
         return self.current_workspace / "models"
@@ -96,7 +96,7 @@ class PochiWorkspaceManager:
         """
         if self.current_workspace is None:
             raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
             )
 
         return self.current_workspace / "paths"
@@ -113,7 +113,7 @@ class PochiWorkspaceManager:
         """
         if self.current_workspace is None:
             raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
             )
 
         return self.current_workspace / "visualization"
@@ -135,7 +135,7 @@ class PochiWorkspaceManager:
         """
         if self.current_workspace is None:
             raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
             )
 
         if not config_path.exists():
@@ -164,7 +164,7 @@ class PochiWorkspaceManager:
         """
         if self.current_workspace is None:
             raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
+                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
             )
 
         paths_dir = self._get_paths_dir()
@@ -187,8 +187,8 @@ class InferenceWorkspaceManager(PochiWorkspaceManager):
     """
     推論専用ワークスペース管理クラス.
 
-    PochiWorkspaceManagerを継承し、推論に特化したワークスペース管理を提供します。
-    訓練用とは異なり、推論結果とメタデータのみを保存します。
+    PochiWorkspaceManagerを継承し、推論に特化したワークスペース管理を提供.
+    訓練用とは異なり、推論結果とメタデータのみを保存.
 
     Args:
         base_dir (str): ベースディレクトリのパス (デフォルト: "inference_results")
@@ -203,7 +203,7 @@ class InferenceWorkspaceManager(PochiWorkspaceManager):
         推論専用ワークスペースを作成.
 
         親クラスのワークスペース作成機能を使用しますが、
-        推論専用なのでmodelsディレクトリは作成しません。
+        推論専用なのでmodelsディレクトリは作成しません.
 
         Returns:
             Path: 作成されたワークスペースのパス
