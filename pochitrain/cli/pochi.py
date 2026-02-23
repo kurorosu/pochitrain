@@ -10,7 +10,6 @@ import logging
 import re
 import signal
 import sys
-import time
 from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
@@ -24,6 +23,11 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.cli.arg_types import positive_int
+from pochitrain.inference.benchmark import (
+    build_pytorch_benchmark_result,
+    resolve_env_name,
+    write_benchmark_result_json,
+)
 from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
@@ -373,11 +377,12 @@ def infer_command(args: argparse.Namespace) -> None:
     # データパスの決定（--data指定 or configのval_data_root）
     service = PyTorchInferenceService(logger)
 
+    requested_pipeline = str(getattr(args, "pipeline", "current"))
     cli_request = InferenceCliRequest(
         model_path=model_path,
         data_path=Path(args.data) if args.data else None,
         output_dir=Path(args.output) if args.output else None,
-        requested_pipeline="current",
+        requested_pipeline=requested_pipeline,
     )
     try:
         resolved_paths = service.resolve_paths(cli_request, config)
@@ -445,8 +450,48 @@ def infer_command(args: argparse.Namespace) -> None:
             cm_config=cm_config,
         )
 
-        logger.info("推論完了")
+        if bool(getattr(args, "benchmark_json", False)):
+            configured_env_name = getattr(
+                args, "benchmark_env_name", None
+            ) or config.get("benchmark_env_name")
+            env_name = resolve_env_name(
+                use_gpu=use_gpu,
+                configured_env_name=(
+                    str(configured_env_name)
+                    if configured_env_name is not None
+                    else None
+                ),
+            )
+            benchmark_result = build_pytorch_benchmark_result(
+                use_gpu=use_gpu,
+                pipeline=pipeline,
+                model_name=str(config.get("model_name", model_path.stem)),
+                batch_size=runtime_options.batch_size,
+                gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+                pin_memory=runtime_options.pin_memory,
+                input_size=input_size,
+                avg_time_per_image=run_result.avg_time_per_image,
+                avg_total_time_per_image=run_result.avg_total_time_per_image,
+                num_samples=run_result.num_samples,
+                total_samples=run_result.total_samples,
+                warmup_samples=run_result.warmup_samples,
+                accuracy=run_result.accuracy_percent,
+                env_name=env_name,
+            )
+            try:
+                benchmark_json_path = write_benchmark_result_json(
+                    output_dir=workspace_dir,
+                    benchmark_result=benchmark_result,
+                )
+                logger.info(
+                    f"ベンチマークJSONを出力しました: {benchmark_json_path.name}"
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.warning(
+                    f"ベンチマークJSONの保存に失敗しました, error: {exc}",
+                )
 
+        logger.info("推論完了")
         logger.info(
             f"ワークスペース: {workspace_dir.name}へサマリーファイルを出力しました"
         )
@@ -860,6 +905,22 @@ def main() -> None:
         "--output",
         "-o",
         help="結果出力ディレクトリ（default: モデルと同じディレクトリ/inference_results）",
+    )
+    infer_parser.add_argument(
+        "--pipeline",
+        choices=("auto", "current", "fast", "gpu"),
+        default="current",
+        help="前処理パイプライン. 現在は current のみ実行されます.",
+    )
+    infer_parser.add_argument(
+        "--benchmark-json",
+        action="store_true",
+        help="ベンチマーク結果を benchmark_result.json として出力する",
+    )
+    infer_parser.add_argument(
+        "--benchmark-env-name",
+        default=None,
+        help="ベンチマーク結果の環境ラベル（省略時は自動決定）",
     )
 
     # 最適化サブコマンド

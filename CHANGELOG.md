@@ -6,10 +6,18 @@
 ## [Unreleased]
 
 ### Added
-- N/A.
+- ベンチマーク実行基盤で `pytorch` runtime を追加し, `base` スイートから `pochi infer` を実行できるようにした.
+  - `tools/benchmark/suites.yaml` の `model_paths` と `cases` に `pytorch` を追加した.
+  - `tools/benchmark/loader.py` と `tools/benchmark/runner.py` を更新し, runtime 検証とコマンド分岐を対応した.
+- `pochi infer` に `--benchmark-json`, `--benchmark-env-name`, `--pipeline` を追加し, ベンチマーク結果の JSON 出力に対応した.
+  - `build_pytorch_benchmark_result` を追加し, ONNX/TRT と同じ `benchmark_result.json` スキーマへ統一した.
 
 ### Changed
-- `.github/ISSUE_TEMPLATE/refactor_request.md` のラベル表記を `refactoring` から `refactor` へ統一した.
+- `.github/ISSUE_TEMPLATE/refactor_request.md` のラベル表記を `refactoring` から `refactor` へ統一した ([#260](https://github.com/kurorosu/pochitrain/pull/260)).
+- 推論CLIのオーケストレーション境界を整理し, `run(request) -> result` を3ランタイムで共通化した.
+  - `InferenceRunResult` をランタイム横断の集約型として統一した.
+  - パス解決と runtime option 解決の責務を Service 層へ集約した.
+  - `pochi infer` の `--output` 指定時の出力挙動を ONNX/TRT と同じルールに統一した.
 
 ### Fixed
 - N/A.

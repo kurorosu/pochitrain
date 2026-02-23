@@ -68,14 +68,16 @@ def _parse_runtime(value: Any, field: str) -> str:
         field: エラー表示用フィールド名.
 
     Returns:
-        `onnx` または `trt`.
+        `onnx`, `trt`, `pytorch` のいずれか.
 
     Raises:
         ValueError: 不正な runtime の場合.
     """
     runtime = _require_non_empty_str(value, field).lower()
-    if runtime not in {"onnx", "trt"}:
-        raise ValueError(f"{field} は onnx または trt を指定してください: {value}")
+    if runtime not in {"onnx", "trt", "pytorch"}:
+        raise ValueError(
+            f"{field} は onnx, trt, pytorch のいずれかを指定してください: {value}"
+        )
     return runtime
 
 
