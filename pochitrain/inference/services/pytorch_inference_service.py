@@ -8,11 +8,11 @@ from torch.utils.data import DataLoader
 
 from pochitrain.config import PochiConfig
 from pochitrain.inference.adapters import PyTorchRuntimeAdapter
-from pochitrain.inference.interfaces import (
+from pochitrain.inference.pipeline_strategy import create_dataset_and_params
+from pochitrain.inference.services.interfaces import (
     IExecutionService,
     IInferenceOrchestrationService,
 )
-from pochitrain.inference.pipeline_strategy import create_dataset_and_params
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import PochiImageDataset, create_scaled_normalize_tensors
 from pochitrain.pochi_predictor import PochiPredictor

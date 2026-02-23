@@ -67,7 +67,7 @@ def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> No
         return images.to(dtype=torch.float32)
 
     monkeypatch.setattr(
-        "pochitrain.inference.adapters.trt_runtime_adapter.gpu_normalize",
+        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
         _fake_gpu_normalize,
     )
 
@@ -99,7 +99,7 @@ def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> N
         return images.to(dtype=torch.float32)
 
     monkeypatch.setattr(
-        "pochitrain.inference.adapters.onnx_runtime_adapter.gpu_normalize",
+        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
         _fake_gpu_normalize,
     )
 

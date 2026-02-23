@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from pochitrain.inference.interfaces import IRuntimeAdapter
+from pochitrain.inference.adapters.interfaces import IRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceRunResult,

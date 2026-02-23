@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from pochitrain.inference.interfaces import IInferenceOrchestrationService
+from pochitrain.inference.services.interfaces import IInferenceOrchestrationService
 
 from .execution_service import ExecutionService
 
