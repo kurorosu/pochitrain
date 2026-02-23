@@ -199,35 +199,6 @@ class PochiWorkspaceManager:
 
         return target_path
 
-    def save_image_list(
-        self, image_paths: list, filename: str = "images_list.txt"
-    ) -> Path:
-        """
-        使用した画像のリストを保存.
-
-        Args:
-            image_paths (list): 画像パスのリスト
-            filename (str): 保存するファイル名
-
-        Returns:
-            Path: 保存されたファイルのパス
-
-        Raises:
-            RuntimeError: ワークスペースが作成されていない場合
-        """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
-            )
-
-        file_path = self.current_workspace / filename
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            for image_path in image_paths:
-                f.write(f"{image_path}\n")
-
-        return file_path
-
     def save_dataset_paths(
         self, train_paths: list, val_paths: Optional[list] = None
     ) -> Tuple[Path, Optional[Path]]:
@@ -266,41 +237,6 @@ class PochiWorkspaceManager:
                     f.write(f"{path}\n")
 
         return train_file_path, val_file_path
-
-    def get_available_workspaces(self) -> list[dict]:
-        """
-        利用可能なワークスペースの一覧を取得.
-
-        Returns:
-            list[dict]: ワークスペース情報のリスト
-        """
-        if not self.base_dir.exists():
-            return []
-
-        workspaces = []
-
-        for item in self.base_dir.iterdir():
-            if item.is_dir():
-                try:
-                    date_str, index = parse_timestamp_dir(item.name)
-                    workspaces.append(
-                        {
-                            "name": item.name,
-                            "path": str(item),
-                            "date": date_str,
-                            "index": index,
-                            "models_dir": str(item / "models"),
-                            "exists": item.exists(),
-                        }
-                    )
-                except ValueError:
-                    # 形式が合わないディレクトリは無視
-                    continue
-
-        # 日付とインデックスでソート
-        workspaces.sort(key=lambda x: (x["date"], x["index"]))
-
-        return workspaces
 
 
 class InferenceWorkspaceManager(PochiWorkspaceManager):

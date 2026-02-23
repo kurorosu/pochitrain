@@ -176,27 +176,6 @@ class TestPochiWorkspaceManager:
                 index2 = int(workspace2.name.split("_")[1])
                 assert index2 > index1
 
-    def test_get_available_workspaces(self):
-        """利用可能ワークスペース一覧取得のテスト"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            manager = PochiWorkspaceManager(temp_dir)
-
-            # 初期状態では空
-            workspaces = manager.get_available_workspaces()
-            assert len(workspaces) == 0
-
-            # ワークスペースを作成
-            workspace1 = manager.create_workspace()
-            workspace2 = manager.create_workspace()
-
-            # 作成されたワークスペースが一覧に含まれる
-            workspaces = manager.get_available_workspaces()
-            assert len(workspaces) == 2
-
-            workspace_names = [ws["name"] for ws in workspaces]
-            assert workspace1.name in workspace_names
-            assert workspace2.name in workspace_names
-
     def test_error_handling_no_workspace(self):
         """ワークスペース未作成時のエラーハンドリング"""
         with tempfile.TemporaryDirectory() as temp_dir:

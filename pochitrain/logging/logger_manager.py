@@ -196,9 +196,3 @@ class LoggerManager:
             bool: colorlogが利用可能な場合True
         """
         return COLORLOG_AVAILABLE
-
-    @classmethod
-    def reset(cls) -> None:
-        """シングルトンインスタンスをリセット（主にテスト用）."""
-        cls._instance = None
-        cls._loggers.clear()
