@@ -414,9 +414,16 @@ def infer_command(args: argparse.Namespace) -> None:
 
     logger.debug("データローダーを作成しています...")
     try:
-        val_loader, val_dataset = service.create_dataloader(
+        (
+            val_loader,
+            val_dataset,
+            pipeline,
+            norm_mean,
+            norm_std,
+        ) = service.create_dataloader(
             pochi_config,
             data_path,
+            pipeline=pipeline,
             pin_memory=runtime_options.pin_memory,
         )
     except Exception as e:
@@ -429,6 +436,10 @@ def infer_command(args: argparse.Namespace) -> None:
         runtime_request = service.build_runtime_execution_request(
             predictor=predictor,
             val_loader=val_loader,
+            use_gpu_pipeline=pipeline == "gpu",
+            norm_mean=norm_mean,
+            norm_std=norm_std,
+            gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
         )
         run_result = service.run(
             runtime_request,
@@ -473,7 +484,7 @@ def infer_command(args: argparse.Namespace) -> None:
                 pipeline=pipeline,
                 model_name=str(config.get("model_name", model_path.stem)),
                 batch_size=runtime_options.batch_size,
-                gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+                gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
                 pin_memory=runtime_options.pin_memory,
                 input_size=input_size,
                 avg_time_per_image=run_result.avg_time_per_image,

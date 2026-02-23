@@ -70,15 +70,19 @@ class TestCreatePredictor:
 class TestResolvePipeline:
     """resolve_pipeline のテスト."""
 
-    def test_auto_returns_current(self) -> None:
+    def test_auto_returns_gpu_when_gpu_enabled(self) -> None:
         """auto 指定時は current を返すこと."""
         service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("auto", use_gpu=True) == "current"
+        assert service.resolve_pipeline("auto", use_gpu=True) == "gpu"
 
-    def test_non_auto_also_returns_current(self) -> None:
+    def test_auto_returns_fast_when_gpu_disabled(self) -> None:
         """非auto指定時も current を返すこと."""
         service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("gpu", use_gpu=True) == "current"
+        assert service.resolve_pipeline("auto", use_gpu=False) == "fast"
+
+    def test_gpu_requested_without_gpu_falls_back_to_fast(self) -> None:
+        service = PyTorchInferenceService(_build_logger())
+        assert service.resolve_pipeline("gpu", use_gpu=False) == "fast"
 
 
 class TestResolvePaths:
@@ -137,26 +141,80 @@ class TestResolveRuntimeOptions:
         assert options.use_gpu_pipeline is False
 
 
+class TestBuildRuntimeExecutionRequest:
+    """build_runtime_execution_request のテスト."""
+
+    def test_sets_gpu_pipeline_and_non_blocking(self) -> None:
+        service = PyTorchInferenceService(_build_logger())
+        predictor = MagicMock()
+        predictor.device = torch.device("cpu")
+        predictor.model = MagicMock()
+
+        runtime_request = service.build_runtime_execution_request(
+            predictor=predictor,
+            val_loader=MagicMock(),
+            use_gpu_pipeline=True,
+            norm_mean=[0.485, 0.456, 0.406],
+            norm_std=[0.229, 0.224, 0.225],
+            gpu_non_blocking=False,
+        )
+
+        execution_request = runtime_request.execution_request
+        assert execution_request.use_gpu_pipeline is True
+        assert execution_request.gpu_non_blocking is False
+        assert execution_request.mean_255 is not None
+        assert execution_request.std_255 is not None
+
+    def test_raises_when_gpu_pipeline_has_no_normalize_params(self) -> None:
+        service = PyTorchInferenceService(_build_logger())
+        predictor = MagicMock()
+        predictor.device = torch.device("cpu")
+        predictor.model = MagicMock()
+
+        with pytest.raises(ValueError):
+            service.build_runtime_execution_request(
+                predictor=predictor,
+                val_loader=MagicMock(),
+                use_gpu_pipeline=True,
+            )
+
+
 class TestCreateDataloader:
     """create_dataloader のテスト."""
 
-    @patch("pochitrain.inference.services.pytorch_inference_service.PochiImageDataset")
-    def test_returns_loader_and_dataset(self, mock_dataset_cls: MagicMock) -> None:
+    @patch(
+        "pochitrain.inference.services.pytorch_inference_service.create_dataset_and_params"
+    )
+    def test_returns_loader_and_dataset(self, mock_create_dataset: MagicMock) -> None:
         """DataLoader とデータセットが返されること."""
         mock_dataset = MagicMock()
-        mock_dataset_cls.return_value = mock_dataset
+        mock_create_dataset.return_value = (
+            mock_dataset,
+            "fast",
+            [0.485, 0.456, 0.406],
+            [0.229, 0.224, 0.225],
+        )
 
         service = PyTorchInferenceService(_build_logger())
         config = _build_config()
         data_path = Path("data/val")
 
-        loader, dataset = service.create_dataloader(config, data_path)
+        loader, dataset, pipeline, norm_mean, norm_std = service.create_dataloader(
+            config,
+            data_path,
+            pipeline="gpu",
+        )
 
-        mock_dataset_cls.assert_called_once_with(
-            str(data_path), transform=config.val_transform
+        mock_create_dataset.assert_called_once_with(
+            "gpu",
+            data_path,
+            config.val_transform,
         )
         assert dataset is mock_dataset
         assert loader.batch_size == config.batch_size
+        assert pipeline == "fast"
+        assert norm_mean == [0.485, 0.456, 0.406]
+        assert norm_std == [0.229, 0.224, 0.225]
 
 
 class TestDetectInputSize:

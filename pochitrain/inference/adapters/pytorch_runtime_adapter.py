@@ -8,6 +8,7 @@ from torch import Tensor
 
 from pochitrain.inference.interfaces import IRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest
+from pochitrain.pochi_dataset import gpu_normalize
 from pochitrain.pochi_predictor import PochiPredictor
 
 
@@ -49,6 +50,11 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
             return torch.device(device)
         return torch.device("cpu")
 
+    @property
+    def device(self) -> torch.device:
+        """入力を配置するデバイスを返す."""
+        return self._device
+
     def get_timing_stream(self) -> torch.cuda.Stream | None:
         """CUDA Event計測に使うストリームを返す.
 
@@ -66,10 +72,18 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
         """
         if not isinstance(image, torch.Tensor):
             image = torch.as_tensor(image)
-        if image.ndim == 3:
-            image = image.unsqueeze(0)
-
-        batch = image.to(self._device, non_blocking=request.gpu_non_blocking)
+        if request.use_gpu_pipeline:
+            assert request.mean_255 is not None and request.std_255 is not None
+            batch = gpu_normalize(
+                image,
+                request.mean_255,
+                request.std_255,
+                non_blocking=request.gpu_non_blocking,
+            )
+        else:
+            if image.ndim == 3:
+                image = image.unsqueeze(0)
+            batch = image.to(self._device, non_blocking=request.gpu_non_blocking)
         self.predictor.model.eval()
         with torch.inference_mode():
             for _ in range(request.warmup_repeats):
@@ -86,6 +100,16 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
         """
         if not isinstance(images, torch.Tensor):
             images = torch.as_tensor(images)
+        if request.use_gpu_pipeline:
+            assert request.mean_255 is not None and request.std_255 is not None
+            self._input_batch = gpu_normalize(
+                images,
+                request.mean_255,
+                request.std_255,
+                non_blocking=request.gpu_non_blocking,
+            )
+            return
+
         self._input_batch = images.to(
             self._device,
             non_blocking=request.gpu_non_blocking,

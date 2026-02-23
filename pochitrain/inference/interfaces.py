@@ -152,13 +152,32 @@ class IInferenceOrchestrationService(ABC):
             output_dir=output_dir,
         )
 
-    @abstractmethod
     def resolve_pipeline(self, requested: str, use_gpu: bool) -> str:
-        """ランタイム固有のパイプライン名を解決する."""
+        """ランタイム既定のパイプライン名を解決する.
 
-    @abstractmethod
+        Args:
+            requested: ユーザー指定のパイプライン名.
+            use_gpu: GPU が利用可能かどうか.
+
+        Returns:
+            解決後のパイプライン名.
+        """
+        if requested != "auto":
+            if requested == "gpu" and not use_gpu:
+                return "fast"
+            return requested
+        return "gpu" if use_gpu else "fast"
+
     def _resolve_batch_size(self, config: Dict[str, Any]) -> int:
-        """ランタイム固有のバッチサイズを解決する."""
+        """ランタイム既定のバッチサイズを解決する.
+
+        Args:
+            config: 推論設定辞書.
+
+        Returns:
+            解決後のバッチサイズ.
+        """
+        return int(config.get("batch_size", 1))
 
     def resolve_runtime_options(
         self,

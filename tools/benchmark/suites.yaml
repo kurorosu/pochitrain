@@ -21,4 +21,3 @@ suites:
 
       - name: pytorch_default
         runtime: pytorch
-        pipeline: current

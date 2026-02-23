@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from torch.utils.data import DataLoader
 
@@ -12,8 +12,9 @@ from pochitrain.inference.interfaces import (
     IExecutionService,
     IInferenceOrchestrationService,
 )
+from pochitrain.inference.pipeline_strategy import create_dataset_and_params
 from pochitrain.logging import LoggerManager
-from pochitrain.pochi_dataset import PochiImageDataset
+from pochitrain.pochi_dataset import PochiImageDataset, create_scaled_normalize_tensors
 from pochitrain.pochi_predictor import PochiPredictor
 from pochitrain.utils import log_inference_result
 
@@ -43,10 +44,6 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         """
         self.logger = logger or LoggerManager().get_logger(__name__)
 
-    def _resolve_batch_size(self, config: Dict[str, Any]) -> int:
-        """PyTorch推論時のバッチサイズを解決する."""
-        return int(config.get("batch_size", 1))
-
     def resolve_input_size(self, shape: Any) -> Optional[tuple[int, int, int]]:
         """入力形状から入力サイズを解決する.
 
@@ -66,6 +63,11 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         self,
         predictor: PochiPredictor,
         val_loader: DataLoader[Any],
+        *,
+        use_gpu_pipeline: bool = False,
+        norm_mean: Optional[List[float]] = None,
+        norm_std: Optional[List[float]] = None,
+        gpu_non_blocking: bool = True,
     ) -> RuntimeExecutionRequest:
         """PyTorch推論の実行リクエストを構築する.
 
@@ -77,30 +79,30 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
             実行コンテキスト.
         """
         runtime_adapter = PyTorchRuntimeAdapter(predictor)
+        mean_255 = None
+        std_255 = None
+        if use_gpu_pipeline:
+            if norm_mean is None or norm_std is None:
+                raise ValueError(
+                    "gpu パイプラインには normalize パラメータが必要です.",
+                )
+            mean_255, std_255 = create_scaled_normalize_tensors(
+                norm_mean,
+                norm_std,
+                device=runtime_adapter.device,
+            )
         execution_request = ExecutionRequest(
-            use_gpu_pipeline=False,
+            use_gpu_pipeline=use_gpu_pipeline,
+            mean_255=mean_255,
+            std_255=std_255,
             use_cuda_timing=runtime_adapter.use_cuda_timing,
+            gpu_non_blocking=gpu_non_blocking,
         )
         return RuntimeExecutionRequest(
             data_loader=val_loader,
             runtime_adapter=runtime_adapter,
             execution_request=execution_request,
         )
-
-    def resolve_pipeline(self, requested: str, use_gpu: bool) -> str:
-        """PyTorch推論で利用するパイプラインを解決する.
-
-        Args:
-            requested: 要求されたパイプライン名.
-            use_gpu: GPU推論を使うかどうか（PyTorchでは未使用）.
-
-        Returns:
-            解決後のパイプライン名.
-        """
-        _ = use_gpu
-        if requested == "auto":
-            return "current"
-        return "current"
 
     def create_predictor(self, config: PochiConfig, model_path: Path) -> PochiPredictor:
         """推論器を生成する.
@@ -119,8 +121,15 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         config: PochiConfig,
         data_path: Path,
         *,
+        pipeline: str = "current",
         pin_memory: bool = True,
-    ) -> Tuple[DataLoader[Any], PochiImageDataset]:
+    ) -> Tuple[
+        DataLoader[Any],
+        PochiImageDataset,
+        str,
+        Optional[List[float]],
+        Optional[List[float]],
+    ]:
         """推論用 DataLoader とデータセットを生成する.
 
         Args:
@@ -131,7 +140,11 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         Returns:
             (DataLoader, PochiImageDataset) のタプル.
         """
-        dataset = PochiImageDataset(str(data_path), transform=config.val_transform)
+        dataset, resolved_pipeline, norm_mean, norm_std = create_dataset_and_params(
+            pipeline,
+            data_path,
+            config.val_transform,
+        )
         loader: DataLoader[Any] = DataLoader(
             dataset,
             batch_size=config.batch_size,
@@ -141,10 +154,11 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         )
 
         self.logger.debug("使用されたTransform (設定ファイルから):")
-        for i, transform in enumerate(config.val_transform.transforms):
-            self.logger.debug(f"   {i + 1}. {transform}")
+        if dataset.transform is not None and hasattr(dataset.transform, "transforms"):
+            for i, transform in enumerate(dataset.transform.transforms):
+                self.logger.debug(f"   {i + 1}. {transform}")
 
-        return loader, dataset
+        return loader, dataset, resolved_pipeline, norm_mean, norm_std
 
     def detect_input_size(
         self, config: PochiConfig, dataset: PochiImageDataset
