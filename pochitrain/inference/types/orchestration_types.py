@@ -2,9 +2,14 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from .execution_types import ExecutionResult
+from torch.utils.data import DataLoader
+
+from .execution_types import ExecutionRequest, ExecutionResult
+
+if TYPE_CHECKING:
+    from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
 
 
 @dataclass(frozen=True)
@@ -61,6 +66,23 @@ class InferenceRuntimeOptions:
 
 
 @dataclass(frozen=True)
+class RuntimeExecutionRequest:
+    """ExecutionService に渡す実行コンテキスト."""
+
+    data_loader: DataLoader[Any]
+    runtime_adapter: "IRuntimeAdapter"
+    execution_request: ExecutionRequest
+
+
+@dataclass(frozen=True)
+class PyTorchRunRequest:
+    """PyTorch 推論実行のリクエスト."""
+
+    predictor: Any
+    val_loader: DataLoader[Any]
+
+
+@dataclass(frozen=True)
 class InferenceRunResult:
     """ランタイム実行結果と集計済みメトリクス."""
 
@@ -86,7 +108,7 @@ class InferenceRunResult:
         cls,
         execution_result: ExecutionResult,
     ) -> "InferenceRunResult":
-        """Executionservice の結果から共通結果型を生成する."""
+        """実行結果から共通結果型を生成する."""
         return cls.from_components(
             predictions=execution_result.predictions,
             confidences=execution_result.confidences,

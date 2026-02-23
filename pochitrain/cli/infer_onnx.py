@@ -24,13 +24,12 @@ from pochitrain.inference.benchmark import (
 from pochitrain.inference.pipeline_strategy import (
     create_dataset_and_params as shared_create_dataset_and_params,
 )
-from pochitrain.inference.services.execution_service import ExecutionService
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.services.result_export_service import ResultExportService
 from pochitrain.inference.types.execution_types import ExecutionRequest
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
-    InferenceRunResult,
+    RuntimeExecutionRequest,
 )
 from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging import LoggerManager
@@ -260,14 +259,14 @@ def main() -> None:
         gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
     )
     logger.debug("ウォームアップ中...")
-    execution_service = ExecutionService()
     runtime_adapter = OnnxRuntimeAdapter(inference)
-    execution_result = execution_service.run(
-        data_loader=data_loader,
-        runtime=runtime_adapter,
-        request=execution_request,
+    run_result = orchestration_service.run(
+        RuntimeExecutionRequest(
+            data_loader=data_loader,
+            runtime_adapter=runtime_adapter,
+            execution_request=execution_request,
+        )
     )
-    run_result = InferenceRunResult.from_execution_result(execution_result)
 
     # 結果ログ出力
     log_inference_result(

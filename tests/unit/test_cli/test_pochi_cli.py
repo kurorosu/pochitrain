@@ -393,7 +393,7 @@ class TestInferCommandServiceDelegation:
         def _detect_input_size(self, pochi_config, dataset):
             return (3, 224, 224)
 
-        def _run_inference(self, predictor, loader):
+        def _run(self, request):
             return InferenceRunResult(
                 predictions=[0, 1],
                 confidences=[0.9, 0.8],
@@ -426,8 +426,8 @@ class TestInferCommandServiceDelegation:
         )
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
-            "run_inference",
-            _run_inference,
+            "run",
+            _run,
         )
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
@@ -510,8 +510,8 @@ class TestInferCommandServiceDelegation:
         )
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
-            "run_inference",
-            lambda self, predictor, loader: InferenceRunResult(
+            "run",
+            lambda self, request: InferenceRunResult(
                 predictions=[0],
                 confidences=[0.9],
                 true_labels=[0],
@@ -627,7 +627,7 @@ class TestInferCommandServiceDelegation:
             lambda self, pochi_config, dataset: None,
         )
 
-        def _raise_inference(self, predictor, loader):
+        def _raise_inference(self, request):
             raise RuntimeError("inference error")
 
         def _aggregate_and_export(self, **kwargs):
@@ -635,7 +635,7 @@ class TestInferCommandServiceDelegation:
 
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
-            "run_inference",
+            "run",
             _raise_inference,
         )
         monkeypatch.setattr(

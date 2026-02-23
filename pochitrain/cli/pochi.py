@@ -25,7 +25,10 @@ from pochitrain import (
 )
 from pochitrain.cli.arg_types import positive_int
 from pochitrain.inference.services import PyTorchInferenceService
-from pochitrain.inference.types.orchestration_types import InferenceCliRequest
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+    PyTorchRunRequest,
+)
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
@@ -416,7 +419,9 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
-        run_result = service.run_inference(predictor, val_loader)
+        run_result = service.run(
+            PyTorchRunRequest(predictor=predictor, val_loader=val_loader)
+        )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
         return

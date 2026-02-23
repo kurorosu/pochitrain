@@ -23,6 +23,7 @@ from ..types.orchestration_types import (
     InferenceResolvedPaths,
     InferenceRunResult,
     InferenceRuntimeOptions,
+    PyTorchRunRequest,
 )
 from ..types.result_export_types import ResultExportRequest
 from .result_export_service import ResultExportService
@@ -238,6 +239,20 @@ class PyTorchInferenceService:
             total_samples=total_samples,
             warmup_samples=warmup_samples,
             e2e_total_time_ms=e2e_total_time_ms,
+        )
+
+    def run(self, request: PyTorchRunRequest) -> InferenceRunResult:
+        """推論を実行し共通結果型を返す.
+
+        Args:
+            request: PyTorch 推論実行リクエスト.
+
+        Returns:
+            ランタイム横断で共通利用する推論結果.
+        """
+        return self.run_inference(
+            predictor=request.predictor,
+            val_loader=request.val_loader,
         )
 
     def aggregate_and_export(

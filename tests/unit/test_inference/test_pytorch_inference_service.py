@@ -16,6 +16,7 @@ from pochitrain.inference.services.pytorch_inference_service import (
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceRunResult,
+    PyTorchRunRequest,
 )
 
 
@@ -237,6 +238,43 @@ class TestRunInference:
         assert result.num_samples == 3
         assert result.correct == 3
         assert result.avg_total_time_per_image > 0
+
+
+class TestRun:
+    """run のテスト."""
+
+    def test_run_delegates_to_run_inference(self) -> None:
+        """run が run_inference を委譲呼び出しすることを検証する."""
+        service = PyTorchInferenceService(_build_logger())
+
+        expected = InferenceRunResult(
+            predictions=[0],
+            confidences=[0.9],
+            true_labels=[0],
+            num_samples=1,
+            correct=1,
+            avg_time_per_image=1.0,
+            total_samples=1,
+            warmup_samples=0,
+            avg_total_time_per_image=2.0,
+        )
+
+        with patch.object(
+            service,
+            "run_inference",
+            return_value=expected,
+        ) as mock_run_inference:
+            request = PyTorchRunRequest(
+                predictor=MagicMock(),
+                val_loader=MagicMock(),
+            )
+            result = service.run(request)
+
+        mock_run_inference.assert_called_once_with(
+            predictor=request.predictor,
+            val_loader=request.val_loader,
+        )
+        assert result == expected
 
 
 class TestAggregateAndExport:

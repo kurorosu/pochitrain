@@ -1,18 +1,29 @@
 """ONNX推論CLI向けのオーケストレーション補助サービス."""
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol
 
+from pochitrain.inference.types.execution_types import ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceResolvedPaths,
+    InferenceRunResult,
     InferenceRuntimeOptions,
+    RuntimeExecutionRequest,
 )
 from pochitrain.utils import (
     get_default_output_base_dir,
     validate_data_path,
 )
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
+
+from .execution_service import ExecutionService
+
+
+class _ExecutionServiceLike(Protocol):
+    def run(self, data_loader: Any, runtime: Any, request: Any) -> ExecutionResult:
+        """実行結果を返す."""
+        ...
 
 
 class OnnxInferenceService:
@@ -123,3 +134,25 @@ class OnnxInferenceService:
         if h and w:
             return (c, h, w)
         return None
+
+    def run(
+        self,
+        request: RuntimeExecutionRequest,
+        execution_service: Optional[_ExecutionServiceLike] = None,
+    ) -> InferenceRunResult:
+        """推論を実行し共通結果型へ集約する.
+
+        Args:
+            request: 実行コンテキスト.
+            execution_service: 実行サービス. 未指定時は内部で生成.
+
+        Returns:
+            ランタイム横断で共通利用する推論結果.
+        """
+        service = execution_service or ExecutionService()
+        execution_result = service.run(
+            data_loader=request.data_loader,
+            runtime=request.runtime_adapter,
+            request=request.execution_request,
+        )
+        return InferenceRunResult.from_execution_result(execution_result)
