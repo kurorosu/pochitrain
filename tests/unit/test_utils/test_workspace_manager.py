@@ -64,27 +64,6 @@ class TestPochiWorkspaceManager:
             assert paths_dir == workspace / "paths"
             assert paths_dir.exists()
 
-    def test_workspace_info(self):
-        """ワークスペース情報取得のテスト"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            manager = PochiWorkspaceManager(temp_dir)
-
-            # ワークスペース作成前
-            info_before = manager.get_workspace_info()
-            assert info_before["workspace_path"] is None
-            assert info_before["exists"] is False
-
-            # ワークスペース作成後
-            workspace = manager.create_workspace()
-            info_after = manager.get_workspace_info()
-
-            assert info_after["workspace_path"] == str(workspace)
-            assert info_after["models_dir"] == str(workspace / "models")
-            assert info_after["paths_dir"] == str(workspace / "paths")
-            assert info_after["exists"] is True
-            assert info_after["date"] is not None
-            assert info_after["index"] is not None
-
     def test_save_config(self):
         """設定ファイル保存機能のテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
