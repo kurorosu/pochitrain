@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from pochitrain.utils.directory_manager import PochiWorkspaceManager
+from pochitrain.utils.directory_manager import (
+    InferenceWorkspaceManager,
+    PochiWorkspaceManager,
+)
 
 
 class TestPochiWorkspaceManager:
@@ -168,3 +171,19 @@ class TestPochiWorkspaceManager:
 
             with pytest.raises(FileNotFoundError, match="設定ファイルが見つかりません"):
                 manager.save_config(non_existent_path)
+
+
+class TestInferenceWorkspaceManager:
+    """InferenceWorkspaceManagerクラスのテスト."""
+
+    def test_create_workspace_creates_only_workspace_directory(self):
+        """推論ワークスペースでは本体ディレクトリのみ生成される."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = InferenceWorkspaceManager(temp_dir)
+            workspace = manager.create_workspace()
+
+            assert workspace.exists()
+            assert workspace.is_dir()
+            assert not (workspace / "models").exists()
+            assert not (workspace / "paths").exists()
+            assert not (workspace / "visualization").exists()
