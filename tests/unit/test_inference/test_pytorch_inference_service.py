@@ -13,6 +13,7 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
+from pochitrain.inference.types.orchestration_types import InferenceCliRequest
 
 
 def _build_logger() -> logging.Logger:
@@ -59,6 +60,76 @@ class TestCreatePredictor:
         service.create_predictor(config, model_path)
 
         mock_predictor_cls.from_config.assert_called_once_with(config, str(model_path))
+
+
+class TestResolvePipeline:
+    """resolve_pipeline のテスト."""
+
+    def test_auto_returns_current(self) -> None:
+        """auto 指定時は current を返すこと."""
+        service = PyTorchInferenceService(_build_logger())
+        assert service.resolve_pipeline("auto") == "current"
+
+    def test_non_auto_also_returns_current(self) -> None:
+        """非auto指定時も current を返すこと."""
+        service = PyTorchInferenceService(_build_logger())
+        assert service.resolve_pipeline("gpu") == "current"
+
+
+class TestResolvePaths:
+    """resolve_paths のテスト."""
+
+    def test_resolve_paths_with_explicit_data_and_output(self, tmp_path: Path) -> None:
+        """--data, --output 指定時にその値を使うこと."""
+        data_path = tmp_path / "data"
+        data_path.mkdir()
+        output_dir = tmp_path / "out"
+
+        request = InferenceCliRequest(
+            model_path=tmp_path / "model.pth",
+            data_path=data_path,
+            output_dir=output_dir,
+            requested_pipeline="auto",
+        )
+        resolved = PyTorchInferenceService(_build_logger()).resolve_paths(
+            request, config={}
+        )
+
+        assert resolved.data_path == data_path
+        assert resolved.output_dir == output_dir
+        assert output_dir.exists()
+
+    def test_resolve_paths_raises_when_data_is_unresolved(self, tmp_path: Path) -> None:
+        """データパスを解決できない場合は ValueError を送出すること."""
+        request = InferenceCliRequest(
+            model_path=tmp_path / "model.pth",
+            data_path=None,
+            output_dir=tmp_path / "out",
+            requested_pipeline="auto",
+        )
+
+        with pytest.raises(ValueError):
+            PyTorchInferenceService(_build_logger()).resolve_paths(request, config={})
+
+
+class TestResolveRuntimeOptions:
+    """resolve_runtime_options のテスト."""
+
+    def test_runtime_options_from_config(self) -> None:
+        """設定値から実行オプションを解決できること."""
+        service = PyTorchInferenceService(_build_logger())
+        options = service.resolve_runtime_options(
+            config={"batch_size": 8, "num_workers": 4, "pin_memory": False},
+            pipeline="current",
+            use_gpu=False,
+        )
+
+        assert options.pipeline == "current"
+        assert options.batch_size == 8
+        assert options.num_workers == 4
+        assert options.pin_memory is False
+        assert options.use_gpu is False
+        assert options.use_gpu_pipeline is False
 
 
 class TestCreateDataloader:
