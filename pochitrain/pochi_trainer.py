@@ -55,21 +55,17 @@ class PochiTrainer:
         cudnn_benchmark: bool = False,
     ):
         """PochiTrainerを初期化."""
-        # モデル設定の保存
         self.model_name = model_name
         self.num_classes = num_classes
 
-        # デバイスの設定（バリデーション済みの設定を使用）
         self.device = torch.device(device)
 
-        # cuDNN自動チューニングの設定
         if self.device.type == "cuda" and cudnn_benchmark:
             torch.backends.cudnn.benchmark = True
             self.cudnn_benchmark = True
         else:
             self.cudnn_benchmark = False
 
-        # ワークスペースマネージャーの初期化
         self.workspace_manager = PochiWorkspaceManager(work_dir)
         if create_workspace:
             self.current_workspace = self.workspace_manager.create_workspace()
@@ -78,7 +74,6 @@ class PochiTrainer:
             self.current_workspace = None
             self.work_dir = Path(work_dir)
 
-        # ロガーの設定
         self.logger = self._setup_logger()
         self.logger.debug(f"使用デバイス: {self.device}")
         if self.cudnn_benchmark:
@@ -86,47 +81,37 @@ class PochiTrainer:
         self.logger.debug(f"ワークスペース: {self.current_workspace}")
         self.logger.debug(f"モデル保存先: {self.work_dir}")
 
-        # チェックポイントストアの初期化
         self.checkpoint_store = CheckpointStore(self.work_dir, self.logger)
 
-        # 検証器の初期化
         self.evaluator = Evaluator(self.device, self.logger)
 
-        # 訓練コンフィギュレータの初期化
         self.training_configurator = TrainingConfigurator(self.device, self.logger)
         self.epoch_runner = EpochRunner(device=self.device, logger=self.logger)
 
-        # モデルの作成
         self.model = create_model(model_name, num_classes, pretrained)
         self.model.to(self.device)
 
-        # モデル情報の表示
         model_info = self.model.get_model_info()
         self.logger.debug(f"モデル: {model_info['model_name']}")
         self.logger.debug(f"クラス数: {model_info['num_classes']}")
         self.logger.debug(f"総パラメータ数: {model_info['total_params']:,}")
         self.logger.debug(f"訓練可能パラメータ数: {model_info['trainable_params']:,}")
 
-        # 訓練状態の管理
         self.epoch = 0
         self.best_accuracy = 0.0
 
-        # 混同行列計算のためのクラス数（後で設定）
         self.num_classes_for_cm: Optional[int] = None
 
-        # 最適化器・損失関数は後で設定
         self.optimizer: Optional[optim.Optimizer] = None
         self.scheduler: Optional[optim.lr_scheduler.LRScheduler] = None
         self.criterion: Optional[nn.Module] = None
 
-        # メトリクス・勾配の設定（CLIから設定される）
-        self.enable_metrics_export = True  # デフォルトで有効
-        self.enable_gradient_tracking = False  # デフォルトでOFF（計算コスト考慮）
+        self.enable_metrics_export = True
+        self.enable_gradient_tracking = False
         self.gradient_tracking_config: Dict[str, Any] = {
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
 
-        # Early Stopping（setup_training()で初期化）
         self.early_stopping: Optional[EarlyStopping] = None
 
     @classmethod
@@ -217,12 +202,10 @@ class PochiTrainer:
         self.layer_wise_lr_config = components.layer_wise_lr_config
         self.layer_wise_lr_graph_config = components.layer_wise_lr_graph_config
 
-        # 混同行列計算のためのクラス数を設定
         if num_classes:
             self.num_classes_for_cm = num_classes
             self.logger.debug(f"混同行列計算を有効化しました (クラス数: {num_classes})")
 
-        # Early Stoppingの初期化
         if early_stopping_config is not None and early_stopping_config.get(
             "enabled", False
         ):

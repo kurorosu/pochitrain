@@ -54,7 +54,6 @@ class Evaluator:
         correct = 0
         total = 0
 
-        # 混同行列計算のためのリスト
         all_predicted: List[torch.Tensor] = []
         all_targets: List[torch.Tensor] = []
 
@@ -71,7 +70,6 @@ class Evaluator:
                 total += batch_size
                 correct += predicted.eq(target).sum().item()
 
-                # 混同行列用にデータを保存
                 all_predicted.append(predicted)
                 all_targets.append(target)
 
@@ -79,7 +77,6 @@ class Evaluator:
         avg_loss = total_loss / total if total > 0 else 0.0
         accuracy = 100.0 * correct / total if total > 0 else 0.0
 
-        # 混同行列の計算と出力
         if num_classes_for_cm is not None and all_predicted and all_targets:
             all_predicted_tensor = torch.cat(all_predicted, dim=0)
             all_targets_tensor = torch.cat(all_targets, dim=0)

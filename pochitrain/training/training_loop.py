@@ -84,7 +84,6 @@ class TrainingLoop:
             if set_epoch_fn is not None:
                 set_epoch_fn(epoch)
 
-            # 停止フラグのチェック（エポック開始前）
             if stop_flag_callback and stop_flag_callback():
                 self.logger.warning(
                     f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
@@ -96,7 +95,6 @@ class TrainingLoop:
 
             self.logger.debug(f"エポック {epoch}/{epochs} を開始")
 
-            # 1エポックの訓練・検証・更新サイクル
             best_accuracy, should_stop = self._run_epoch_cycle(
                 epoch=epoch,
                 train_epoch_fn=train_epoch_fn,
@@ -115,7 +113,6 @@ class TrainingLoop:
             if should_stop:
                 break
 
-            # 停止フラグのチェック（エポック完了後）
             if stop_flag_callback and stop_flag_callback():
                 self.logger.warning(
                     f"安全停止が要求されました。エポック {epoch} で訓練を終了します。"
@@ -172,7 +169,6 @@ class TrainingLoop:
         if scheduler is not None:
             scheduler.step()
 
-        # ログ出力
         self.logger.info(
             f"エポック {epoch} 完了 - "
             f"訓練損失: {train_metrics['loss']:.4f}, "

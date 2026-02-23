@@ -42,7 +42,6 @@ class MetricsTracker:
         self.gradient_tracking_config = gradient_tracking_config or {}
         self.layer_wise_lr_graph_config = layer_wise_lr_graph_config
 
-        # 条件的に初期化されるコンポーネント
         self._metrics_exporter: Optional[TrainingMetricsExporter] = None
         self._gradient_tracer: Optional[GradientTracer] = None
 
@@ -98,7 +97,6 @@ class MetricsTracker:
             layer_wise_lr_enabled: 層別学習率が有効か
             layer_wise_rates: 層別学習率の辞書 (例: {"lr_layer1": 0.001})
         """
-        # メトリクスの記録
         if self._metrics_exporter is not None:
             kwargs: Dict[str, float] = {}
             if layer_wise_rates is not None:
@@ -115,7 +113,6 @@ class MetricsTracker:
                 **kwargs,
             )
 
-        # 勾配ノルムの記録
         if self._gradient_tracer is not None:
             record_freq = self.gradient_tracking_config.get("record_frequency", 1)
             if epoch % record_freq == 0:
@@ -132,14 +129,12 @@ class MetricsTracker:
         csv_path: Optional[Path] = None
         graph_paths: List[Path] = []
 
-        # メトリクスのエクスポート
         if self._metrics_exporter is not None:
             exported_csv, exported_graphs = self._metrics_exporter.export_all()
             csv_path = exported_csv
             if exported_graphs:
                 graph_paths = exported_graphs
 
-        # 勾配トレースをCSVに保存
         if self._gradient_tracer is not None:
             timestamp = get_current_timestamp()
             gradient_csv_path = (

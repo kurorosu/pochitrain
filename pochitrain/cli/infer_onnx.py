@@ -38,16 +38,15 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本（config・データパスはモデルパスから自動検出）
+  基本（config・データパスはモデルパスから自動検出）
   uv run infer-onnx work_dirs/20260118_001/models/model.onnx
 
-  # データパスを上書き
+  データパスを上書き
   uv run infer-onnx work_dirs/20260118_001/models/model.onnx --data other/val
 
-  # 出力先を上書き
+  出力先を上書き
   uv run infer-onnx work_dirs/20260118_001/models/model.onnx -o results/
 
-  # パイプライン指定
   uv run infer-onnx model.onnx --pipeline gpu   # GPU前処理
   uv run infer-onnx model.onnx --pipeline fast   # CPU最適化 (Plan A)
   uv run infer-onnx model.onnx --pipeline current # 従来 (PIL)
@@ -94,11 +93,9 @@ def main() -> None:
     manager.set_default_level(level)
     manager.set_logger_level(__name__, level)
 
-    # パス検証
     model_path = Path(args.model_path)
     validate_model_path(model_path)
 
-    # config自動検出・読み込み
     config = load_config_auto(model_path)
 
     cli_request = InferenceCliRequest(
@@ -167,7 +164,6 @@ def main() -> None:
         use_cuda_timing=actual_use_gpu,
         gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
     )
-    logger.debug("ウォームアップ中...")
     run_result = orchestration_service.run(runtime_request)
     logger.info("推論完了")
 

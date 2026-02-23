@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# 日本語フォント設定
 plt.rcParams["font.sans-serif"] = ["MS Gothic", "Yu Gothic", "Meiryo"]
 plt.rcParams["axes.unicode_minus"] = False
 
@@ -86,13 +85,10 @@ def load_gradient_trace(
     """
     df = pd.read_csv(csv_path)
 
-    # エポック番号
     epochs = df["epoch"].to_numpy()
 
-    # 層名（epoch列以外）
     layer_names = [col for col in df.columns if col != "epoch"]
 
-    # 勾配ノルムの行列（層 x エポック）
     grad_matrix = df[layer_names].to_numpy(dtype=float).T
 
     aggregation_method = "median"
@@ -219,14 +215,11 @@ def plot_heatmap(
     _, inner_label = get_method_labels(aggregation_method)
     fig, ax = plt.subplots(figsize=(14, max(6, len(layer_names) * 0.3)))
 
-    # ヒートマップを描画
     im = ax.imshow(grad_matrix, aspect="auto", cmap="YlOrRd", interpolation="nearest")
 
-    # カラーバー
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label(f"Gradient Norm ({inner_label})", fontsize=11)
 
-    # 軸設定
     n_epochs = len(epochs)
     step = max(1, n_epochs // 20)  # 最大20個のティック
     tick_positions = list(range(0, n_epochs, step))
@@ -267,7 +260,6 @@ def plot_statistics(
         aggregation_method: 集約方法
     """
     _, inner_label = get_method_labels(aggregation_method)
-    # (1) 初期 vs 最終エポック
     fig, ax = plt.subplots(figsize=(12, 6))
     initial_window = min(5, len(epochs) // 10) if len(epochs) > 10 else 1
     final_window = min(5, len(epochs) // 10) if len(epochs) > 10 else 1
@@ -311,7 +303,6 @@ def plot_statistics(
     plt.close(fig)
     print(f"[5/10] 統計情報（初期 vs 最終）を保存: {output_path}")
 
-    # (2) 標準偏差（安定性）
     fig, ax = plt.subplots(figsize=(12, 6))
     grad_stds = grad_matrix.std(axis=1)
     threshold = np.median(grad_stds) * 2
@@ -339,7 +330,6 @@ def plot_statistics(
     plt.close(fig)
     print(f"[6/10] 統計情報（安定性）を保存: {output_path}")
 
-    # (3) 最大値（爆発検出）
     fig, ax = plt.subplots(figsize=(12, 6))
     grad_maxs = grad_matrix.max(axis=1)
     threshold_max = np.median(grad_maxs) * 3
@@ -366,7 +356,6 @@ def plot_statistics(
     plt.close(fig)
     print(f"[7/10] 統計情報（最大値）を保存: {output_path}")
 
-    # (4) 最小値（消失検出）
     fig, ax = plt.subplots(figsize=(12, 6))
     grad_mins = grad_matrix.min(axis=1)
     threshold_min = 0.0001
@@ -414,7 +403,6 @@ def plot_snapshots(
     fig, ax = plt.subplots(figsize=(12, 6))
     x_positions = np.arange(len(layer_names))
 
-    # スナップショットを取るエポック（最大6個）
     n_snapshots = min(6, len(epochs))
     snapshot_indices = (
         np.linspace(0, len(epochs) - 1, n_snapshots, dtype=int)
@@ -456,7 +444,6 @@ def plot_snapshots(
     plt.close(fig)
     print(f"[9/10] スナップショットを保存: {output_path}")
 
-    # 線形スケール版も生成
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for i, epoch_idx in enumerate(snapshot_indices):
@@ -498,10 +485,10 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本的な使用法
+  基本的な使用法
   uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
 
-  # 出力ディレクトリを指定
+  出力ディレクトリを指定
   uv run vis-grad gradient_trace.csv --output-dir output/
         """,
     )
@@ -515,7 +502,6 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # パスの準備
     csv_path = Path(args.csv_path)
     if not csv_path.exists():
         print(f"エラー: CSVファイルが見つかりません: {csv_path}")
@@ -530,7 +516,6 @@ def main() -> None:
 
     print(f"勾配トレースCSVを読み込み: {csv_path}")
 
-    # データ読み込み
     epochs, layer_names, grad_matrix, aggregation_method = load_gradient_trace(csv_path)
 
     print(f"  - エポック数: {len(epochs)}")
@@ -538,7 +523,6 @@ def main() -> None:
     print(f"  - 集約方法: {aggregation_method}")
     print()
 
-    # 可視化生成
     print("可視化を生成中...")
     plot_timeline(epochs, layer_names, grad_matrix, output_dir, aggregation_method)
     plot_heatmap(epochs, layer_names, grad_matrix, output_dir, aggregation_method)

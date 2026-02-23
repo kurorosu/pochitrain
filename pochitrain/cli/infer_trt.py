@@ -38,16 +38,15 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 基本（config・データパスはエンジンパスから自動検出）
+  基本（config・データパスはエンジンパスから自動検出）
   uv run infer-trt work_dirs/20260118_001/models/model.engine
 
-  # データパスを上書き
+  データパスを上書き
   uv run infer-trt work_dirs/20260118_001/models/model.engine --data other/val
 
-  # 出力先を上書き
+  出力先を上書き
   uv run infer-trt work_dirs/20260118_001/models/model.engine -o results/
 
-  # パイプライン指定
   uv run infer-trt model.engine --pipeline gpu     # GPU前処理 (デフォルト)
   uv run infer-trt model.engine --pipeline fast     # CPU最適化 (Plan A)
   uv run infer-trt model.engine --pipeline current  # 従来 (PIL)
@@ -98,7 +97,6 @@ def main() -> None:
     manager.set_default_level(level)
     manager.set_logger_level(__name__, level)
 
-    # パス検証
     engine_path = Path(args.engine_path)
     validate_model_path(engine_path)
 
@@ -111,7 +109,6 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # config自動検出・読み込み
     config = load_config_auto(engine_path)
 
     cli_request = InferenceCliRequest(
@@ -131,7 +128,6 @@ def main() -> None:
 
     val_transform = orchestration_service.resolve_val_transform(config, inference)
 
-    # パイプライン解決
     pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu=True)
     runtime_options = orchestration_service.resolve_runtime_options(config, pipeline)
     data_loader, dataset, pipeline, norm_mean, norm_std = (
@@ -150,10 +146,8 @@ def main() -> None:
     logger.debug(f"パイプライン: {pipeline}")
     logger.debug(f"出力先: {output_dir}")
 
-    # 推論実行（End-to-End計測の開始）
     logger.info("推論を開始します...")
 
-    # 入力サイズの取得 (TensorRTの入力形状から)
     input_size = None
     try:
         shape = inference.input_shape
@@ -171,7 +165,6 @@ def main() -> None:
         use_cuda_timing=True,
         gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
     )
-    logger.debug("ウォームアップ中...")
     run_result = orchestration_service.run(runtime_request)
     logger.info("推論完了")
 
