@@ -19,9 +19,13 @@
   - パス解決と runtime option 解決の責務を Service 層へ集約した.
   - `pochi infer` の `--output` 指定時の出力挙動を ONNX/TRT と同じルールに統一した.
   - `infer-onnx` と `infer-trt` の CLI から手動の DataLoader / ExecutionRequest / 結果エクスポート処理を削除し, Service 委譲フローに統一した.
-- 本番経路で未使用だったメソッドを削除し, 関連テストと README の推論サンプルを現行仕様へ整理した.
+- 本番経路で未使用だったメソッドを削除し, 関連テストと README の推論サンプルを現行仕様へ整理した ([#264](https://github.com/kurorosu/pochitrain/pull/264)).
   - `CheckpointStore.load_checkpoint`, `PochiWorkspaceManager.save_image_list`, `PochiWorkspaceManager.get_available_workspaces`, `LoggerManager.reset` を削除した.
   - 削除メソッドに依存するユニットテストを整理し, `PochiPredictor` ベースの推論例へ更新した.
+- JSON出力, モデルロード, ベンチマーク結果構築の重複ロジックを統合し, 保守性を改善した.
+  - `json_utils.write_json_file` を追加し, 推論/ベンチ結果のJSON書き出しを共通化した.
+  - `model_loading.load_model_from_checkpoint` を追加し, `PochiPredictor` と `OnnxExporter` のモデル読み込みを統一した.
+  - `result_builder` の3ランタイム向けビルダーを共通内部ビルダーへ集約した.
 
 ### Fixed
 - N/A.
