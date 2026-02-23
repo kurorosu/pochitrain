@@ -13,8 +13,10 @@ from .types import (
     InferenceResolvedPaths,
     InferenceRunResult,
     InferenceRuntimeOptions,
+    PyTorchRunRequest,
     ResultExportRequest,
     ResultExportResult,
+    RuntimeExecutionRequest,
 )
 
 __all__ = [
@@ -28,6 +30,8 @@ __all__ = [
     "InferenceRunResult",
     "InferenceResolvedPaths",
     "InferenceRuntimeOptions",
+    "RuntimeExecutionRequest",
+    "PyTorchRunRequest",
     "ResultExportRequest",
     "ResultExportResult",
 ]

@@ -14,6 +14,8 @@ from .orchestration_types import (
     InferenceResolvedPaths,
     InferenceRunResult,
     InferenceRuntimeOptions,
+    PyTorchRunRequest,
+    RuntimeExecutionRequest,
 )
 from .result_export_types import ResultExportRequest, ResultExportResult
 
@@ -30,6 +32,8 @@ __all__ = [
     "InferenceRunResult",
     "InferenceResolvedPaths",
     "InferenceRuntimeOptions",
+    "RuntimeExecutionRequest",
+    "PyTorchRunRequest",
     "ResultExportRequest",
     "ResultExportResult",
 ]
