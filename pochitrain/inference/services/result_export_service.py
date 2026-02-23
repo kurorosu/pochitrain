@@ -1,6 +1,5 @@
 """推論結果の出力を担当するサービス層."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -12,6 +11,7 @@ from pochitrain.utils import (
     write_inference_csv,
     write_inference_summary,
 )
+from pochitrain.utils.json_utils import write_json_file
 
 from ..types.result_export_types import ResultExportRequest, ResultExportResult
 
@@ -133,9 +133,7 @@ class ResultExportService:
         output_dir.mkdir(parents=True, exist_ok=True)
         model_info_path = output_dir / filename
         try:
-            with open(model_info_path, "w", encoding="utf-8") as f:
-                json.dump(model_info, f, ensure_ascii=False, indent=2)
-            return model_info_path
+            return write_json_file(model_info_path, model_info)
         except Exception as exc:  # pragma: no cover
             self.logger.warning(
                 f"モデル情報JSONの保存に失敗しました, error: {exc}",

@@ -16,6 +16,7 @@ from .config import PochiConfig
 from .logging import LoggerManager
 from .models.pochi_models import create_model
 from .utils.inference_utils import post_process_logits
+from .utils.model_loading import load_model_from_checkpoint
 
 
 class PochiPredictor:
@@ -81,28 +82,20 @@ class PochiPredictor:
             )
 
         try:
-            # チェックポイントの読み込み
-            try:
-                checkpoint = torch.load(
-                    self.model_path,
-                    map_location=self.device,
-                    weights_only=True,
-                )
-            except TypeError:
-                # 古いPyTorchとの互換のため, weights_only未対応時のみフォールバック
-                checkpoint = torch.load(self.model_path, map_location=self.device)
-
-            # モデルの状態辞書を読み込み
-            self.model.load_state_dict(checkpoint["model_state_dict"])
+            metadata = load_model_from_checkpoint(
+                model=self.model,
+                checkpoint_path=self.model_path,
+                device=self.device,
+            )
             self.model.eval()  # 推論モードに設定
 
             # メタ情報の取得
-            if "best_accuracy" in checkpoint:
-                self.best_accuracy = checkpoint["best_accuracy"]
+            if "best_accuracy" in metadata:
+                self.best_accuracy = metadata["best_accuracy"]
                 self.logger.debug(f"学習時の最高精度: {self.best_accuracy:.2f}%")
 
-            if "epoch" in checkpoint:
-                self.epoch = checkpoint["epoch"]
+            if "epoch" in metadata:
+                self.epoch = metadata["epoch"]
                 self.logger.debug(f"学習エポック数: {self.epoch}")
 
             self.logger.debug(f"学習済みモデルを読み込み: {self.model_path}")
