@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceRunResult,
-    PyTorchRunRequest,
     RuntimeExecutionRequest,
 )
 from pochitrain.inference.types.runtime_adapter_protocol import IRuntimeAdapter
@@ -88,16 +87,3 @@ def test_runtime_execution_request_holds_common_context() -> None:
 
     assert request.data_loader is loader
     assert request.execution_request.use_gpu_pipeline is False
-
-
-def test_pytorch_run_request_holds_predictor_and_loader() -> None:
-    """PyTorchRunRequest が predictor と loader を保持できることを検証する."""
-    loader = DataLoader(
-        TensorDataset(torch.zeros((1, 3, 32, 32)), torch.tensor([0])),
-        batch_size=1,
-    )
-    predictor = object()
-    request = PyTorchRunRequest(predictor=predictor, val_loader=loader)
-
-    assert request.predictor is predictor
-    assert request.val_loader is loader

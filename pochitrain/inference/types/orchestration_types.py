@@ -73,14 +73,6 @@ class RuntimeExecutionRequest:
 
 
 @dataclass(frozen=True)
-class PyTorchRunRequest:
-    """PyTorch 推論実行のリクエスト."""
-
-    predictor: Any
-    val_loader: DataLoader[Any]
-
-
-@dataclass(frozen=True)
 class InferenceRunResult:
     """ランタイム実行結果と集計済みメトリクス."""
 

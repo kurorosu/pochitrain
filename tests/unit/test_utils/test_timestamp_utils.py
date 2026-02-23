@@ -14,38 +14,10 @@ import pochitrain.utils.timestamp_utils as timestamp_utils
 from pochitrain.utils.timestamp_utils import (
     find_next_index,
     format_workspace_name,
-    generate_timestamp_dir,
     get_current_date_str,
     get_current_timestamp,
     parse_timestamp_dir,
 )
-
-
-class TestGenerateTimestampDir:
-    """generate_timestamp_dir関数のテスト."""
-
-    def test_format(self):
-        """yyyymmdd_001形式であることを確認."""
-        result = generate_timestamp_dir()
-        assert re.match(r"^\d{8}_001$", result)
-
-    def test_starts_with_today(self, monkeypatch):
-        """日付プレフィックス判定が決定論的であることを確認."""
-
-        class FixedDatetime(datetime):
-            @classmethod
-            def now(cls):
-                return cls(2026, 2, 14, 12, 34, 56)
-
-        monkeypatch.setattr(timestamp_utils, "datetime", FixedDatetime)
-
-        result = generate_timestamp_dir()
-        assert result.startswith("20260214")
-
-    def test_ends_with_001(self):
-        """_001で終わることを確認."""
-        result = generate_timestamp_dir()
-        assert result.endswith("_001")
 
 
 class TestFindNextIndex:

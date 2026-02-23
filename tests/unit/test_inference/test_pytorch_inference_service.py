@@ -283,43 +283,6 @@ class TestDetectInputSize:
         assert result is None
 
 
-class TestRunInference:
-    """run_inference のテスト."""
-
-    def test_returns_predictions_and_metrics(self) -> None:
-        """ExecutionService の結果を共通結果型へ変換できること."""
-        service = PyTorchInferenceService(_build_logger())
-
-        mock_predictor = MagicMock(device=torch.device("cpu"))
-        mock_predictor.model = MagicMock()
-        mock_loader = MagicMock()
-
-        class _FakeExecutionService:
-            def run(self, data_loader, runtime, request):  # noqa: ANN001
-                return ExecutionResult(
-                    predictions=[0, 1, 0],
-                    confidences=[0.9, 0.8, 0.95],
-                    true_labels=[0, 1, 0],
-                    total_inference_time_ms=15.0,
-                    total_samples=3,
-                    warmup_samples=1,
-                    e2e_total_time_ms=30.0,
-                )
-
-        result = service.run_inference(
-            predictor=mock_predictor,
-            val_loader=mock_loader,
-            execution_service=_FakeExecutionService(),
-        )
-
-        assert result.predictions == [0, 1, 0]
-        assert len(result.confidences) == 3
-        assert result.avg_time_per_image == 5.0
-        assert result.num_samples == 3
-        assert result.correct == 3
-        assert result.avg_total_time_per_image == 10.0
-
-
 class TestRun:
     """run のテスト."""
 
