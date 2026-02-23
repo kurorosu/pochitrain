@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from pochitrain.logging import LoggerManager
+from pochitrain.utils.timestamp_utils import WORKSPACE_TIMESTAMP_FORMAT
 
 
 class BaseCSVExporter(ABC):
@@ -54,7 +55,7 @@ class BaseCSVExporter(ABC):
             str: .csv 拡張子付きのファイル名
         """
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now().strftime(WORKSPACE_TIMESTAMP_FORMAT)
             filename = f"{prefix}_{timestamp}.csv"
 
         if not filename.endswith(".csv"):
