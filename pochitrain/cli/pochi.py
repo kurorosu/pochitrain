@@ -416,9 +416,7 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
-        predicted_labels, confidence_scores, metrics, e2e_total_time_ms = (
-            service.run_inference(predictor, val_loader)
-        )
+        run_result = service.run_inference(predictor, val_loader)
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
         return
@@ -436,10 +434,7 @@ def infer_command(args: argparse.Namespace) -> None:
             model_path=model_path,
             data_path=data_path,
             dataset=val_dataset,
-            predicted_labels=predicted_labels,
-            confidence_scores=confidence_scores,
-            metrics=metrics,
-            e2e_total_time_ms=e2e_total_time_ms,
+            run_result=run_result,
             input_size=input_size,
             model_info=predictor.get_model_info(),
             cm_config=cm_config,

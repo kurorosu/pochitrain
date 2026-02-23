@@ -16,6 +16,7 @@ from pochitrain.cli.pochi import (
     setup_logging,
     train_command,
 )
+from pochitrain.inference.types.orchestration_types import InferenceRunResult
 
 
 class TestSetupLogging:
@@ -393,12 +394,17 @@ class TestInferCommandServiceDelegation:
             return (3, 224, 224)
 
         def _run_inference(self, predictor, loader):
-            metrics = {
-                "avg_time_per_image": 1.0,
-                "total_samples": 2,
-                "warmup_samples": 0,
-            }
-            return [0, 1], [0.9, 0.8], metrics, 3.0
+            return InferenceRunResult(
+                predictions=[0, 1],
+                confidences=[0.9, 0.8],
+                true_labels=[0, 1],
+                num_samples=2,
+                correct=2,
+                avg_time_per_image=1.0,
+                total_samples=2,
+                warmup_samples=0,
+                avg_total_time_per_image=1.5,
+            )
 
         def _aggregate_and_export(self, **kwargs):
             captured["workspace_dir"] = kwargs["workspace_dir"]
@@ -505,11 +511,16 @@ class TestInferCommandServiceDelegation:
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
             "run_inference",
-            lambda self, predictor, loader: (
-                [0],
-                [0.9],
-                {"avg_time_per_image": 1.0, "total_samples": 1, "warmup_samples": 0},
-                1.0,
+            lambda self, predictor, loader: InferenceRunResult(
+                predictions=[0],
+                confidences=[0.9],
+                true_labels=[0],
+                num_samples=1,
+                correct=1,
+                avg_time_per_image=1.0,
+                total_samples=1,
+                warmup_samples=0,
+                avg_total_time_per_image=1.0,
             ),
         )
 

@@ -21,6 +21,7 @@ from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 from ..types.orchestration_types import (
     InferenceCliRequest,
     InferenceResolvedPaths,
+    InferenceRunResult,
     InferenceRuntimeOptions,
 )
 from ..types.result_export_types import ResultExportRequest
@@ -202,7 +203,7 @@ class PyTorchInferenceService:
 
     def run_inference(
         self, predictor: PochiPredictor, val_loader: DataLoader[Any]
-    ) -> Tuple[List[int], List[float], Dict[str, Any], float]:
+    ) -> InferenceRunResult:
         """推論を実行し, 結果と計測情報を返す.
 
         Args:
@@ -210,7 +211,7 @@ class PyTorchInferenceService:
             val_loader: 推論データローダー.
 
         Returns:
-            (predicted_labels, confidence_scores, metrics, e2e_total_time_ms) のタプル.
+            ランタイム横断で共通利用する推論結果.
         """
         self.logger.info("推論を開始します...")
 
@@ -220,8 +221,24 @@ class PyTorchInferenceService:
 
         predicted_labels: List[int] = predictions.tolist()
         confidence_scores: List[float] = confidences.tolist()
+        true_labels: List[int] = list(getattr(val_loader.dataset, "labels", []))
+        if len(true_labels) == 0:
+            raise ValueError("val_loader.dataset.labels が取得できませんでした")
 
-        return predicted_labels, confidence_scores, metrics, e2e_total_time_ms
+        avg_time_per_image = float(metrics.get("avg_time_per_image", 0.0))
+        total_samples = int(metrics.get("total_samples", len(predicted_labels)))
+        warmup_samples = int(metrics.get("warmup_samples", 0))
+        total_inference_time_ms = avg_time_per_image * total_samples
+
+        return InferenceRunResult.from_components(
+            predictions=predicted_labels,
+            confidences=confidence_scores,
+            true_labels=true_labels,
+            total_inference_time_ms=total_inference_time_ms,
+            total_samples=total_samples,
+            warmup_samples=warmup_samples,
+            e2e_total_time_ms=e2e_total_time_ms,
+        )
 
     def aggregate_and_export(
         self,
@@ -230,10 +247,7 @@ class PyTorchInferenceService:
         model_path: Path,
         data_path: Path,
         dataset: PochiImageDataset,
-        predicted_labels: List[int],
-        confidence_scores: List[float],
-        metrics: Dict[str, Any],
-        e2e_total_time_ms: float,
+        run_result: InferenceRunResult,
         input_size: Optional[Tuple[int, int, int]],
         model_info: Optional[Dict[str, Any]],
         cm_config: Optional[Dict[str, Any]],
@@ -245,31 +259,21 @@ class PyTorchInferenceService:
             model_path: モデルファイルパス.
             data_path: 推論データパス.
             dataset: 推論データセット.
-            predicted_labels: 予測ラベルリスト.
-            confidence_scores: 確信度リスト.
-            metrics: 推論メトリクス辞書.
-            e2e_total_time_ms: End-to-End 全処理時間 (ms).
+            run_result: ランタイム横断で共通利用する推論結果.
             input_size: 入力サイズ (C, H, W).
             model_info: モデル情報辞書.
             cm_config: 混同行列可視化設定.
         """
         image_paths = dataset.get_file_paths()
-        true_labels = dataset.labels
         class_names = dataset.get_classes()
 
-        num_samples = len(predicted_labels)
-        correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
-        avg_total_time_per_image = (
-            e2e_total_time_ms / num_samples if num_samples > 0 else 0
-        )
-
         log_inference_result(
-            num_samples=num_samples,
-            correct=correct,
-            avg_time_per_image=metrics["avg_time_per_image"],
-            total_samples=int(metrics["total_samples"]),
-            warmup_samples=int(metrics["warmup_samples"]),
-            avg_total_time_per_image=avg_total_time_per_image,
+            num_samples=run_result.num_samples,
+            correct=run_result.correct,
+            avg_time_per_image=run_result.avg_time_per_image,
+            total_samples=run_result.total_samples,
+            warmup_samples=run_result.warmup_samples,
+            avg_total_time_per_image=run_result.avg_total_time_per_image,
             input_size=input_size,
         )
 
@@ -280,16 +284,16 @@ class PyTorchInferenceService:
                 model_path=model_path,
                 data_path=data_path,
                 image_paths=image_paths,
-                predictions=predicted_labels,
-                true_labels=true_labels,
-                confidences=confidence_scores,
+                predictions=run_result.predictions,
+                true_labels=run_result.true_labels,
+                confidences=run_result.confidences,
                 class_names=class_names,
-                num_samples=num_samples,
-                correct=correct,
-                avg_time_per_image=metrics["avg_time_per_image"],
-                total_samples=int(metrics["total_samples"]),
-                warmup_samples=int(metrics["warmup_samples"]),
-                avg_total_time_per_image=avg_total_time_per_image,
+                num_samples=run_result.num_samples,
+                correct=run_result.correct,
+                avg_time_per_image=run_result.avg_time_per_image,
+                total_samples=run_result.total_samples,
+                warmup_samples=run_result.warmup_samples,
+                avg_total_time_per_image=run_result.avg_total_time_per_image,
                 input_size=input_size,
                 results_filename="pytorch_inference_results.csv",
                 summary_filename="pytorch_inference_summary.txt",

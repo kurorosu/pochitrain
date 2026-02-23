@@ -28,7 +28,10 @@ from pochitrain.inference.services.execution_service import ExecutionService
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.services.result_export_service import ResultExportService
 from pochitrain.inference.types.execution_types import ExecutionRequest
-from pochitrain.inference.types.orchestration_types import InferenceCliRequest
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+    InferenceRunResult,
+)
 from pochitrain.inference.types.result_export_types import ResultExportRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -264,30 +267,16 @@ def main() -> None:
         runtime=runtime_adapter,
         request=execution_request,
     )
-    all_predictions = execution_result.predictions
-    all_confidences = execution_result.confidences
-    all_true_labels = execution_result.true_labels
-    total_inference_time_ms = execution_result.total_inference_time_ms
-    total_samples = execution_result.total_samples
-    warmup_samples = execution_result.warmup_samples
-    e2e_total_time_ms = execution_result.e2e_total_time_ms
-
-    # 精度計算
-    correct = sum(p == t for p, t in zip(all_predictions, all_true_labels))
-    num_samples = len(dataset)
-    avg_time_per_image = (
-        total_inference_time_ms / total_samples if total_samples > 0 else 0
-    )
-    avg_total_time_per_image = e2e_total_time_ms / num_samples if num_samples > 0 else 0
+    run_result = InferenceRunResult.from_execution_result(execution_result)
 
     # 結果ログ出力
     log_inference_result(
-        num_samples=num_samples,
-        correct=correct,
-        avg_time_per_image=avg_time_per_image,
-        total_samples=total_samples,
-        warmup_samples=warmup_samples,
-        avg_total_time_per_image=avg_total_time_per_image,
+        num_samples=run_result.num_samples,
+        correct=run_result.correct,
+        avg_time_per_image=run_result.avg_time_per_image,
+        total_samples=run_result.total_samples,
+        warmup_samples=run_result.warmup_samples,
+        avg_total_time_per_image=run_result.avg_total_time_per_image,
         input_size=input_size,
     )
     logger.info("推論完了")
@@ -304,16 +293,16 @@ def main() -> None:
             model_path=model_path,
             data_path=data_path,
             image_paths=image_paths,
-            predictions=all_predictions,
-            true_labels=all_true_labels,
-            confidences=all_confidences,
+            predictions=run_result.predictions,
+            true_labels=run_result.true_labels,
+            confidences=run_result.confidences,
             class_names=class_names,
-            num_samples=num_samples,
-            correct=correct,
-            avg_time_per_image=avg_time_per_image,
-            total_samples=total_samples,
-            warmup_samples=warmup_samples,
-            avg_total_time_per_image=avg_total_time_per_image,
+            num_samples=run_result.num_samples,
+            correct=run_result.correct,
+            avg_time_per_image=run_result.avg_time_per_image,
+            total_samples=run_result.total_samples,
+            warmup_samples=run_result.warmup_samples,
+            avg_total_time_per_image=run_result.avg_total_time_per_image,
             input_size=input_size,
             results_filename="onnx_inference_results.csv",
             summary_filename="onnx_inference_summary.txt",
@@ -340,12 +329,12 @@ def main() -> None:
             gpu_non_blocking=execution_request.gpu_non_blocking,
             pin_memory=pin_memory,
             input_size=input_size,
-            avg_time_per_image=avg_time_per_image,
-            avg_total_time_per_image=avg_total_time_per_image,
-            num_samples=num_samples,
-            total_samples=total_samples,
-            warmup_samples=warmup_samples,
-            accuracy=(correct / num_samples * 100.0 if num_samples > 0 else 0.0),
+            avg_time_per_image=run_result.avg_time_per_image,
+            avg_total_time_per_image=run_result.avg_total_time_per_image,
+            num_samples=run_result.num_samples,
+            total_samples=run_result.total_samples,
+            warmup_samples=run_result.warmup_samples,
+            accuracy=run_result.accuracy_percent,
             env_name=env_name,
         )
         try:

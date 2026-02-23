@@ -12,6 +12,7 @@ from .execution_types import ExecutionRequest, ExecutionResult
 from .orchestration_types import (
     InferenceCliRequest,
     InferenceResolvedPaths,
+    InferenceRunResult,
     InferenceRuntimeOptions,
 )
 from .result_export_types import ResultExportRequest, ResultExportResult
@@ -26,6 +27,7 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
     "InferenceCliRequest",
+    "InferenceRunResult",
     "InferenceResolvedPaths",
     "InferenceRuntimeOptions",
     "ResultExportRequest",

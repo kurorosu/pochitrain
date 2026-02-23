@@ -13,7 +13,10 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
-from pochitrain.inference.types.orchestration_types import InferenceCliRequest
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+    InferenceRunResult,
+)
 
 
 def _build_logger() -> logging.Logger:
@@ -224,15 +227,16 @@ class TestRunInference:
             },
         )
         mock_loader = MagicMock()
+        mock_loader.dataset = MagicMock(labels=[0, 1, 0])
 
-        labels, scores, metrics, e2e_time = service.run_inference(
-            mock_predictor, mock_loader
-        )
+        result = service.run_inference(mock_predictor, mock_loader)
 
-        assert labels == [0, 1, 0]
-        assert len(scores) == 3
-        assert metrics["avg_time_per_image"] == 5.0
-        assert e2e_time > 0
+        assert result.predictions == [0, 1, 0]
+        assert len(result.confidences) == 3
+        assert result.avg_time_per_image == 5.0
+        assert result.num_samples == 3
+        assert result.correct == 3
+        assert result.avg_total_time_per_image > 0
 
 
 class TestAggregateAndExport:
@@ -263,14 +267,17 @@ class TestAggregateAndExport:
             model_path=Path("model.pth"),
             data_path=Path("data/val"),
             dataset=mock_dataset,
-            predicted_labels=[0, 1],
-            confidence_scores=[0.9, 0.8],
-            metrics={
-                "avg_time_per_image": 5.0,
-                "total_samples": 2,
-                "warmup_samples": 1,
-            },
-            e2e_total_time_ms=100.0,
+            run_result=InferenceRunResult(
+                predictions=[0, 1],
+                confidences=[0.9, 0.8],
+                true_labels=[0, 1],
+                num_samples=2,
+                correct=2,
+                avg_time_per_image=5.0,
+                total_samples=2,
+                warmup_samples=1,
+                avg_total_time_per_image=50.0,
+            ),
             input_size=(3, 224, 224),
             model_info={"model_name": "resnet18"},
             cm_config=None,
