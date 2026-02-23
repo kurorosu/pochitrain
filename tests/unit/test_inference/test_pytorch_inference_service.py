@@ -374,7 +374,6 @@ class TestAggregateAndExport:
         mock_log_result.assert_called_once()
         mock_export_cls.return_value.export.assert_called_once()
 
-        # export に渡された ResultExportRequest の内容を検証
         call_args = mock_export_cls.return_value.export.call_args
         request = call_args[0][0]
         assert request.num_samples == 2

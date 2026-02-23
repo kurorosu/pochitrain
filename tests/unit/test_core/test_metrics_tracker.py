@@ -26,7 +26,6 @@ def visualization_dir(tmp_path: Path) -> Path:
 def model() -> nn.Module:
     """テスト用の簡易モデル."""
     m = nn.Linear(10, 2)
-    # 勾配を生成するためにダミーの順伝播・逆伝播を実行
     x = torch.randn(1, 10)
     y = m(x)
     y.sum().backward()
@@ -180,7 +179,6 @@ class TestRecordEpoch:
         )
         tracker.initialize()
 
-        # エポック1: 記録されない (1 % 2 != 0)
         tracker.record_epoch(
             epoch=1,
             train_metrics={"loss": 0.5, "accuracy": 80.0},
@@ -190,7 +188,6 @@ class TestRecordEpoch:
         )
         assert len(tracker._gradient_tracer.epochs) == 0  # type: ignore[union-attr]
 
-        # エポック2: 記録される (2 % 2 == 0)
         tracker.record_epoch(
             epoch=2,
             train_metrics={"loss": 0.4, "accuracy": 85.0},
@@ -239,7 +236,6 @@ class TestRecordEpoch:
         )
         tracker.initialize()
 
-        # エラーが発生しないことを確認
         tracker.record_epoch(
             epoch=1,
             train_metrics={"loss": 0.5, "accuracy": 80.0},
@@ -319,7 +315,6 @@ class TestFinalize:
 
         tracker.finalize()
 
-        # 勾配CSVファイルが作成されていることを確認
         gradient_csvs = list(visualization_dir.glob("gradient_trace_*.csv"))
         assert len(gradient_csvs) == 1
 

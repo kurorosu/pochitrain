@@ -160,7 +160,6 @@ class TestTrainingConfiguratorConfigure:
         assert components.base_learning_rate == 0.001
         assert components.layer_wise_lr_config == layer_wise_lr_config
         assert components.layer_wise_lr_graph_config == {"show_legend": True}
-        # 複数のパラメータグループが作成されること
         assert len(components.optimizer.param_groups) > 1
 
     def test_invalid_optimizer_raises(self, configurator, model):

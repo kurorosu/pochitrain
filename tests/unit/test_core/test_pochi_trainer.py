@@ -134,7 +134,6 @@ def test_pochi_trainer_class_weights_cpu():
             work_dir=temp_dir,
         )
 
-        # クラス重みを設定
         class_weights = [1.0, 2.0, 0.5]
         trainer.setup_training(
             learning_rate=0.001,
@@ -144,9 +143,7 @@ def test_pochi_trainer_class_weights_cpu():
         )
 
         assert trainer.criterion is not None
-        # 損失関数の重みがCPUデバイスに配置されていることを確認
         assert trainer.criterion.weight.device == torch.device("cpu")
-        # 重みの値が正しく設定されていることを確認
         expected_weights = torch.tensor(class_weights, dtype=torch.float32)
         assert torch.allclose(trainer.criterion.weight, expected_weights)
 
@@ -163,7 +160,6 @@ def test_pochi_trainer_class_weights_cuda():
             work_dir=temp_dir,
         )
 
-        # クラス重みを設定
         class_weights = [1.0, 3.0, 1.5, 0.8]
         trainer.setup_training(
             learning_rate=0.001,
@@ -173,9 +169,7 @@ def test_pochi_trainer_class_weights_cuda():
         )
 
         assert trainer.criterion is not None
-        # 損失関数の重みがCUDAデバイスに配置されていることを確認
         assert trainer.criterion.weight.device.type == "cuda"
-        # 重みの値が正しく設定されていることを確認
         expected_weights = torch.tensor(class_weights, dtype=torch.float32)
         assert torch.allclose(trainer.criterion.weight.cpu(), expected_weights)
 
@@ -191,7 +185,6 @@ def test_pochi_trainer_class_weights_mismatch():
             work_dir=temp_dir,
         )
 
-        # クラス重みの長さがクラス数と一致しない場合
         class_weights = [1.0, 2.0]  # 2つの重みだが、クラス数は3
         with pytest.raises(
             ValueError, match="クラス重みの長さ.*がクラス数.*と一致しません"
@@ -222,7 +215,6 @@ def test_pochi_trainer_class_weights_none():
         )
 
         assert trainer.criterion is not None
-        # 重みが設定されていないことを確認
         assert trainer.criterion.weight is None
 
 

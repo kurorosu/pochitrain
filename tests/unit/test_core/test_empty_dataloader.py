@@ -64,7 +64,6 @@ def test_epoch_runner_sample_weighted_loss():
         )
         trainer.setup_training(learning_rate=0.0, optimizer_name="SGD", num_classes=3)
 
-        # 5サンプル, batch_size=4 -> バッチ1: 4サンプル, バッチ2: 1サンプル
         data = torch.randn(5, 3, 224, 224)
         targets = torch.tensor([0, 1, 2, 0, 1])
         dataset = TensorDataset(data, targets)
@@ -73,7 +72,6 @@ def test_epoch_runner_sample_weighted_loss():
         assert trainer.optimizer is not None
         epoch_runner = EpochRunner(device=trainer.device, logger=trainer.logger)
 
-        # criterion をモックしてバッチごとに固定 loss を返す
         call_count = 0
 
         def fake_criterion(output, target):
@@ -92,7 +90,6 @@ def test_epoch_runner_sample_weighted_loss():
             epoch=0,
         )
 
-        # サンプル重み付け平均: (1.0*4 + 2.0*1) / 5 = 1.2
         expected_loss = (1.0 * 4 + 2.0 * 1) / 5
         assert abs(metrics["loss"] - expected_loss) < 1e-6
 

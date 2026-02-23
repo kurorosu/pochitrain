@@ -30,7 +30,6 @@ class TestPochiModelInit:
     def test_num_classes_applied(self):
         """num_classesが最終層に反映される."""
         model = PochiModel("resnet18", num_classes=5, pretrained=False)
-        # ResNetのfc層の出力次元を確認
         assert model.model.fc.out_features == 5
 
     def test_is_nn_module(self):

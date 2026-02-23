@@ -116,12 +116,10 @@ class TestWriteInferenceCsv:
         assert csv_path.exists()
         assert csv_path.name == "inference_results.csv"
 
-        # CSV内容の検証
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
-        # ヘッダー行
         assert rows[0] == [
             "image_path",
             "predicted",
@@ -131,7 +129,6 @@ class TestWriteInferenceCsv:
             "confidence",
             "correct",
         ]
-        # データ行数
         assert len(rows) == 4  # ヘッダー + 3行
 
     def test_correct_flag(self, tmp_path):
@@ -150,9 +147,7 @@ class TestWriteInferenceCsv:
             reader = csv.reader(f)
             rows = list(reader)
 
-        # 1行目: pred=0, true=0 -> correct=True
         assert rows[1][6] == "True"
-        # 2行目: pred=1, true=0 -> correct=False
         assert rows[2][6] == "False"
 
     def test_custom_filename(self, tmp_path):
@@ -431,7 +426,6 @@ class TestComputeConfusionMatrix:
         cm = compute_confusion_matrix(predicted, true_labels, num_classes=3)
 
         assert cm.shape == (3, 3)
-        # 正解: (0,0)=2, (1,1)=1, (2,2)=1, 誤り: (2,1)=1
         assert cm[0, 0] == 2
         assert cm[1, 1] == 1
         assert cm[2, 2] == 1
@@ -443,7 +437,6 @@ class TestComputeConfusionMatrix:
         true_labels = [0, 1, 2, 0, 1, 2]
         cm = compute_confusion_matrix(predicted, true_labels, num_classes=3)
 
-        # 対角成分のみ非ゼロ
         for i in range(3):
             for j in range(3):
                 if i == j:
@@ -591,7 +584,6 @@ class TestSaveClassificationReport:
         with open(csv_path, encoding="utf-8") as f:
             reader = list(csv.reader(f))
 
-        # ヘッダー + クラス数(2) + macro avg + weighted avg = 5行
         assert len(reader) == 5
         assert reader[0] == ["class", "precision", "recall", "f1-score", "support"]
         assert reader[1][0] == "cat"
@@ -712,7 +704,6 @@ class TestPostProcessLogits:
         logits = np.array([[1.0, 2.0, 3.0]])
         predicted, confidence = post_process_logits(logits)
 
-        # 3クラスで最大logitが3.0の場合, confidence > 1/3
         assert confidence[0] > 1.0 / 3.0
 
     def test_single_class(self):
@@ -762,7 +753,6 @@ class TestPostProcessLogits:
         assert predicted.shape == (3,)
         assert predicted[0] == 0
         assert predicted[1] == 1
-        # 3番目は同値なのでどちらでもOK
         assert predicted[2] in [0, 1]
 
     def test_returns_numpy_arrays(self):
