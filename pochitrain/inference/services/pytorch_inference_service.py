@@ -1,13 +1,14 @@
 """PyTorch モデル推論のオーケストレーションサービス."""
 
 import logging
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from torch.utils.data import DataLoader
 
 from pochitrain.config import PochiConfig
+from pochitrain.inference.adapters import PyTorchRuntimeAdapter
+from pochitrain.inference.interfaces import IExecutionService
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.pochi_predictor import PochiPredictor
@@ -18,6 +19,7 @@ from pochitrain.utils import (
 )
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
+from ..types.execution_types import ExecutionRequest
 from ..types.orchestration_types import (
     InferenceCliRequest,
     InferenceResolvedPaths,
@@ -26,6 +28,7 @@ from ..types.orchestration_types import (
     PyTorchRunRequest,
 )
 from ..types.result_export_types import ResultExportRequest
+from .execution_service import ExecutionService
 from .result_export_service import ResultExportService
 
 
@@ -203,49 +206,45 @@ class PyTorchInferenceService:
         return None
 
     def run_inference(
-        self, predictor: PochiPredictor, val_loader: DataLoader[Any]
+        self,
+        predictor: PochiPredictor,
+        val_loader: DataLoader[Any],
+        execution_service: Optional[IExecutionService] = None,
     ) -> InferenceRunResult:
         """推論を実行し, 結果と計測情報を返す.
 
         Args:
             predictor: 推論器.
             val_loader: 推論データローダー.
+            execution_service: 実行サービス. 未指定時は内部で生成.
 
         Returns:
             ランタイム横断で共通利用する推論結果.
         """
         self.logger.info("推論を開始します...")
-
-        e2e_start_time = time.perf_counter()
-        predictions, confidences, metrics = predictor.predict(val_loader)
-        e2e_total_time_ms = (time.perf_counter() - e2e_start_time) * 1000
-
-        predicted_labels: List[int] = predictions.tolist()
-        confidence_scores: List[float] = confidences.tolist()
-        true_labels: List[int] = list(getattr(val_loader.dataset, "labels", []))
-        if len(true_labels) == 0:
-            raise ValueError("val_loader.dataset.labels が取得できませんでした")
-
-        avg_time_per_image = float(metrics.get("avg_time_per_image", 0.0))
-        total_samples = int(metrics.get("total_samples", len(predicted_labels)))
-        warmup_samples = int(metrics.get("warmup_samples", 0))
-        total_inference_time_ms = avg_time_per_image * total_samples
-
-        return InferenceRunResult.from_components(
-            predictions=predicted_labels,
-            confidences=confidence_scores,
-            true_labels=true_labels,
-            total_inference_time_ms=total_inference_time_ms,
-            total_samples=total_samples,
-            warmup_samples=warmup_samples,
-            e2e_total_time_ms=e2e_total_time_ms,
+        runtime_adapter = PyTorchRuntimeAdapter(predictor)
+        request = ExecutionRequest(
+            use_gpu_pipeline=False,
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
         )
+        service = execution_service or ExecutionService()
+        execution_result = service.run(
+            data_loader=val_loader,
+            runtime=runtime_adapter,
+            request=request,
+        )
+        return InferenceRunResult.from_execution_result(execution_result)
 
-    def run(self, request: PyTorchRunRequest) -> InferenceRunResult:
+    def run(
+        self,
+        request: PyTorchRunRequest,
+        execution_service: Optional[IExecutionService] = None,
+    ) -> InferenceRunResult:
         """推論を実行し共通結果型を返す.
 
         Args:
             request: PyTorch 推論実行リクエスト.
+            execution_service: 実行サービス. 未指定時は内部で生成.
 
         Returns:
             ランタイム横断で共通利用する推論結果.
@@ -253,6 +252,7 @@ class PyTorchInferenceService:
         return self.run_inference(
             predictor=request.predictor,
             val_loader=request.val_loader,
+            execution_service=execution_service,
         )
 
     def aggregate_and_export(

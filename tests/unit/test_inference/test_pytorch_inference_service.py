@@ -13,6 +13,7 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
+from pochitrain.inference.types.execution_types import ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceRunResult,
@@ -214,30 +215,37 @@ class TestRunInference:
     """run_inference のテスト."""
 
     def test_returns_predictions_and_metrics(self) -> None:
-        """推論結果とメトリクスが正しく返されること."""
+        """ExecutionService の結果を共通結果型へ変換できること."""
         service = PyTorchInferenceService(_build_logger())
 
-        mock_predictor = MagicMock()
-        mock_predictor.predict.return_value = (
-            torch.tensor([0, 1, 0]),
-            torch.tensor([0.9, 0.8, 0.95]),
-            {
-                "avg_time_per_image": 5.0,
-                "total_samples": 3,
-                "warmup_samples": 1,
-            },
-        )
+        mock_predictor = MagicMock(device=torch.device("cpu"))
+        mock_predictor.model = MagicMock()
         mock_loader = MagicMock()
-        mock_loader.dataset = MagicMock(labels=[0, 1, 0])
 
-        result = service.run_inference(mock_predictor, mock_loader)
+        class _FakeExecutionService:
+            def run(self, data_loader, runtime, request):  # noqa: ANN001
+                return ExecutionResult(
+                    predictions=[0, 1, 0],
+                    confidences=[0.9, 0.8, 0.95],
+                    true_labels=[0, 1, 0],
+                    total_inference_time_ms=15.0,
+                    total_samples=3,
+                    warmup_samples=1,
+                    e2e_total_time_ms=30.0,
+                )
+
+        result = service.run_inference(
+            predictor=mock_predictor,
+            val_loader=mock_loader,
+            execution_service=_FakeExecutionService(),
+        )
 
         assert result.predictions == [0, 1, 0]
         assert len(result.confidences) == 3
         assert result.avg_time_per_image == 5.0
         assert result.num_samples == 3
         assert result.correct == 3
-        assert result.avg_total_time_per_image > 0
+        assert result.avg_total_time_per_image == 10.0
 
 
 class TestRun:
@@ -273,6 +281,7 @@ class TestRun:
         mock_run_inference.assert_called_once_with(
             predictor=request.predictor,
             val_loader=request.val_loader,
+            execution_service=None,
         )
         assert result == expected
 
