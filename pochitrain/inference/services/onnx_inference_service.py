@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
-from pochitrain.inference.services.interfaces import IInferenceOrchestrationService
+from pochitrain.inference.services.interfaces import IInferenceService
 from pochitrain.logging import LoggerManager
 
 from .execution_service import ExecutionService
 
 
-class OnnxInferenceService(IInferenceOrchestrationService):
+class OnnxInferenceService(IInferenceService):
     """ONNX推論CLIで必要な解決処理を提供するサービス."""
 
     execution_service_factory = ExecutionService

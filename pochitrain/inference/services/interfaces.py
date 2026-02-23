@@ -1,7 +1,7 @@
 """Service 層のインターフェース定義.
 
 IExecutionService は `typing.Protocol` を採用する.
-IInferenceOrchestrationService は共通実装を持たせるため `abc.ABC` を使う.
+IInferenceService は共通実装を持たせるため `abc.ABC` を使う.
 """
 
 import logging
@@ -56,7 +56,7 @@ class IExecutionService(Protocol):
         ...
 
 
-class IInferenceOrchestrationService(ABC):
+class IInferenceService(ABC):
     """推論サービスの共通基底インターフェース."""
 
     execution_service_factory: type[IExecutionService]

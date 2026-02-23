@@ -5,14 +5,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
-from pochitrain.inference.services.interfaces import IInferenceOrchestrationService
+from pochitrain.inference.services.interfaces import IInferenceService
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import get_basic_transforms
 
 from .execution_service import ExecutionService
 
 
-class TensorRTInferenceService(IInferenceOrchestrationService):
+class TensorRTInferenceService(IInferenceService):
     """TensorRT推論CLIで必要な解決処理を提供するサービス."""
 
     execution_service_factory = ExecutionService

@@ -1,7 +1,7 @@
 suites:
   base:
     description: config.py の現在設定で runtime 別に計測する.
-    repeats: 1
+    repeats: 3
     defaults:
       pipelines:
         - gpu

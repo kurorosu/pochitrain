@@ -11,7 +11,7 @@ from pochitrain.inference.adapters import PyTorchRuntimeAdapter
 from pochitrain.inference.pipeline_strategy import create_dataset_and_params
 from pochitrain.inference.services.interfaces import (
     IExecutionService,
-    IInferenceOrchestrationService,
+    IInferenceService,
 )
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import PochiImageDataset
@@ -26,7 +26,7 @@ from ..types.runtime_adapter_protocol import IRuntimeAdapter
 from .execution_service import ExecutionService
 
 
-class PyTorchInferenceService(IInferenceOrchestrationService):
+class PyTorchInferenceService(IInferenceService):
     """PyTorch モデル推論の実行・集約・エクスポートを担うサービス.
 
     CLI から推論ビジネスロジックを分離し, 単体テストを可能にする.
