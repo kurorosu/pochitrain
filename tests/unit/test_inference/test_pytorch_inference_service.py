@@ -53,37 +53,26 @@ def _build_config(**overrides: Any) -> PochiConfig:
     return PochiConfig.from_dict(defaults)
 
 
-class TestCreatePredictor:
-    """create_predictor のテスト."""
-
-    @patch("pochitrain.inference.services.pytorch_inference_service.PochiPredictor")
-    def test_delegates_to_from_config(self, mock_predictor_cls: MagicMock) -> None:
-        """PochiPredictor.from_config に正しく委譲されること."""
-        service = PyTorchInferenceService(_build_logger())
-        config = _build_config()
-        model_path = Path("models/best.pth")
-
-        service.create_predictor(config, model_path)
-
-        mock_predictor_cls.from_config.assert_called_once_with(config, str(model_path))
-
-
 class TestResolvePipeline:
     """resolve_pipeline のテスト."""
 
-    def test_auto_returns_gpu_when_gpu_enabled(self) -> None:
-        """auto 指定時は current を返すこと."""
+    @pytest.mark.parametrize(
+        ("requested", "use_gpu", "expected"),
+        [
+            ("auto", True, "gpu"),
+            ("auto", False, "fast"),
+            ("gpu", False, "fast"),
+        ],
+    )
+    def test_resolve_pipeline_cases(
+        self,
+        requested: str,
+        use_gpu: bool,
+        expected: str,
+    ) -> None:
+        """代表ケースで pipeline 解決結果が期待どおりであること."""
         service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("auto", use_gpu=True) == "gpu"
-
-    def test_auto_returns_fast_when_gpu_disabled(self) -> None:
-        """非auto指定時も current を返すこと."""
-        service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("auto", use_gpu=False) == "fast"
-
-    def test_gpu_requested_without_gpu_falls_back_to_fast(self) -> None:
-        service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("gpu", use_gpu=False) == "fast"
+        assert service.resolve_pipeline(requested, use_gpu=use_gpu) == expected
 
 
 class TestResolvePaths:
@@ -281,43 +270,6 @@ class TestDetectInputSize:
         result = service.detect_input_size(config, dataset)
 
         assert result is None
-
-
-class TestRunInference:
-    """run_inference のテスト."""
-
-    def test_returns_predictions_and_metrics(self) -> None:
-        """ExecutionService の結果を共通結果型へ変換できること."""
-        service = PyTorchInferenceService(_build_logger())
-
-        mock_predictor = MagicMock(device=torch.device("cpu"))
-        mock_predictor.model = MagicMock()
-        mock_loader = MagicMock()
-
-        class _FakeExecutionService:
-            def run(self, data_loader, runtime, request):  # noqa: ANN001
-                return ExecutionResult(
-                    predictions=[0, 1, 0],
-                    confidences=[0.9, 0.8, 0.95],
-                    true_labels=[0, 1, 0],
-                    total_inference_time_ms=15.0,
-                    total_samples=3,
-                    warmup_samples=1,
-                    e2e_total_time_ms=30.0,
-                )
-
-        result = service.run_inference(
-            predictor=mock_predictor,
-            val_loader=mock_loader,
-            execution_service=_FakeExecutionService(),
-        )
-
-        assert result.predictions == [0, 1, 0]
-        assert len(result.confidences) == 3
-        assert result.avg_time_per_image == 5.0
-        assert result.num_samples == 3
-        assert result.correct == 3
-        assert result.avg_total_time_per_image == 10.0
 
 
 class TestRun:

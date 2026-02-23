@@ -1,7 +1,6 @@
 """CheckpointStoreクラスのユニットテスト."""
 
 import logging
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -203,96 +202,3 @@ class TestSaveLastModel:
         checkpoint = torch.load(last_file, map_location="cpu", weights_only=True)
         assert checkpoint["epoch"] == 5
         assert checkpoint["best_accuracy"] == 80.0
-
-
-class TestLoadCheckpoint:
-    """load_checkpointメソッドのテスト."""
-
-    def test_load_checkpoint(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-        optimizer: optim.Optimizer,
-        work_dir: Path,
-    ) -> None:
-        """チェックポイントが正しく復元される."""
-        # 保存
-        store.save_checkpoint(
-            filename="checkpoint.pth",
-            epoch=7,
-            model=model,
-            optimizer=optimizer,
-            scheduler=None,
-            best_accuracy=88.5,
-        )
-
-        # 新しいモデルにロード
-        new_model = nn.Linear(10, 2)
-        new_optimizer = optim.SGD(new_model.parameters(), lr=0.01)
-
-        result = store.load_checkpoint(
-            filename="checkpoint.pth",
-            model=new_model,
-            device=torch.device("cpu"),
-            optimizer=new_optimizer,
-        )
-
-        assert result["epoch"] == 7
-        assert result["best_accuracy"] == 88.5
-
-        # モデルの重みが復元されていることを確認
-        for p1, p2 in zip(model.parameters(), new_model.parameters()):
-            assert torch.equal(p1, p2)
-
-    def test_load_checkpoint_with_scheduler(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-        optimizer: optim.Optimizer,
-        work_dir: Path,
-    ) -> None:
-        """スケジューラー付きチェックポイントが正しく復元される."""
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5)
-        # 数ステップ進める
-        optimizer.step()
-        scheduler.step()
-        optimizer.step()
-        scheduler.step()
-
-        store.save_checkpoint(
-            filename="checkpoint.pth",
-            epoch=2,
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            best_accuracy=70.0,
-        )
-
-        # 新しいモデル・スケジューラーにロード
-        new_model = nn.Linear(10, 2)
-        new_optimizer = optim.SGD(new_model.parameters(), lr=0.01)
-        new_scheduler = optim.lr_scheduler.StepLR(new_optimizer, step_size=5)
-
-        store.load_checkpoint(
-            filename="checkpoint.pth",
-            model=new_model,
-            device=torch.device("cpu"),
-            optimizer=new_optimizer,
-            scheduler=new_scheduler,
-        )
-
-        # スケジューラーの状態が復元されていることを確認
-        assert new_scheduler.state_dict() == scheduler.state_dict()
-
-    def test_load_checkpoint_file_not_found(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-    ) -> None:
-        """存在しないファイルでFileNotFoundError."""
-        with pytest.raises(FileNotFoundError, match="チェックポイントが見つかりません"):
-            store.load_checkpoint(
-                filename="nonexistent.pth",
-                model=model,
-                device=torch.device("cpu"),
-            )

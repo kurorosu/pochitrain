@@ -9,20 +9,14 @@ from torch.utils.data import DataLoader
 from pochitrain.config import PochiConfig
 from pochitrain.inference.adapters import PyTorchRuntimeAdapter
 from pochitrain.inference.pipeline_strategy import create_dataset_and_params
-from pochitrain.inference.services.interfaces import (
-    IExecutionService,
-    IInferenceService,
-)
+from pochitrain.inference.services.interfaces import IInferenceService
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.pochi_predictor import PochiPredictor
 
 from ..types.orchestration_types import (
-    InferenceRunResult,
     InferenceRuntimeOptions,
-    RuntimeExecutionRequest,
 )
-from ..types.runtime_adapter_protocol import IRuntimeAdapter
 from .execution_service import ExecutionService
 
 
@@ -56,47 +50,6 @@ class PyTorchInferenceService(IInferenceService):
         if not all(isinstance(v, int) for v in shape[1:]):
             return None
         return (shape[1], shape[2], shape[3])
-
-    def build_runtime_execution_request(
-        self,
-        data_loader: DataLoader[Any],
-        runtime_adapter: IRuntimeAdapter,
-        *,
-        use_gpu_pipeline: bool,
-        norm_mean: Optional[List[float]] = None,
-        norm_std: Optional[List[float]] = None,
-        use_cuda_timing: bool = False,
-        gpu_non_blocking: bool = True,
-        warmup_repeats: int = 10,
-        skip_measurement_batches: int = 1,
-    ) -> RuntimeExecutionRequest:
-        """PyTorch推論の実行リクエストを構築する.
-
-        Args:
-            data_loader: 推論データローダー.
-            runtime_adapter: 推論ランタイムアダプタ.
-            use_gpu_pipeline: GPU前処理を使うかどうか.
-            norm_mean: 正規化平均.
-            norm_std: 正規化標準偏差.
-            use_cuda_timing: CUDA Event 計測を使うかどうか.
-            gpu_non_blocking: GPU転送に non_blocking を使うかどうか.
-            warmup_repeats: ウォームアップ回数.
-            skip_measurement_batches: 計測除外する先頭バッチ数.
-
-        Returns:
-            実行コンテキスト.
-        """
-        return super().build_runtime_execution_request(
-            data_loader=data_loader,
-            runtime_adapter=runtime_adapter,
-            use_gpu_pipeline=use_gpu_pipeline,
-            norm_mean=norm_mean,
-            norm_std=norm_std,
-            use_cuda_timing=use_cuda_timing,
-            gpu_non_blocking=gpu_non_blocking,
-            warmup_repeats=warmup_repeats,
-            skip_measurement_batches=skip_measurement_batches,
-        )
 
     def create_predictor(self, config: PochiConfig, model_path: Path) -> PochiPredictor:
         """推論器を生成する.
@@ -204,32 +157,3 @@ class PyTorchInferenceService(IInferenceService):
             pass
 
         return None
-
-    def run_inference(
-        self,
-        predictor: PochiPredictor,
-        val_loader: DataLoader[Any],
-        execution_service: Optional[IExecutionService] = None,
-    ) -> InferenceRunResult:
-        """推論を実行し, 結果と計測情報を返す.
-
-        Args:
-            predictor: 推論器.
-            val_loader: 推論データローダー.
-            execution_service: 実行サービス. 未指定時は内部で生成.
-
-        Returns:
-            ランタイム横断で共通利用する推論結果.
-        """
-        self.logger.info("推論を開始します...")
-        runtime_adapter = self.create_runtime_adapter(predictor)
-        runtime_request = self.build_runtime_execution_request(
-            data_loader=val_loader,
-            runtime_adapter=runtime_adapter,
-            use_cuda_timing=runtime_adapter.use_cuda_timing,
-            use_gpu_pipeline=False,
-        )
-        return self.run(
-            request=runtime_request,
-            execution_service=execution_service,
-        )

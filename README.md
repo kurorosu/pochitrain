@@ -184,11 +184,18 @@ trainer.train(
 ### 予測の実行
 
 ```python
-# モデルの読み込み
-trainer.load_checkpoint('best_checkpoint.pth')
+from pochitrain import PochiPredictor
 
-# 予測の実行
-predictions, confidences = trainer.predict(test_loader)
+# 推論器の作成（初期化時にモデルを読み込む）
+predictor = PochiPredictor(
+    model_name='resnet18',
+    num_classes=len(classes),
+    device='cuda',
+    model_path='work_dirs/20251018_001/models/best_epoch40.pth',
+)
+
+# 推論の実行
+predictions, confidences, metrics = predictor.predict(test_loader)
 ```
 
 ## 🎯 特徴

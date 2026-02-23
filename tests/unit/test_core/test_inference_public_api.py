@@ -17,7 +17,6 @@ def test_public_api_exports_expected_symbols():
         "InferenceResolvedPaths",
         "InferenceRuntimeOptions",
         "RuntimeExecutionRequest",
-        "PyTorchRunRequest",
         "ResultExportRequest",
         "ResultExportResult",
     }

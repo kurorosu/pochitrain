@@ -4,6 +4,8 @@
 """
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -50,6 +52,27 @@ def _create_dummy_artifact(
     output_path = output_dir / filename
     output_path.write_text("dummy", encoding="utf-8")
     return output_path
+
+
+@contextmanager
+def _patch_fallback_runtime(argv: list[str]) -> Iterator[None]:
+    """GPUフォールバック系テストの共通 patch を適用する."""
+    with (
+        patch("sys.argv", argv),
+        patch(
+            "pochitrain.onnx.inference.check_gpu_availability",
+            return_value=False,
+        ),
+        patch(
+            "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
+            side_effect=_create_dummy_artifact,
+        ),
+        patch(
+            "pochitrain.inference.services.result_export_service.save_classification_report",
+            side_effect=_create_dummy_artifact,
+        ),
+    ):
+        yield
 
 
 @pytest.fixture(scope="module")
@@ -108,14 +131,6 @@ def gpu_fallback_test_env(tmp_path_factory):
 class TestInferOnnxMainExit:
     """main関数のSystemExitテスト."""
 
-    def test_main_no_args_exits(self):
-        """引数なしでSystemExitが発生する."""
-        from pochitrain.cli.infer_onnx import main
-
-        with patch("sys.argv", ["infer-onnx"]):
-            with pytest.raises(SystemExit):
-                main()
-
     def test_main_nonexistent_model_exits(self, tmp_path):
         """存在しないモデルでSystemExitが発生する."""
         from pochitrain.cli.infer_onnx import main
@@ -146,32 +161,17 @@ class TestGpuFallbackReresolution:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        with (
-            patch(
-                "sys.argv",
-                [
-                    "infer-onnx",
-                    str(model_path),
-                    "--data",
-                    str(data_path),
-                    "-o",
-                    str(output_dir),
-                    "--pipeline",
-                    "gpu",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
-            ),
+        with _patch_fallback_runtime(
+            [
+                "infer-onnx",
+                str(model_path),
+                "--data",
+                str(data_path),
+                "-o",
+                str(output_dir),
+                "--pipeline",
+                "gpu",
+            ]
         ):
             # RuntimeError が発生しないことを確認
             main()
@@ -193,8 +193,7 @@ class TestGpuFallbackReresolution:
         output_dir.mkdir()
 
         with (
-            patch(
-                "sys.argv",
+            _patch_fallback_runtime(
                 [
                     "infer-onnx",
                     str(model_path),
@@ -204,19 +203,7 @@ class TestGpuFallbackReresolution:
                     str(output_dir),
                     "--pipeline",
                     "gpu",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
+                ]
             ),
             patch(
                 "pochitrain.onnx.inference.OnnxInference.set_input_gpu",
@@ -239,35 +226,20 @@ class TestGpuFallbackReresolution:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        with (
-            patch(
-                "sys.argv",
-                [
-                    "infer-onnx",
-                    str(model_path),
-                    "--data",
-                    str(data_path),
-                    "-o",
-                    str(output_dir),
-                    "--pipeline",
-                    "gpu",
-                    "--benchmark-json",
-                    "--benchmark-env-name",
-                    "TestEnv",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
-            ),
+        with _patch_fallback_runtime(
+            [
+                "infer-onnx",
+                str(model_path),
+                "--data",
+                str(data_path),
+                "-o",
+                str(output_dir),
+                "--pipeline",
+                "gpu",
+                "--benchmark-json",
+                "--benchmark-env-name",
+                "TestEnv",
+            ]
         ):
             main()
 

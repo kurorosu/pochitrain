@@ -10,17 +10,6 @@ from pathlib import Path
 from typing import Tuple
 
 
-def generate_timestamp_dir() -> str:
-    """
-    現在の日付から yyyymmdd_001 形式の文字列を生成.
-
-    Returns:
-        str: "20241220_001" のような形式の文字列
-    """
-    today = datetime.now().strftime("%Y%m%d")
-    return f"{today}_001"
-
-
 def find_next_index(base_dir: Path, date_str: str) -> int:
     """
     同じ日付で既存のディレクトリがある場合、次のインデックスを取得.

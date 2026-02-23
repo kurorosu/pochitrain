@@ -14,17 +14,20 @@
 
 ### Changed
 - `.github/ISSUE_TEMPLATE/refactor_request.md` のラベル表記を `refactoring` から `refactor` へ統一した ([#260](https://github.com/kurorosu/pochitrain/pull/260)).
-- 推論CLIのオーケストレーション境界を整理し, `run(request) -> result` を3ランタイムで共通化した.
+- 推論CLIのオーケストレーション境界を整理し, `run(request) -> result` を3ランタイムで共通化した ([#263](https://github.com/kurorosu/pochitrain/pull/263)).
   - `InferenceRunResult` をランタイム横断の集約型として統一した.
   - パス解決と runtime option 解決の責務を Service 層へ集約した.
   - `pochi infer` の `--output` 指定時の出力挙動を ONNX/TRT と同じルールに統一した.
   - `infer-onnx` と `infer-trt` の CLI から手動の DataLoader / ExecutionRequest / 結果エクスポート処理を削除し, Service 委譲フローに統一した.
+- 本番経路で未使用だったメソッドを削除し, 関連テストと README の推論サンプルを現行仕様へ整理した.
+  - `CheckpointStore.load_checkpoint`, `PochiWorkspaceManager.save_image_list`, `PochiWorkspaceManager.get_available_workspaces`, `LoggerManager.reset` を削除した.
+  - 削除メソッドに依存するユニットテストを整理し, `PochiPredictor` ベースの推論例へ更新した.
 
 ### Fixed
 - N/A.
 
 ### Removed
-- N/A.
+- 本番未使用の補助メソッドを削除した.
 
 ## v1.6.0 (2026-02-22)
 
