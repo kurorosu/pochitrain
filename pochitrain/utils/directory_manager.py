@@ -26,10 +26,28 @@ class PochiWorkspaceManager:
         base_dir (str): ベースディレクトリのパス (デフォルト: "work_dirs")
     """
 
+    _WORKSPACE_NOT_CREATED_ERROR = (
+        "ワークスペースが作成されていません。"
+        "create_workspace() を先に呼び出してください."
+    )
+
     def __init__(self, base_dir: str = "work_dirs"):
         """PochiWorkspaceManagerを初期化."""
         self.base_dir = Path(base_dir)
         self.current_workspace: Optional[Path] = None
+
+    def _require_workspace(self) -> Path:
+        """現在のワークスペースを返す.
+
+        Returns:
+            現在のワークスペース.
+
+        Raises:
+            RuntimeError: ワークスペースが未作成の場合.
+        """
+        if self.current_workspace is None:
+            raise RuntimeError(self._WORKSPACE_NOT_CREATED_ERROR)
+        return self.current_workspace
 
     def create_workspace(self) -> Path:
         """
@@ -77,12 +95,7 @@ class PochiWorkspaceManager:
         Raises:
             RuntimeError: ワークスペースが作成されていない場合
         """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
-            )
-
-        return self.current_workspace / "models"
+        return self._require_workspace() / "models"
 
     def _get_paths_dir(self) -> Path:
         """
@@ -94,12 +107,7 @@ class PochiWorkspaceManager:
         Raises:
             RuntimeError: ワークスペースが作成されていない場合
         """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
-            )
-
-        return self.current_workspace / "paths"
+        return self._require_workspace() / "paths"
 
     def get_visualization_dir(self) -> Path:
         """
@@ -111,12 +119,7 @@ class PochiWorkspaceManager:
         Raises:
             RuntimeError: ワークスペースが作成されていない場合
         """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
-            )
-
-        return self.current_workspace / "visualization"
+        return self._require_workspace() / "visualization"
 
     def save_config(self, config_path: Path, target_name: str = "config.py") -> Path:
         """
@@ -133,15 +136,12 @@ class PochiWorkspaceManager:
             RuntimeError: ワークスペースが作成されていない場合
             FileNotFoundError: コピー元ファイルが存在しない場合
         """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
-            )
+        workspace = self._require_workspace()
 
         if not config_path.exists():
             raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
 
-        target_path = self.current_workspace / target_name
+        target_path = workspace / target_name
         shutil.copy2(config_path, target_path)
 
         return target_path
@@ -162,10 +162,7 @@ class PochiWorkspaceManager:
         Raises:
             RuntimeError: ワークスペースが作成されていない場合
         """
-        if self.current_workspace is None:
-            raise RuntimeError(
-                "ワークスペースが作成されていません。create_workspace() を先に呼び出してください."
-            )
+        self._require_workspace()
 
         paths_dir = self._get_paths_dir()
         train_file_path = paths_dir / "train.txt"
