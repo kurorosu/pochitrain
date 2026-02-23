@@ -55,11 +55,6 @@ class TestPochiWorkspaceManager:
             assert models_dir == workspace / "models"
             assert models_dir.exists()
 
-            # get_paths_dir
-            paths_dir = manager.get_paths_dir()
-            assert paths_dir == workspace / "paths"
-            assert paths_dir.exists()
-
     def test_save_config(self):
         """設定ファイル保存機能のテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -161,11 +156,6 @@ class TestPochiWorkspaceManager:
                 RuntimeError, match="ワークスペースが作成されていません"
             ):
                 manager.get_models_dir()
-
-            with pytest.raises(
-                RuntimeError, match="ワークスペースが作成されていません"
-            ):
-                manager.get_paths_dir()
 
     def test_error_handling_missing_config(self):
         """存在しない設定ファイルのエラーハンドリング"""

@@ -45,35 +45,24 @@ class PochiWorkspaceManager:
             work_dirs/20241220_001/
             work_dirs/20241220_001/models/
         """
-        # ベースディレクトリが存在しない場合は作成
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-        # 現在の日付を取得
         date_str = get_current_date_str()
-
-        # 次のインデックスを取得
         next_index = find_next_index(self.base_dir, date_str)
 
-        # ワークスペース名を生成
         workspace_name = format_workspace_name(date_str, next_index)
         workspace_path = self.base_dir / workspace_name
 
-        # ワークスペースディレクトリを作成
         workspace_path.mkdir(parents=True, exist_ok=True)
 
-        # サブディレクトリを作成
         models_dir = workspace_path / "models"
         models_dir.mkdir(exist_ok=True)
 
-        # pathsディレクトリを作成
         paths_dir = workspace_path / "paths"
         paths_dir.mkdir(exist_ok=True)
 
-        # visualizationディレクトリを作成
         visualization_dir = workspace_path / "visualization"
         visualization_dir.mkdir(exist_ok=True)
-
-        # 現在のワークスペースとして設定
         self.current_workspace = workspace_path
 
         return workspace_path
@@ -95,7 +84,7 @@ class PochiWorkspaceManager:
 
         return self.current_workspace / "models"
 
-    def get_paths_dir(self) -> Path:
+    def _get_paths_dir(self) -> Path:
         """
         パス保存用ディレクトリのパスを取得.
 
@@ -178,15 +167,12 @@ class PochiWorkspaceManager:
                 "ワークスペースが作成されていません。create_workspace() を先に呼び出してください。"
             )
 
-        paths_dir = self.get_paths_dir()
-
-        # train.txtの保存
+        paths_dir = self._get_paths_dir()
         train_file_path = paths_dir / "train.txt"
         with open(train_file_path, "w", encoding="utf-8") as f:
             for path in train_paths:
                 f.write(f"{path}\n")
 
-        # val.txtの保存
         val_file_path = None
         if val_paths is not None:
             val_file_path = paths_dir / "val.txt"
@@ -222,23 +208,11 @@ class InferenceWorkspaceManager(PochiWorkspaceManager):
         Returns:
             Path: 作成されたワークスペースのパス
         """
-        # ベースディレクトリが存在しない場合は作成
         self.base_dir.mkdir(parents=True, exist_ok=True)
-
-        # 今日の日付を取得
         date_str = get_current_date_str()
-
-        # 次のインデックスを取得
         next_index = find_next_index(self.base_dir, date_str)
-
-        # ワークスペース名を生成
         workspace_name = format_workspace_name(date_str, next_index)
         workspace_path = self.base_dir / workspace_name
-
-        # ワークスペースディレクトリのみ作成（modelsディレクトリは作らない）
         workspace_path.mkdir(exist_ok=True)
-
-        # 現在のワークスペースとして設定
         self.current_workspace = workspace_path
-
         return workspace_path
