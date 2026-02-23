@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from .execution_types import ExecutionRequest, ExecutionResult
 
 if TYPE_CHECKING:
-    from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
+    from pochitrain.inference.interfaces import IRuntimeAdapter
 
 
 @dataclass(frozen=True)

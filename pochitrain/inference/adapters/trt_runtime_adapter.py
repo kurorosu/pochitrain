@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
+from pochitrain.inference.interfaces import IRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest
 from pochitrain.pochi_dataset import gpu_normalize
 from pochitrain.tensorrt.inference import TensorRTInference

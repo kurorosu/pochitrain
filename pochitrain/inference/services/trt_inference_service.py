@@ -1,9 +1,9 @@
 """TensorRT推論CLI向けのオーケストレーション補助サービス."""
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Optional
 
-from pochitrain.inference.types.execution_types import ExecutionResult
+from pochitrain.inference.interfaces import IExecutionService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceResolvedPaths,
@@ -18,12 +18,6 @@ from pochitrain.utils import (
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 from .execution_service import ExecutionService
-
-
-class _ExecutionServiceLike(Protocol):
-    def run(self, data_loader: Any, runtime: Any, request: Any) -> ExecutionResult:
-        """実行結果を返す."""
-        ...
 
 
 class TensorRTInferenceService:
@@ -123,7 +117,7 @@ class TensorRTInferenceService:
     def run(
         self,
         request: RuntimeExecutionRequest,
-        execution_service: Optional[_ExecutionServiceLike] = None,
+        execution_service: Optional[IExecutionService] = None,
     ) -> InferenceRunResult:
         """推論を実行し共通結果型へ集約する.
 
