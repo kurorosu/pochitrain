@@ -61,18 +61,6 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def write_text(path: Path, content: str) -> None:
-    """テキストを UTF-8 で保存する.
-
-    Args:
-        path: 出力ファイルパス.
-        content: 保存内容.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(content)
-
-
 def to_float(value: Any) -> Optional[float]:
     """任意値を float に変換する.
 

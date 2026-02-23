@@ -19,7 +19,6 @@ from .pochi_dataset import (
     PochiImageDataset,
     create_data_loaders,
     get_basic_transforms,
-    print_dataset_info,
 )
 from .pochi_predictor import PochiPredictor
 
@@ -46,7 +45,6 @@ __all__ = [
     "create_data_loaders",
     "get_basic_transforms",
     "create_model",
-    "print_dataset_info",
     # ユーティリティ
     "PochiWorkspaceManager",
     "InferenceWorkspaceManager",

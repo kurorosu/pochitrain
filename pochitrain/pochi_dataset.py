@@ -12,7 +12,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset
 from torchvision.io import ImageReadMode, decode_image
 
 from pochitrain.logging import LoggerManager
@@ -465,62 +465,3 @@ def create_data_loaders(
     )
 
     return train_loader, val_loader, train_dataset.get_classes()
-
-
-def create_simple_transforms(image_size: int = 224) -> dict:
-    """
-    シンプルな変換セットを作成.
-
-    Args:
-        image_size (int): 画像サイズ
-
-    Returns:
-        dict: 変換セット
-    """
-    return {
-        "train": get_basic_transforms(image_size, is_training=True),
-        "val": get_basic_transforms(image_size, is_training=False),
-        "simple": transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-            ]
-        ),
-    }
-
-
-# データセットの情報を表示するヘルパー関数
-def print_dataset_info(dataset: PochiImageDataset) -> None:
-    """データセットの情報を表示."""
-    print("データセット情報:")
-    print(f"  総サンプル数: {len(dataset)}")
-    print(f"  クラス数: {len(dataset.classes)}")
-    print(f"  クラス名: {dataset.classes}")
-
-    class_counts = dataset.get_class_counts()
-    print("  各クラスのサンプル数:")
-    for cls_name, count in class_counts.items():
-        print(f"    {cls_name}: {count}")
-
-
-def split_dataset(
-    dataset: PochiImageDataset, train_ratio: float = 0.8
-) -> Tuple[Dataset, Dataset]:
-    """
-    データセットを訓練用と検証用に分割.
-
-    Args:
-        dataset (PochiImageDataset): 分割するデータセット
-        train_ratio (float): 訓練用の割合
-
-    Returns:
-        Tuple[Subset[Any], Subset[Any]]: (訓練用データセット, 検証用データセット)
-    """
-    from torch.utils.data import random_split
-
-    total_size = len(dataset)
-    train_size = int(total_size * train_ratio)
-    val_size = total_size - train_size
-
-    splits: List[Subset[Any]] = random_split(dataset, [train_size, val_size])
-    return splits[0], splits[1]
