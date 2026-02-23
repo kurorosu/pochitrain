@@ -2,7 +2,7 @@
 
 import argparse
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torchvision.transforms as transforms
@@ -148,72 +148,6 @@ class TestMainArgumentParsing:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 1
-
-    def test_main_dispatch_train_command(self, monkeypatch: pytest.MonkeyPatch):
-        """trainサブコマンドのデフォルト設定を確認."""
-        import pochitrain.cli.pochi as pochi_module
-
-        called: dict[str, object] = {}
-
-        def _fake_train(args: object) -> None:
-            called["args"] = args
-
-        monkeypatch.setattr("sys.argv", ["pochi", "train"])
-        monkeypatch.setattr(pochi_module, "train_command", _fake_train)
-        main()
-
-        assert "args" in called
-        assert getattr(called["args"], "command") == "train"
-
-    def test_infer_parser_positional_model_path(self):
-        """inferサブコマンドの位置引数model_pathを確認."""
-        with patch("sys.argv", ["pochi", "infer", "model.pth"]):
-            parser = argparse.ArgumentParser()
-            parser.add_argument("--debug", action="store_true")
-            subparsers = parser.add_subparsers(dest="command")
-            infer_parser = subparsers.add_parser("infer")
-            infer_parser.add_argument("model_path", help="モデルファイルパス")
-            infer_parser.add_argument("--data", "-d")
-            infer_parser.add_argument("--config-path", "-c")
-            infer_parser.add_argument("--output", "-o")
-
-            args = parser.parse_args(["infer", "model.pth"])
-            assert args.model_path == "model.pth"
-            assert args.data is None
-            assert args.config_path is None
-            assert args.output is None
-
-    def test_infer_parser_with_optional_args(self):
-        """inferサブコマンドのオプション引数を確認."""
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--debug", action="store_true")
-        subparsers = parser.add_subparsers(dest="command")
-        infer_parser = subparsers.add_parser("infer")
-        infer_parser.add_argument("model_path", help="モデルファイルパス")
-        infer_parser.add_argument("--data", "-d")
-        infer_parser.add_argument("--config-path", "-c")
-        infer_parser.add_argument("--output", "-o")
-
-        args = parser.parse_args(
-            ["infer", "model.pth", "-d", "data/val", "-c", "config.py"]
-        )
-        assert args.model_path == "model.pth"
-        assert args.data == "data/val"
-        assert args.config_path == "config.py"
-
-    def test_optimize_parser_default_output(self):
-        """optimizeサブコマンドのデフォルト出力ディレクトリを確認."""
-        parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers(dest="command")
-        optimize_parser = subparsers.add_parser("optimize")
-        optimize_parser.add_argument(
-            "--output",
-            "-o",
-            default="work_dirs/optuna_results",
-        )
-
-        args = parser.parse_args(["optimize"])
-        assert args.output == "work_dirs/optuna_results"
 
 
 class TestMainDispatch:
