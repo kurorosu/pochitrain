@@ -42,17 +42,13 @@ class TestSignalHandler:
         """シグナルハンドラーが停止フラグを設定することを確認."""
         import pochitrain.cli.pochi as pochi_module
 
-        # フラグを初期化
         pochi_module.training_interrupted = False
 
-        # シグナルハンドラーを生成して呼び出し
         handler = create_signal_handler(debug=False)
         handler(2, None)
 
-        # フラグが設定されていることを確認
         assert pochi_module.training_interrupted is True
 
-        # クリーンアップ
         pochi_module.training_interrupted = False
 
 
@@ -61,18 +57,15 @@ class TestFindBestModel:
 
     def test_find_best_model_success(self, tmp_path):
         """ベストモデルを正しく検出することを確認."""
-        # モデルディレクトリを作成
         models_dir = tmp_path / "models"
         models_dir.mkdir()
 
-        # ダミーモデルファイルを作成
         (models_dir / "best_epoch10.pth").touch()
         (models_dir / "best_epoch20.pth").touch()
         (models_dir / "best_epoch30.pth").touch()
 
         result = find_best_model(str(tmp_path))
 
-        # 最大エポック番号のモデルが選択されることを確認
         assert result.name == "best_epoch30.pth"
 
     def test_find_best_model_cross_digit_boundary(self, tmp_path):
@@ -80,14 +73,12 @@ class TestFindBestModel:
         models_dir = tmp_path / "models"
         models_dir.mkdir()
 
-        # best_epoch9.pth と best_epoch10.pth が共存するケース
         (models_dir / "best_epoch9.pth").touch()
         (models_dir / "best_epoch10.pth").touch()
 
         result = find_best_model(str(tmp_path))
 
-        # 文字列比較だと "best_epoch9" > "best_epoch10" になるが,
-        # 数値比較で epoch 10 が選択されることを確認
+        # 文字列比較では 9 が 10 より大きく見えるため, 数値比較を検証する.
         assert result.name == "best_epoch10.pth"
 
     def test_find_best_model_no_models_dir(self, tmp_path):
@@ -122,7 +113,6 @@ class TestGetIndexedOutputDir:
 
         result = get_indexed_output_dir(str(existing_dir))
 
-        # 連番が付与されることを確認
         assert result.name == "output_001"
         assert result.parent == tmp_path
 
@@ -135,7 +125,6 @@ class TestGetIndexedOutputDir:
 
         result = get_indexed_output_dir(str(base_dir))
 
-        # 次の連番が選択されることを確認
         assert result.name == "output_003"
 
 

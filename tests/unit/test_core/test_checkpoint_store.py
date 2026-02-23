@@ -143,7 +143,6 @@ class TestSaveBestModel:
         work_dir: Path,
     ) -> None:
         """既存のベストモデルファイルが削除される."""
-        # 最初のベストモデルを保存
         store.save_best_model(
             epoch=5,
             model=model,
@@ -153,7 +152,6 @@ class TestSaveBestModel:
         )
         assert (work_dir / "best_epoch5.pth").exists()
 
-        # 新しいベストモデルを保存
         store.save_best_model(
             epoch=10,
             model=model,
@@ -162,7 +160,6 @@ class TestSaveBestModel:
             best_accuracy=90.0,
         )
 
-        # 古いファイルが削除され, 新しいファイルが存在する
         assert not (work_dir / "best_epoch5.pth").exists()
         assert (work_dir / "best_epoch10.pth").exists()
 
@@ -189,7 +186,6 @@ class TestSaveLastModel:
         last_file = work_dir / "last_model.pth"
         assert last_file.exists()
 
-        # 上書き保存
         store.save_last_model(
             epoch=5,
             model=model,

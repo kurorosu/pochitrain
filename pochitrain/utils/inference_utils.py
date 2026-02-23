@@ -73,7 +73,10 @@ def compute_confusion_matrix(
     """NumPyベースの混同行列計算.
 
     sklearn.metrics.confusion_matrixを使用せず,
-    基本的なNumPy操作のみで混同行列を計算します.
+    基本的なNumPy操作のみで混同行列を計算する.
+    推論CLIはONNX/TRT/PyTorchの出力を最終的にlist[int]へ正規化して扱うため,
+    本関数はTorch非依存で実装している.
+    訓練ループ内のTorch Tensor向け実装は ``pochitrain.training.evaluator`` に分離している.
 
     Args:
         predicted_labels: 予測ラベルのリスト

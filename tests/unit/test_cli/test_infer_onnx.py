@@ -80,7 +80,6 @@ def gpu_fallback_test_env(tmp_path_factory):
     """GPUフォールバック用の共有テスト環境を作成する."""
     tmp_path = tmp_path_factory.mktemp("infer_onnx_fallback")
 
-    # work_dir/models/model.onnx
     work_dir = tmp_path / "work_dir"
     models_dir = work_dir / "models"
     models_dir.mkdir(parents=True)
@@ -100,14 +99,12 @@ def gpu_fallback_test_env(tmp_path_factory):
         dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     )
 
-    # データセット: data/{class_a, class_b}/ にダミー画像 (モデルの2クラスに対応)
     for cls_name, color in [("class_a", "red"), ("class_b", "blue")]:
         cls_dir = tmp_path / "data" / cls_name
         cls_dir.mkdir(parents=True)
         img = Image.new("RGB", (32, 32), color=color)
         img.save(str(cls_dir / "dummy.jpg"))
 
-    # config.py: device="cuda" でGPU推論を要求
     config_path = work_dir / "config.py"
     config_path.write_text(
         "from torchvision import transforms\n"
@@ -173,10 +170,8 @@ class TestGpuFallbackReresolution:
                 "gpu",
             ]
         ):
-            # RuntimeError が発生しないことを確認
             main()
 
-        # 結果ファイルが生成されていることを確認
         csv_files = list(output_dir.glob("*.csv"))
         assert len(csv_files) > 0
 

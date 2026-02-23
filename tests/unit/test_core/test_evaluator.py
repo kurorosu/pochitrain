@@ -158,12 +158,10 @@ class TestValidate:
 
     def test_validate_basic(self, evaluator):
         """バリデーションループの正常動作."""
-        # 簡易モデル: 3クラス分類
         model = nn.Linear(4, 3)
         model.eval()
         criterion = nn.CrossEntropyLoss()
 
-        # テストデータ: 8サンプル
         data = torch.randn(8, 4)
         targets = torch.tensor([0, 1, 2, 0, 1, 2, 0, 1])
         dataset = TensorDataset(data, targets)
@@ -199,7 +197,6 @@ class TestValidate:
 
             assert "val_loss" in result
             assert "val_accuracy" in result
-            # 混同行列ログファイルが作成されていることを確認
             log_file = Path(tmp_dir) / "confusion_matrix.log"
             assert log_file.exists()
 
@@ -209,13 +206,11 @@ class TestSampleWeightedLoss:
 
     def test_validate_sample_weighted_loss(self, evaluator):
         """不均一バッチサイズでサンプル重み付け平均が正しく計算される."""
-        # 固定重みのモデルで再現性を確保
         torch.manual_seed(42)
         model = nn.Linear(4, 3)
         model.eval()
         criterion = nn.CrossEntropyLoss()
 
-        # 7サンプル, batch_size=4 -> バッチ1: 4サンプル, バッチ2: 3サンプル
         data = torch.randn(7, 4)
         targets = torch.tensor([0, 1, 2, 0, 1, 2, 0])
         dataset = TensorDataset(data, targets)
@@ -223,7 +218,6 @@ class TestSampleWeightedLoss:
 
         result = evaluator.validate(model, loader, criterion)
 
-        # 手動で期待値を計算
         with torch.no_grad():
             out1 = model(data[:4])
             loss1 = criterion(out1, targets[:4]).item()

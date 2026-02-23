@@ -49,6 +49,19 @@ class PochiWorkspaceManager:
             raise RuntimeError(self._WORKSPACE_NOT_CREATED_ERROR)
         return self.current_workspace
 
+    def _create_workspace_path(self) -> Path:
+        """ワークスペース本体ディレクトリを生成して返す."""
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+        date_str = get_current_date_str()
+        next_index = find_next_index(self.base_dir, date_str)
+        workspace_name = format_workspace_name(date_str, next_index)
+        workspace_path = self.base_dir / workspace_name
+
+        workspace_path.mkdir(parents=True, exist_ok=True)
+        self.current_workspace = workspace_path
+        return workspace_path
+
     def create_workspace(self) -> Path:
         """
         新しいワークスペースを作成.
@@ -63,15 +76,7 @@ class PochiWorkspaceManager:
             work_dirs/20241220_001/
             work_dirs/20241220_001/models/
         """
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-
-        date_str = get_current_date_str()
-        next_index = find_next_index(self.base_dir, date_str)
-
-        workspace_name = format_workspace_name(date_str, next_index)
-        workspace_path = self.base_dir / workspace_name
-
-        workspace_path.mkdir(parents=True, exist_ok=True)
+        workspace_path = self._create_workspace_path()
 
         models_dir = workspace_path / "models"
         models_dir.mkdir(exist_ok=True)
@@ -81,7 +86,6 @@ class PochiWorkspaceManager:
 
         visualization_dir = workspace_path / "visualization"
         visualization_dir.mkdir(exist_ok=True)
-        self.current_workspace = workspace_path
 
         return workspace_path
 
@@ -205,11 +209,4 @@ class InferenceWorkspaceManager(PochiWorkspaceManager):
         Returns:
             Path: 作成されたワークスペースのパス
         """
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        date_str = get_current_date_str()
-        next_index = find_next_index(self.base_dir, date_str)
-        workspace_name = format_workspace_name(date_str, next_index)
-        workspace_path = self.base_dir / workspace_name
-        workspace_path.mkdir(exist_ok=True)
-        self.current_workspace = workspace_path
-        return workspace_path
+        return self._create_workspace_path()
