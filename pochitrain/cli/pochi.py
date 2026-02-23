@@ -421,10 +421,11 @@ def infer_command(args: argparse.Namespace) -> None:
             norm_mean,
             norm_std,
         ) = service.create_dataloader(
-            pochi_config,
+            config,
             data_path,
-            pipeline=pipeline,
-            pin_memory=runtime_options.pin_memory,
+            pochi_config.val_transform,
+            pipeline,
+            runtime_options,
         )
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
@@ -433,12 +434,14 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
+        runtime_adapter = service.create_runtime_adapter(predictor)
         runtime_request = service.build_runtime_execution_request(
-            predictor=predictor,
-            val_loader=val_loader,
+            data_loader=val_loader,
+            runtime_adapter=runtime_adapter,
             use_gpu_pipeline=pipeline == "gpu",
             norm_mean=norm_mean,
             norm_std=norm_std,
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
             gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
         )
         run_result = service.run(
@@ -465,6 +468,8 @@ def infer_command(args: argparse.Namespace) -> None:
             input_size=input_size,
             model_info=predictor.get_model_info(),
             cm_config=cm_config,
+            results_filename="pytorch_inference_results.csv",
+            summary_filename="pytorch_inference_summary.txt",
         )
 
         if bool(getattr(args, "benchmark_json", False)):

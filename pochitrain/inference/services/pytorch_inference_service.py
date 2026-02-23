@@ -14,18 +14,16 @@ from pochitrain.inference.services.interfaces import (
     IInferenceOrchestrationService,
 )
 from pochitrain.logging import LoggerManager
-from pochitrain.pochi_dataset import PochiImageDataset, create_scaled_normalize_tensors
+from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.pochi_predictor import PochiPredictor
-from pochitrain.utils import log_inference_result
 
-from ..types.execution_types import ExecutionRequest
 from ..types.orchestration_types import (
     InferenceRunResult,
+    InferenceRuntimeOptions,
     RuntimeExecutionRequest,
 )
-from ..types.result_export_types import ResultExportRequest
+from ..types.runtime_adapter_protocol import IRuntimeAdapter
 from .execution_service import ExecutionService
-from .result_export_service import ResultExportService
 
 
 class PyTorchInferenceService(IInferenceOrchestrationService):
@@ -42,7 +40,7 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         Args:
             logger: ロガーインスタンス. 未指定時はモジュールロガーを利用する.
         """
-        self.logger = logger or LoggerManager().get_logger(__name__)
+        super().__init__(logger=logger or LoggerManager().get_logger(__name__))
 
     def resolve_input_size(self, shape: Any) -> Optional[tuple[int, int, int]]:
         """入力形状から入力サイズを解決する.
@@ -61,47 +59,43 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
 
     def build_runtime_execution_request(
         self,
-        predictor: PochiPredictor,
-        val_loader: DataLoader[Any],
+        data_loader: DataLoader[Any],
+        runtime_adapter: IRuntimeAdapter,
         *,
-        use_gpu_pipeline: bool = False,
+        use_gpu_pipeline: bool,
         norm_mean: Optional[List[float]] = None,
         norm_std: Optional[List[float]] = None,
+        use_cuda_timing: bool = False,
         gpu_non_blocking: bool = True,
+        warmup_repeats: int = 10,
+        skip_measurement_batches: int = 1,
     ) -> RuntimeExecutionRequest:
         """PyTorch推論の実行リクエストを構築する.
 
         Args:
-            predictor: 推論器.
-            val_loader: 推論データローダー.
+            data_loader: 推論データローダー.
+            runtime_adapter: 推論ランタイムアダプタ.
+            use_gpu_pipeline: GPU前処理を使うかどうか.
+            norm_mean: 正規化平均.
+            norm_std: 正規化標準偏差.
+            use_cuda_timing: CUDA Event 計測を使うかどうか.
+            gpu_non_blocking: GPU転送に non_blocking を使うかどうか.
+            warmup_repeats: ウォームアップ回数.
+            skip_measurement_batches: 計測除外する先頭バッチ数.
 
         Returns:
             実行コンテキスト.
         """
-        runtime_adapter = PyTorchRuntimeAdapter(predictor)
-        mean_255 = None
-        std_255 = None
-        if use_gpu_pipeline:
-            if norm_mean is None or norm_std is None:
-                raise ValueError(
-                    "gpu パイプラインには normalize パラメータが必要です.",
-                )
-            mean_255, std_255 = create_scaled_normalize_tensors(
-                norm_mean,
-                norm_std,
-                device=runtime_adapter.device,
-            )
-        execution_request = ExecutionRequest(
-            use_gpu_pipeline=use_gpu_pipeline,
-            mean_255=mean_255,
-            std_255=std_255,
-            use_cuda_timing=runtime_adapter.use_cuda_timing,
-            gpu_non_blocking=gpu_non_blocking,
-        )
-        return RuntimeExecutionRequest(
-            data_loader=val_loader,
+        return super().build_runtime_execution_request(
+            data_loader=data_loader,
             runtime_adapter=runtime_adapter,
-            execution_request=execution_request,
+            use_gpu_pipeline=use_gpu_pipeline,
+            norm_mean=norm_mean,
+            norm_std=norm_std,
+            use_cuda_timing=use_cuda_timing,
+            gpu_non_blocking=gpu_non_blocking,
+            warmup_repeats=warmup_repeats,
+            skip_measurement_batches=skip_measurement_batches,
         )
 
     def create_predictor(self, config: PochiConfig, model_path: Path) -> PochiPredictor:
@@ -116,13 +110,26 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         """
         return PochiPredictor.from_config(config, str(model_path))
 
+    def create_runtime_adapter(
+        self, predictor: PochiPredictor
+    ) -> PyTorchRuntimeAdapter:
+        """PyTorch推論インスタンスからランタイムアダプタを作成する.
+
+        Args:
+            predictor: 推論器.
+
+        Returns:
+            PyTorchランタイムアダプタ.
+        """
+        return PyTorchRuntimeAdapter(predictor)
+
     def create_dataloader(
         self,
-        config: PochiConfig,
+        config: Dict[str, Any],
         data_path: Path,
-        *,
-        pipeline: str = "current",
-        pin_memory: bool = True,
+        val_transform: Any,
+        pipeline: str,
+        runtime_options: InferenceRuntimeOptions,
     ) -> Tuple[
         DataLoader[Any],
         PochiImageDataset,
@@ -133,24 +140,27 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
         """推論用 DataLoader とデータセットを生成する.
 
         Args:
-            config: アプリケーション設定.
+            config: 推論設定辞書.
             data_path: 推論データのディレクトリパス.
-            pin_memory: DataLoader の pin_memory 設定.
+            val_transform: 検証用 transform.
+            pipeline: 解決済みパイプライン名.
+            runtime_options: 推論実行オプション.
 
         Returns:
             (DataLoader, PochiImageDataset) のタプル.
         """
+        _ = config
         dataset, resolved_pipeline, norm_mean, norm_std = create_dataset_and_params(
             pipeline,
             data_path,
-            config.val_transform,
+            val_transform,
         )
         loader: DataLoader[Any] = DataLoader(
             dataset,
-            batch_size=config.batch_size,
+            batch_size=runtime_options.batch_size,
             shuffle=False,
-            num_workers=config.num_workers,
-            pin_memory=pin_memory,
+            num_workers=runtime_options.num_workers,
+            pin_memory=runtime_options.pin_memory,
         )
 
         self.logger.debug("使用されたTransform (設定ファイルから):")
@@ -212,73 +222,14 @@ class PyTorchInferenceService(IInferenceOrchestrationService):
             ランタイム横断で共通利用する推論結果.
         """
         self.logger.info("推論を開始します...")
+        runtime_adapter = self.create_runtime_adapter(predictor)
         runtime_request = self.build_runtime_execution_request(
-            predictor=predictor,
-            val_loader=val_loader,
+            data_loader=val_loader,
+            runtime_adapter=runtime_adapter,
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
+            use_gpu_pipeline=False,
         )
         return self.run(
             request=runtime_request,
             execution_service=execution_service,
-        )
-
-    def aggregate_and_export(
-        self,
-        *,
-        workspace_dir: Path,
-        model_path: Path,
-        data_path: Path,
-        dataset: PochiImageDataset,
-        run_result: InferenceRunResult,
-        input_size: Optional[Tuple[int, int, int]],
-        model_info: Optional[Dict[str, Any]],
-        cm_config: Optional[Dict[str, Any]],
-    ) -> None:
-        """精度計算・ログ出力・結果エクスポートを実行する.
-
-        Args:
-            workspace_dir: 結果出力先ディレクトリ.
-            model_path: モデルファイルパス.
-            data_path: 推論データパス.
-            dataset: 推論データセット.
-            run_result: ランタイム横断で共通利用する推論結果.
-            input_size: 入力サイズ (C, H, W).
-            model_info: モデル情報辞書.
-            cm_config: 混同行列可視化設定.
-        """
-        image_paths = dataset.get_file_paths()
-        class_names = dataset.get_classes()
-
-        log_inference_result(
-            num_samples=run_result.num_samples,
-            correct=run_result.correct,
-            avg_time_per_image=run_result.avg_time_per_image,
-            total_samples=run_result.total_samples,
-            warmup_samples=run_result.warmup_samples,
-            avg_total_time_per_image=run_result.avg_total_time_per_image,
-            input_size=input_size,
-        )
-
-        export_service = ResultExportService(self.logger)
-        export_service.export(
-            ResultExportRequest(
-                output_dir=workspace_dir,
-                model_path=model_path,
-                data_path=data_path,
-                image_paths=image_paths,
-                predictions=run_result.predictions,
-                true_labels=run_result.true_labels,
-                confidences=run_result.confidences,
-                class_names=class_names,
-                num_samples=run_result.num_samples,
-                correct=run_result.correct,
-                avg_time_per_image=run_result.avg_time_per_image,
-                total_samples=run_result.total_samples,
-                warmup_samples=run_result.warmup_samples,
-                avg_total_time_per_image=run_result.avg_total_time_per_image,
-                input_size=input_size,
-                results_filename="pytorch_inference_results.csv",
-                summary_filename="pytorch_inference_summary.txt",
-                model_info=model_info,
-                cm_config=cm_config,
-            )
         )

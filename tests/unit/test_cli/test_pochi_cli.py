@@ -387,15 +387,17 @@ class TestInferCommandServiceDelegation:
 
         def _create_dataloader(
             self,
-            pochi_config,
+            config,
             data_path,
-            *,
-            pipeline="current",
-            pin_memory=True,
+            val_transform,
+            pipeline,
+            runtime_options,
         ):
+            _ = config
+            _ = val_transform
             captured["data_path"] = data_path
             captured["pipeline"] = pipeline
-            captured["pin_memory"] = pin_memory
+            captured["pin_memory"] = runtime_options.pin_memory
             return object(), _Dataset(), pipeline, None, None
 
         def _detect_input_size(self, pochi_config, dataset):
@@ -441,6 +443,7 @@ class TestInferCommandServiceDelegation:
             pochi_module.PyTorchInferenceService,
             "aggregate_and_export",
             _aggregate_and_export,
+            raising=False,
         )
 
         infer_command(args)
@@ -507,7 +510,7 @@ class TestInferCommandServiceDelegation:
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
             "create_dataloader",
-            lambda self, pochi_config, data_path, *, pipeline="current", pin_memory=True: (
+            lambda self, config, data_path, val_transform, pipeline, runtime_options: (
                 object(),
                 _Dataset(),
                 pipeline,
@@ -543,6 +546,7 @@ class TestInferCommandServiceDelegation:
             pochi_module.PyTorchInferenceService,
             "aggregate_and_export",
             _aggregate_and_export,
+            raising=False,
         )
 
         infer_command(args)
@@ -574,12 +578,16 @@ class TestInferCommandServiceDelegation:
 
         def _create_dataloader(
             self,
-            pochi_config,
+            config,
             data_path,
-            *,
-            pipeline="current",
-            pin_memory=True,
+            val_transform,
+            pipeline,
+            runtime_options,
         ):
+            _ = config
+            _ = data_path
+            _ = val_transform
+            _ = runtime_options
             called["create_dataloader"] = True
             return object(), object(), pipeline, None, None
 
@@ -635,7 +643,7 @@ class TestInferCommandServiceDelegation:
         monkeypatch.setattr(
             pochi_module.PyTorchInferenceService,
             "create_dataloader",
-            lambda self, pochi_config, data_path, *, pipeline="current", pin_memory=True: (
+            lambda self, config, data_path, val_transform, pipeline, runtime_options: (
                 object(),
                 _Dataset(),
                 pipeline,
@@ -664,6 +672,7 @@ class TestInferCommandServiceDelegation:
             pochi_module.PyTorchInferenceService,
             "aggregate_and_export",
             _aggregate_and_export,
+            raising=False,
         )
 
         infer_command(args)

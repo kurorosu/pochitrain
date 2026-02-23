@@ -7,6 +7,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
+from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
 from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
@@ -79,6 +80,60 @@ class TestResolveRuntimeOptions:
         assert options.pin_memory is False
         assert options.use_gpu is True
         assert options.use_gpu_pipeline is True
+
+
+class TestInferenceAndAdapter:
+    """TensorRT 推論インスタンスとアダプタ生成のテスト."""
+
+    def test_create_trt_inference_uses_lazy_import(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """遅延 import した TensorRTInference を使ってインスタンス化する."""
+
+        class _FakeTensorRTInference:
+            def __init__(self, engine_path: Path) -> None:
+                self.engine_path = engine_path
+
+        monkeypatch.setattr(
+            "pochitrain.tensorrt.TensorRTInference",
+            _FakeTensorRTInference,
+        )
+
+        service = TensorRTInferenceService()
+        inference = service.create_trt_inference(tmp_path / "model.engine")
+        assert isinstance(inference, _FakeTensorRTInference)
+
+    def test_resolve_val_transform_returns_config_value(self) -> None:
+        """config に val_transform があればその値を返す."""
+        service = TensorRTInferenceService()
+        transform = object()
+        resolved = service.resolve_val_transform(
+            config={"val_transform": transform},
+            inference=object(),
+        )
+        assert resolved is transform
+
+    def test_resolve_val_transform_builds_from_engine_shape(self) -> None:
+        """config 未指定時はエンジン入力サイズから transform を組み立てる."""
+
+        class _DummyInference:
+            def get_input_shape(self) -> tuple[int, int, int, int]:
+                return (1, 3, 224, 224)
+
+        service = TensorRTInferenceService()
+        resolved = service.resolve_val_transform(config={}, inference=_DummyInference())
+        assert hasattr(resolved, "transforms")
+
+    def test_create_runtime_adapter_returns_trt_adapter(self) -> None:
+        """TensorRT 推論インスタンスから TRT アダプタを生成できる."""
+
+        class _DummyInference:
+            pass
+
+        adapter = TensorRTInferenceService().create_runtime_adapter(_DummyInference())
+        assert isinstance(adapter, TensorRTRuntimeAdapter)
 
 
 class TestResolveInputSize:

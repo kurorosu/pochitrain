@@ -17,6 +17,7 @@ from pochitrain.inference.types.execution_types import ExecutionRequest, Executi
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceRunResult,
+    InferenceRuntimeOptions,
     RuntimeExecutionRequest,
 )
 
@@ -149,13 +150,15 @@ class TestBuildRuntimeExecutionRequest:
         predictor = MagicMock()
         predictor.device = torch.device("cpu")
         predictor.model = MagicMock()
+        runtime_adapter = service.create_runtime_adapter(predictor)
 
         runtime_request = service.build_runtime_execution_request(
-            predictor=predictor,
-            val_loader=MagicMock(),
+            data_loader=MagicMock(),
+            runtime_adapter=runtime_adapter,
             use_gpu_pipeline=True,
             norm_mean=[0.485, 0.456, 0.406],
             norm_std=[0.229, 0.224, 0.225],
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
             gpu_non_blocking=False,
         )
 
@@ -170,11 +173,12 @@ class TestBuildRuntimeExecutionRequest:
         predictor = MagicMock()
         predictor.device = torch.device("cpu")
         predictor.model = MagicMock()
+        runtime_adapter = service.create_runtime_adapter(predictor)
 
         with pytest.raises(ValueError):
             service.build_runtime_execution_request(
-                predictor=predictor,
-                val_loader=MagicMock(),
+                data_loader=MagicMock(),
+                runtime_adapter=runtime_adapter,
                 use_gpu_pipeline=True,
             )
 
@@ -198,11 +202,21 @@ class TestCreateDataloader:
         service = PyTorchInferenceService(_build_logger())
         config = _build_config()
         data_path = Path("data/val")
+        runtime_options = InferenceRuntimeOptions(
+            pipeline="gpu",
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            pin_memory=True,
+            use_gpu=False,
+            use_gpu_pipeline=True,
+        )
 
         loader, dataset, pipeline, norm_mean, norm_std = service.create_dataloader(
-            config,
+            {},
             data_path,
-            pipeline="gpu",
+            config.val_transform,
+            "gpu",
+            runtime_options,
         )
 
         mock_create_dataset.assert_called_once_with(
@@ -366,12 +380,8 @@ class TestRun:
 class TestAggregateAndExport:
     """aggregate_and_export のテスト."""
 
-    @patch(
-        "pochitrain.inference.services.pytorch_inference_service.ResultExportService"
-    )
-    @patch(
-        "pochitrain.inference.services.pytorch_inference_service.log_inference_result"
-    )
+    @patch("pochitrain.inference.services.interfaces.ResultExportService")
+    @patch("pochitrain.inference.services.interfaces.log_inference_result")
     def test_calls_log_and_export(
         self,
         mock_log_result: MagicMock,
@@ -405,6 +415,8 @@ class TestAggregateAndExport:
             input_size=(3, 224, 224),
             model_info={"model_name": "resnet18"},
             cm_config=None,
+            results_filename="pytorch_inference_results.csv",
+            summary_filename="pytorch_inference_summary.txt",
         )
 
         mock_log_result.assert_called_once()
