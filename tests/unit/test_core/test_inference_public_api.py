@@ -13,6 +13,7 @@ def test_public_api_exports_expected_symbols():
         "ExecutionRequest",
         "ExecutionResult",
         "InferenceCliRequest",
+        "InferenceRunResult",
         "InferenceResolvedPaths",
         "InferenceRuntimeOptions",
         "ResultExportRequest",

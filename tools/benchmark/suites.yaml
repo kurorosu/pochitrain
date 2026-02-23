@@ -11,9 +11,14 @@ suites:
       model_paths:
         trt: work_dirs/20260206_001/models/best_epoch50_int8.engine
         onnx: work_dirs/20260206_001/models/best_epoch50.onnx
+        pytorch: work_dirs/20260206_001/models/best_epoch50.pth
     cases:
       - name: trt_default
         runtime: trt
 
       - name: onnx_default
         runtime: onnx
+
+      - name: pytorch_default
+        runtime: pytorch
+        pipeline: current

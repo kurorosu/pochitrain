@@ -60,22 +60,46 @@ def _build_command(case: CaseConfig, run_output_dir: Path) -> List[str]:
     Returns:
         実行コマンド配列.
     """
-    module_name = (
-        "pochitrain.cli.infer_onnx"
-        if case.runtime == "onnx"
-        else "pochitrain.cli.infer_trt"
-    )
-    command = [
-        sys.executable,
-        "-m",
-        module_name,
-        str(case.model_path),
-        "--pipeline",
-        case.pipeline,
-        "--output",
-        str(run_output_dir),
-        "--benchmark-json",
-    ]
+    if case.runtime == "onnx":
+        command = [
+            sys.executable,
+            "-m",
+            "pochitrain.cli.infer_onnx",
+            str(case.model_path),
+            "--pipeline",
+            case.pipeline,
+            "--output",
+            str(run_output_dir),
+            "--benchmark-json",
+        ]
+    elif case.runtime == "trt":
+        command = [
+            sys.executable,
+            "-m",
+            "pochitrain.cli.infer_trt",
+            str(case.model_path),
+            "--pipeline",
+            case.pipeline,
+            "--output",
+            str(run_output_dir),
+            "--benchmark-json",
+        ]
+    elif case.runtime == "pytorch":
+        command = [
+            sys.executable,
+            "-m",
+            "pochitrain.cli.pochi",
+            "infer",
+            str(case.model_path),
+            "--pipeline",
+            case.pipeline,
+            "--output",
+            str(run_output_dir),
+            "--benchmark-json",
+        ]
+    else:  # pragma: no cover
+        raise ValueError(f"未対応runtimeです: {case.runtime}")
+
     if case.benchmark_env_name:
         command.extend(["--benchmark-env-name", case.benchmark_env_name])
     return command

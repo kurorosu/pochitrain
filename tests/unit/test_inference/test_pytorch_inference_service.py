@@ -13,6 +13,11 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+    InferenceRunResult,
+    PyTorchRunRequest,
+)
 
 
 def _build_logger() -> logging.Logger:
@@ -59,6 +64,76 @@ class TestCreatePredictor:
         service.create_predictor(config, model_path)
 
         mock_predictor_cls.from_config.assert_called_once_with(config, str(model_path))
+
+
+class TestResolvePipeline:
+    """resolve_pipeline のテスト."""
+
+    def test_auto_returns_current(self) -> None:
+        """auto 指定時は current を返すこと."""
+        service = PyTorchInferenceService(_build_logger())
+        assert service.resolve_pipeline("auto") == "current"
+
+    def test_non_auto_also_returns_current(self) -> None:
+        """非auto指定時も current を返すこと."""
+        service = PyTorchInferenceService(_build_logger())
+        assert service.resolve_pipeline("gpu") == "current"
+
+
+class TestResolvePaths:
+    """resolve_paths のテスト."""
+
+    def test_resolve_paths_with_explicit_data_and_output(self, tmp_path: Path) -> None:
+        """--data, --output 指定時にその値を使うこと."""
+        data_path = tmp_path / "data"
+        data_path.mkdir()
+        output_dir = tmp_path / "out"
+
+        request = InferenceCliRequest(
+            model_path=tmp_path / "model.pth",
+            data_path=data_path,
+            output_dir=output_dir,
+            requested_pipeline="auto",
+        )
+        resolved = PyTorchInferenceService(_build_logger()).resolve_paths(
+            request, config={}
+        )
+
+        assert resolved.data_path == data_path
+        assert resolved.output_dir == output_dir
+        assert output_dir.exists()
+
+    def test_resolve_paths_raises_when_data_is_unresolved(self, tmp_path: Path) -> None:
+        """データパスを解決できない場合は ValueError を送出すること."""
+        request = InferenceCliRequest(
+            model_path=tmp_path / "model.pth",
+            data_path=None,
+            output_dir=tmp_path / "out",
+            requested_pipeline="auto",
+        )
+
+        with pytest.raises(ValueError):
+            PyTorchInferenceService(_build_logger()).resolve_paths(request, config={})
+
+
+class TestResolveRuntimeOptions:
+    """resolve_runtime_options のテスト."""
+
+    def test_runtime_options_from_config(self) -> None:
+        """設定値から実行オプションを解決できること."""
+        service = PyTorchInferenceService(_build_logger())
+        options = service.resolve_runtime_options(
+            config={"batch_size": 8, "num_workers": 4, "pin_memory": False},
+            pipeline="current",
+            use_gpu=False,
+        )
+
+        assert options.pipeline == "current"
+        assert options.batch_size == 8
+        assert options.num_workers == 4
+        assert options.pin_memory is False
+        assert options.use_gpu is False
+        assert options.use_gpu_pipeline is False
 
 
 class TestCreateDataloader:
@@ -153,15 +228,53 @@ class TestRunInference:
             },
         )
         mock_loader = MagicMock()
+        mock_loader.dataset = MagicMock(labels=[0, 1, 0])
 
-        labels, scores, metrics, e2e_time = service.run_inference(
-            mock_predictor, mock_loader
+        result = service.run_inference(mock_predictor, mock_loader)
+
+        assert result.predictions == [0, 1, 0]
+        assert len(result.confidences) == 3
+        assert result.avg_time_per_image == 5.0
+        assert result.num_samples == 3
+        assert result.correct == 3
+        assert result.avg_total_time_per_image > 0
+
+
+class TestRun:
+    """run のテスト."""
+
+    def test_run_delegates_to_run_inference(self) -> None:
+        """run が run_inference を委譲呼び出しすることを検証する."""
+        service = PyTorchInferenceService(_build_logger())
+
+        expected = InferenceRunResult(
+            predictions=[0],
+            confidences=[0.9],
+            true_labels=[0],
+            num_samples=1,
+            correct=1,
+            avg_time_per_image=1.0,
+            total_samples=1,
+            warmup_samples=0,
+            avg_total_time_per_image=2.0,
         )
 
-        assert labels == [0, 1, 0]
-        assert len(scores) == 3
-        assert metrics["avg_time_per_image"] == 5.0
-        assert e2e_time > 0
+        with patch.object(
+            service,
+            "run_inference",
+            return_value=expected,
+        ) as mock_run_inference:
+            request = PyTorchRunRequest(
+                predictor=MagicMock(),
+                val_loader=MagicMock(),
+            )
+            result = service.run(request)
+
+        mock_run_inference.assert_called_once_with(
+            predictor=request.predictor,
+            val_loader=request.val_loader,
+        )
+        assert result == expected
 
 
 class TestAggregateAndExport:
@@ -192,14 +305,17 @@ class TestAggregateAndExport:
             model_path=Path("model.pth"),
             data_path=Path("data/val"),
             dataset=mock_dataset,
-            predicted_labels=[0, 1],
-            confidence_scores=[0.9, 0.8],
-            metrics={
-                "avg_time_per_image": 5.0,
-                "total_samples": 2,
-                "warmup_samples": 1,
-            },
-            e2e_total_time_ms=100.0,
+            run_result=InferenceRunResult(
+                predictions=[0, 1],
+                confidences=[0.9, 0.8],
+                true_labels=[0, 1],
+                num_samples=2,
+                correct=2,
+                avg_time_per_image=5.0,
+                total_samples=2,
+                warmup_samples=1,
+                avg_total_time_per_image=50.0,
+            ),
             input_size=(3, 224, 224),
             model_info={"model_name": "resnet18"},
             cm_config=None,

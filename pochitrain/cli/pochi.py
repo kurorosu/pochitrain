@@ -10,7 +10,6 @@ import logging
 import re
 import signal
 import sys
-import time
 from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
@@ -24,15 +23,22 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.cli.arg_types import positive_int
+from pochitrain.inference.benchmark import (
+    build_pytorch_benchmark_result,
+    resolve_env_name,
+    write_benchmark_result_json,
+)
 from pochitrain.inference.services import PyTorchInferenceService
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+    PyTorchRunRequest,
+)
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
-    validate_data_path,
     validate_model_path,
 )
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
@@ -369,26 +375,34 @@ def infer_command(args: argparse.Namespace) -> None:
         return
 
     # データパスの決定（--data指定 or configのval_data_root）
-    if args.data:
-        data_path = Path(args.data)
-    elif pochi_config.val_data_root:
-        data_path = Path(pochi_config.val_data_root)
-        logger.debug(f"データパスをconfigから取得: {data_path}")
-    else:
-        logger.error("--data を指定するか、configにval_data_rootを設定してください")
-        return
-    validate_data_path(data_path)
-
-    # 出力ディレクトリの決定（modelsと同階層）
-    if args.output:
-        output_dir = args.output
-    else:
-        model_dir = model_path.parent  # models フォルダ
-        work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
-        output_dir = str(work_dir / "inference_results")
-
-    # Service に委譲して推論実行
     service = PyTorchInferenceService(logger)
+
+    requested_pipeline = str(getattr(args, "pipeline", "current"))
+    cli_request = InferenceCliRequest(
+        model_path=model_path,
+        data_path=Path(args.data) if args.data else None,
+        output_dir=Path(args.output) if args.output else None,
+        requested_pipeline=requested_pipeline,
+    )
+    try:
+        resolved_paths = service.resolve_paths(cli_request, config)
+    except ValueError as e:
+        logger.error(str(e))
+        return
+    except Exception as e:
+        logger.error(f"パス解決エラー: {e}")
+        return
+
+    data_path = resolved_paths.data_path
+    workspace_dir = resolved_paths.output_dir
+
+    use_gpu = pochi_config.device == "cuda"
+    pipeline = service.resolve_pipeline(cli_request.requested_pipeline)
+    runtime_options = service.resolve_runtime_options(
+        config=config,
+        pipeline=pipeline,
+        use_gpu=use_gpu,
+    )
 
     try:
         predictor = service.create_predictor(pochi_config, model_path)
@@ -398,7 +412,11 @@ def infer_command(args: argparse.Namespace) -> None:
 
     logger.debug("データローダーを作成しています...")
     try:
-        val_loader, val_dataset = service.create_dataloader(pochi_config, data_path)
+        val_loader, val_dataset = service.create_dataloader(
+            pochi_config,
+            data_path,
+            pin_memory=runtime_options.pin_memory,
+        )
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
         return
@@ -406,8 +424,8 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
-        predicted_labels, confidence_scores, metrics, e2e_total_time_ms = (
-            service.run_inference(predictor, val_loader)
+        run_result = service.run(
+            PyTorchRunRequest(predictor=predictor, val_loader=val_loader)
         )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
@@ -421,30 +439,62 @@ def infer_command(args: argparse.Namespace) -> None:
             else None
         )
 
-        workspace_manager = InferenceWorkspaceManager(output_dir)
-        workspace_dir = workspace_manager.create_workspace()
-
         service.aggregate_and_export(
             workspace_dir=workspace_dir,
             model_path=model_path,
             data_path=data_path,
             dataset=val_dataset,
-            predicted_labels=predicted_labels,
-            confidence_scores=confidence_scores,
-            metrics=metrics,
-            e2e_total_time_ms=e2e_total_time_ms,
+            run_result=run_result,
             input_size=input_size,
             model_info=predictor.get_model_info(),
             cm_config=cm_config,
         )
 
+        if bool(getattr(args, "benchmark_json", False)):
+            configured_env_name = getattr(
+                args, "benchmark_env_name", None
+            ) or config.get("benchmark_env_name")
+            env_name = resolve_env_name(
+                use_gpu=use_gpu,
+                configured_env_name=(
+                    str(configured_env_name)
+                    if configured_env_name is not None
+                    else None
+                ),
+            )
+            benchmark_result = build_pytorch_benchmark_result(
+                use_gpu=use_gpu,
+                pipeline=pipeline,
+                model_name=str(config.get("model_name", model_path.stem)),
+                batch_size=runtime_options.batch_size,
+                gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+                pin_memory=runtime_options.pin_memory,
+                input_size=input_size,
+                avg_time_per_image=run_result.avg_time_per_image,
+                avg_total_time_per_image=run_result.avg_total_time_per_image,
+                num_samples=run_result.num_samples,
+                total_samples=run_result.total_samples,
+                warmup_samples=run_result.warmup_samples,
+                accuracy=run_result.accuracy_percent,
+                env_name=env_name,
+            )
+            try:
+                benchmark_json_path = write_benchmark_result_json(
+                    output_dir=workspace_dir,
+                    benchmark_result=benchmark_result,
+                )
+                logger.info(
+                    f"ベンチマークJSONを出力しました: {benchmark_json_path.name}"
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.warning(
+                    f"ベンチマークJSONの保存に失敗しました, error: {exc}",
+                )
+
         logger.info("推論完了")
-
-        workspace_info = workspace_manager.get_workspace_info()
         logger.info(
-            f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
+            f"ワークスペース: {workspace_dir.name}へサマリーファイルを出力しました"
         )
-
     except Exception as e:
         logger.error(f"CSV出力エラー: {e}")
         return
@@ -855,6 +905,22 @@ def main() -> None:
         "--output",
         "-o",
         help="結果出力ディレクトリ（default: モデルと同じディレクトリ/inference_results）",
+    )
+    infer_parser.add_argument(
+        "--pipeline",
+        choices=("auto", "current", "fast", "gpu"),
+        default="current",
+        help="前処理パイプライン. 現在は current のみ実行されます.",
+    )
+    infer_parser.add_argument(
+        "--benchmark-json",
+        action="store_true",
+        help="ベンチマーク結果を benchmark_result.json として出力する",
+    )
+    infer_parser.add_argument(
+        "--benchmark-env-name",
+        default=None,
+        help="ベンチマーク結果の環境ラベル（省略時は自動決定）",
     )
 
     # 最適化サブコマンド
