@@ -6,9 +6,9 @@ from typing import Any, List
 import torch
 from torch.utils.data import DataLoader
 
-from pochitrain.inference.adapters.interfaces import IRuntimeAdapter
 from pochitrain.inference.services.interfaces import IExecutionService
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
+from pochitrain.inference.types.runtime_adapter_protocol import IRuntimeAdapter
 from pochitrain.utils import post_process_logits
 
 

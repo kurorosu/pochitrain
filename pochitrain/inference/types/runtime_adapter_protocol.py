@@ -1,4 +1,4 @@
-"""Adapter 層のインターフェース定義.
+"""ランタイムアダプタの Protocol 定義.
 
 IRuntimeAdapter は `typing.Protocol` を採用する.
 主な理由は次のとおり.

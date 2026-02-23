@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from pochitrain.inference.adapters.interfaces import IRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest
+from pochitrain.inference.types.runtime_adapter_protocol import IRuntimeAdapter
 from pochitrain.pochi_dataset import gpu_normalize
 from pochitrain.pochi_predictor import PochiPredictor
 

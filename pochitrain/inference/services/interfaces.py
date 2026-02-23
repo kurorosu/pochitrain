@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional, Protocol
 
 from torch.utils.data import DataLoader
 
-from pochitrain.inference.adapters.interfaces import IRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
@@ -19,6 +18,7 @@ from pochitrain.inference.types.orchestration_types import (
     InferenceRuntimeOptions,
     RuntimeExecutionRequest,
 )
+from pochitrain.inference.types.runtime_adapter_protocol import IRuntimeAdapter
 from pochitrain.utils import get_default_output_base_dir, validate_data_path
 from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
