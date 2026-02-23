@@ -25,14 +25,13 @@ from pochitrain import (
 )
 from pochitrain.cli.arg_types import positive_int
 from pochitrain.inference.services import PyTorchInferenceService
+from pochitrain.inference.types.orchestration_types import InferenceCliRequest
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
-    validate_data_path,
     validate_model_path,
 )
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
 # グローバル変数で訓練停止フラグを管理
 training_interrupted = False
@@ -369,28 +368,33 @@ def infer_command(args: argparse.Namespace) -> None:
         return
 
     # データパスの決定（--data指定 or configのval_data_root）
-    if args.data:
-        data_path = Path(args.data)
-    elif pochi_config.val_data_root:
-        data_path = Path(pochi_config.val_data_root)
-        logger.debug(f"データパスをconfigから取得: {data_path}")
-    else:
-        logger.error("--data を指定するか、configにval_data_rootを設定してください")
-        return
-    validate_data_path(data_path)
-
-    # 出力ディレクトリの決定（modelsと同階層）
-    if args.output:
-        workspace_dir = Path(args.output)
-        workspace_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        model_dir = model_path.parent
-        work_dir = model_dir.parent
-        output_base_dir = work_dir / "inference_results"
-        workspace_manager = InferenceWorkspaceManager(str(output_base_dir))
-        workspace_dir = workspace_manager.create_workspace()
-    # Service に委譲して推論実行
     service = PyTorchInferenceService(logger)
+
+    cli_request = InferenceCliRequest(
+        model_path=model_path,
+        data_path=Path(args.data) if args.data else None,
+        output_dir=Path(args.output) if args.output else None,
+        requested_pipeline="current",
+    )
+    try:
+        resolved_paths = service.resolve_paths(cli_request, config)
+    except ValueError as e:
+        logger.error(str(e))
+        return
+    except Exception as e:
+        logger.error(f"パス解決エラー: {e}")
+        return
+
+    data_path = resolved_paths.data_path
+    workspace_dir = resolved_paths.output_dir
+
+    use_gpu = pochi_config.device == "cuda"
+    pipeline = service.resolve_pipeline(cli_request.requested_pipeline)
+    runtime_options = service.resolve_runtime_options(
+        config=config,
+        pipeline=pipeline,
+        use_gpu=use_gpu,
+    )
 
     try:
         predictor = service.create_predictor(pochi_config, model_path)
@@ -400,7 +404,11 @@ def infer_command(args: argparse.Namespace) -> None:
 
     logger.debug("データローダーを作成しています...")
     try:
-        val_loader, val_dataset = service.create_dataloader(pochi_config, data_path)
+        val_loader, val_dataset = service.create_dataloader(
+            pochi_config,
+            data_path,
+            pin_memory=runtime_options.pin_memory,
+        )
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
         return

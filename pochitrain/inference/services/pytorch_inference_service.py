@@ -134,13 +134,18 @@ class PyTorchInferenceService:
         return PochiPredictor.from_config(config, str(model_path))
 
     def create_dataloader(
-        self, config: PochiConfig, data_path: Path
+        self,
+        config: PochiConfig,
+        data_path: Path,
+        *,
+        pin_memory: bool = True,
     ) -> Tuple[DataLoader[Any], PochiImageDataset]:
         """推論用 DataLoader とデータセットを生成する.
 
         Args:
             config: アプリケーション設定.
             data_path: 推論データのディレクトリパス.
+            pin_memory: DataLoader の pin_memory 設定.
 
         Returns:
             (DataLoader, PochiImageDataset) のタプル.
@@ -151,7 +156,7 @@ class PyTorchInferenceService:
             batch_size=config.batch_size,
             shuffle=False,
             num_workers=config.num_workers,
-            pin_memory=True,
+            pin_memory=pin_memory,
         )
 
         self.logger.debug("使用されたTransform (設定ファイルから):")
