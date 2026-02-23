@@ -31,7 +31,6 @@ from pochitrain.inference.benchmark import (
 from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
-    PyTorchRunRequest,
 )
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
@@ -397,7 +396,10 @@ def infer_command(args: argparse.Namespace) -> None:
     workspace_dir = resolved_paths.output_dir
 
     use_gpu = pochi_config.device == "cuda"
-    pipeline = service.resolve_pipeline(cli_request.requested_pipeline)
+    pipeline = service.resolve_pipeline(
+        cli_request.requested_pipeline,
+        use_gpu=use_gpu,
+    )
     runtime_options = service.resolve_runtime_options(
         config=config,
         pipeline=pipeline,
@@ -412,10 +414,18 @@ def infer_command(args: argparse.Namespace) -> None:
 
     logger.debug("データローダーを作成しています...")
     try:
-        val_loader, val_dataset = service.create_dataloader(
-            pochi_config,
+        (
+            val_loader,
+            val_dataset,
+            pipeline,
+            norm_mean,
+            norm_std,
+        ) = service.create_dataloader(
+            config,
             data_path,
-            pin_memory=runtime_options.pin_memory,
+            pochi_config.val_transform,
+            pipeline,
+            runtime_options,
         )
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
@@ -424,8 +434,18 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
+        runtime_adapter = service.create_runtime_adapter(predictor)
+        runtime_request = service.build_runtime_execution_request(
+            data_loader=val_loader,
+            runtime_adapter=runtime_adapter,
+            use_gpu_pipeline=pipeline == "gpu",
+            norm_mean=norm_mean,
+            norm_std=norm_std,
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
+            gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+        )
         run_result = service.run(
-            PyTorchRunRequest(predictor=predictor, val_loader=val_loader)
+            runtime_request,
         )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
@@ -448,6 +468,8 @@ def infer_command(args: argparse.Namespace) -> None:
             input_size=input_size,
             model_info=predictor.get_model_info(),
             cm_config=cm_config,
+            results_filename="pytorch_inference_results.csv",
+            summary_filename="pytorch_inference_summary.txt",
         )
 
         if bool(getattr(args, "benchmark_json", False)):
@@ -467,7 +489,7 @@ def infer_command(args: argparse.Namespace) -> None:
                 pipeline=pipeline,
                 model_name=str(config.get("model_name", model_path.stem)),
                 batch_size=runtime_options.batch_size,
-                gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+                gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
                 pin_memory=runtime_options.pin_memory,
                 input_size=input_size,
                 avg_time_per_image=run_result.avg_time_per_image,

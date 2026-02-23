@@ -11,61 +11,24 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
 
-from torch.utils.data import DataLoader
-
-from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
 from pochitrain.inference.benchmark import (
     build_onnx_benchmark_result,
     resolve_env_name,
     write_benchmark_result_json,
 )
-from pochitrain.inference.pipeline_strategy import (
-    create_dataset_and_params as shared_create_dataset_and_params,
-)
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
-from pochitrain.inference.services.result_export_service import ResultExportService
-from pochitrain.inference.types.execution_types import ExecutionRequest
-from pochitrain.inference.types.orchestration_types import (
-    InferenceCliRequest,
-    RuntimeExecutionRequest,
-)
-from pochitrain.inference.types.result_export_types import ResultExportRequest
+from pochitrain.inference.types.orchestration_types import InferenceCliRequest
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
-from pochitrain.onnx import OnnxInference
-from pochitrain.pochi_dataset import (
-    PochiImageDataset,
-    create_scaled_normalize_tensors,
-)
 from pochitrain.utils import (
     load_config_auto,
-    log_inference_result,
     validate_model_path,
 )
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 PIPELINE_CHOICES = ("auto", "current", "fast", "gpu")
-
-
-def _create_dataset_and_params(
-    pipeline: str,
-    data_path: Path,
-    val_transform: Any,
-) -> Tuple[PochiImageDataset, str, Optional[List[float]], Optional[List[float]]]:
-    """パイプライン別データセット生成を共通処理へ委譲する.
-
-    Args:
-        pipeline: パイプライン名.
-        data_path: 推論対象データディレクトリ.
-        val_transform: 検証用 transform.
-
-    Returns:
-        データセット, 実際に適用されたパイプライン名, mean, std.
-    """
-    return shared_create_dataset_and_params(pipeline, data_path, val_transform)
 
 
 def main() -> None:
@@ -153,161 +116,74 @@ def main() -> None:
     data_path = resolved_paths.data_path
     output_dir = resolved_paths.output_dir
 
-    # configからパラメータ取得
-    use_gpu = config.get("device", "cpu") == "cuda"
+    requested_use_gpu = config.get("device", "cpu") == "cuda"
     val_transform = config["val_transform"]
-
-    # パイプライン解決
-    pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu)
-    runtime_options = orchestration_service.resolve_runtime_options(
-        config=config,
-        pipeline=pipeline,
-        use_gpu=use_gpu,
-    )
-    batch_size = runtime_options.batch_size
-    num_workers = runtime_options.num_workers
-    pin_memory = runtime_options.pin_memory
-
-    # データセット作成
-    dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
-        pipeline, data_path, val_transform
-    )
-    use_gpu_pipeline = runtime_options.use_gpu_pipeline
 
     logger.debug(f"モデル: {model_path}")
     logger.debug(f"データ: {data_path}")
-    logger.debug(f"バッチサイズ: {batch_size}")
-    logger.debug(f"ワーカー数: {num_workers}")
-    logger.debug(f"GPU使用: {use_gpu}")
-    logger.debug(f"パイプライン: {pipeline}")
     logger.debug(f"出力先: {output_dir}")
-
-    # DataLoader作成
-    data_loader: DataLoader[Any] = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
+    logger.debug("ONNXセッションを作成中...")
+    inference, actual_use_gpu = orchestration_service.create_onnx_session(
+        model_path=model_path,
+        use_gpu=requested_use_gpu,
     )
 
-    # 使用されたtransformをログ出力
-    if dataset.transform is not None:
-        logger.debug(f"クラス: {dataset.get_classes()}")
-        logger.debug("使用されたTransform:")
-        if hasattr(dataset.transform, "transforms"):
-            for i, t in enumerate(dataset.transform.transforms):
-                logger.debug(f"   {i+1}. {t}")
-
-    # ONNX推論クラス作成
-    logger.debug("ONNXセッションを作成中...")
-    inference = OnnxInference(model_path, use_gpu=use_gpu)
-
-    # CUDA EP 不可時のフォールバック: OnnxInference が内部で use_gpu=False に
-    # 切り替えた場合, パイプラインとデータセットを再解決する
-    if use_gpu and not inference.use_gpu:
-        logger.warning("CUDA ExecutionProviderが利用できません.CPUに切り替えます.")
-        use_gpu = False
-        pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu)
-        runtime_options = orchestration_service.resolve_runtime_options(
+    pipeline = orchestration_service.resolve_pipeline(args.pipeline, actual_use_gpu)
+    runtime_options = orchestration_service.resolve_runtime_options(
+        config=config,
+        pipeline=pipeline,
+        use_gpu=actual_use_gpu,
+    )
+    data_loader, dataset, pipeline, norm_mean, norm_std = (
+        orchestration_service.create_dataloader(
             config=config,
+            data_path=data_path,
+            val_transform=val_transform,
             pipeline=pipeline,
-            use_gpu=use_gpu,
+            runtime_options=runtime_options,
         )
-        batch_size = runtime_options.batch_size
-        num_workers = runtime_options.num_workers
-        pin_memory = runtime_options.pin_memory
-        dataset, pipeline, norm_mean, norm_std = _create_dataset_and_params(
-            pipeline, data_path, val_transform
-        )
-        use_gpu_pipeline = runtime_options.use_gpu_pipeline
+    )
 
-        # DataLoaderを再作成
-        data_loader = DataLoader(
-            dataset,
-            batch_size=runtime_options.batch_size,
-            shuffle=False,
-            num_workers=runtime_options.num_workers,
-            pin_memory=runtime_options.pin_memory,
-        )
+    logger.debug(f"バッチサイズ: {runtime_options.batch_size}")
+    logger.debug(f"ワーカー数: {runtime_options.num_workers}")
+    logger.debug(f"GPU使用: {actual_use_gpu}")
+    logger.debug(f"パイプライン: {pipeline}")
 
-    mean_255 = None
-    std_255 = None
-    if use_gpu_pipeline:
-        assert norm_mean is not None and norm_std is not None
-        mean_255, std_255 = create_scaled_normalize_tensors(norm_mean, norm_std)
-
-    # 推論実行（End-to-End計測の開始）
-    logger.info("推論を開始します...")
-
-    # 入力サイズの取得 (ONNXの入力形状から)
     input_size = None
     try:
-        # get_inputs()[0].shape から [batch, channel, height, width] を抽出
         shape = inference.session.get_inputs()[0].shape
         input_size = orchestration_service.resolve_input_size(shape)
     except Exception:
         pass
 
-    execution_request = ExecutionRequest(
-        use_gpu_pipeline=use_gpu_pipeline,
-        mean_255=mean_255,
-        std_255=std_255,
-        warmup_repeats=10,
-        skip_measurement_batches=1,
-        use_cuda_timing=use_gpu,
+    logger.info("推論を開始します...")
+    runtime_adapter = orchestration_service.create_runtime_adapter(inference)
+    runtime_request = orchestration_service.build_runtime_execution_request(
+        data_loader=data_loader,
+        runtime_adapter=runtime_adapter,
+        use_gpu_pipeline=runtime_options.use_gpu_pipeline,
+        norm_mean=norm_mean,
+        norm_std=norm_std,
+        use_cuda_timing=actual_use_gpu,
         gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
     )
     logger.debug("ウォームアップ中...")
-    runtime_adapter = OnnxRuntimeAdapter(inference)
-    run_result = orchestration_service.run(
-        RuntimeExecutionRequest(
-            data_loader=data_loader,
-            runtime_adapter=runtime_adapter,
-            execution_request=execution_request,
-        )
-    )
-
-    # 結果ログ出力
-    log_inference_result(
-        num_samples=run_result.num_samples,
-        correct=run_result.correct,
-        avg_time_per_image=run_result.avg_time_per_image,
-        total_samples=run_result.total_samples,
-        warmup_samples=run_result.warmup_samples,
-        avg_total_time_per_image=run_result.avg_total_time_per_image,
-        input_size=input_size,
-    )
+    run_result = orchestration_service.run(runtime_request)
     logger.info("推論完了")
 
-    # 結果ファイル出力
-    class_names = dataset.get_classes()
-    image_paths = dataset.get_file_paths()
     providers = inference.get_providers()
-
-    export_service = ResultExportService(logger)
-    export_service.export(
-        ResultExportRequest(
-            output_dir=output_dir,
-            model_path=model_path,
-            data_path=data_path,
-            image_paths=image_paths,
-            predictions=run_result.predictions,
-            true_labels=run_result.true_labels,
-            confidences=run_result.confidences,
-            class_names=class_names,
-            num_samples=run_result.num_samples,
-            correct=run_result.correct,
-            avg_time_per_image=run_result.avg_time_per_image,
-            total_samples=run_result.total_samples,
-            warmup_samples=run_result.warmup_samples,
-            avg_total_time_per_image=run_result.avg_total_time_per_image,
-            input_size=input_size,
-            results_filename="onnx_inference_results.csv",
-            summary_filename="onnx_inference_summary.txt",
-            extra_info={"プロバイダー": providers, "パイプライン": pipeline},
-            cm_config=config.get("confusion_matrix_config", None),
-        )
+    orchestration_service.aggregate_and_export(
+        workspace_dir=output_dir,
+        model_path=model_path,
+        data_path=data_path,
+        dataset=dataset,
+        run_result=run_result,
+        input_size=input_size,
+        model_info=None,
+        cm_config=config.get("confusion_matrix_config", None),
+        results_filename="onnx_inference_results.csv",
+        summary_filename="onnx_inference_summary.txt",
+        extra_info={"プロバイダー": providers, "パイプライン": pipeline},
     )
 
     if args.benchmark_json:
@@ -315,18 +191,18 @@ def main() -> None:
             "benchmark_env_name"
         )
         env_name = resolve_env_name(
-            use_gpu=use_gpu,
+            use_gpu=actual_use_gpu,
             configured_env_name=(
                 str(configured_env_name) if configured_env_name is not None else None
             ),
         )
         benchmark_result = build_onnx_benchmark_result(
-            use_gpu=use_gpu,
+            use_gpu=actual_use_gpu,
             pipeline=pipeline,
             model_name=str(config.get("model_name", model_path.stem)),
-            batch_size=batch_size,
-            gpu_non_blocking=execution_request.gpu_non_blocking,
-            pin_memory=pin_memory,
+            batch_size=runtime_options.batch_size,
+            gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
+            pin_memory=runtime_options.pin_memory,
             input_size=input_size,
             avg_time_per_image=run_result.avg_time_per_image,
             avg_total_time_per_image=run_result.avg_total_time_per_image,

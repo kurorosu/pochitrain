@@ -14,8 +14,11 @@ from .orchestration_types import (
     InferenceResolvedPaths,
     InferenceRunResult,
     InferenceRuntimeOptions,
+    PyTorchRunRequest,
+    RuntimeExecutionRequest,
 )
 from .result_export_types import ResultExportRequest, ResultExportResult
+from .runtime_adapter_protocol import IRuntimeAdapter
 
 __all__ = [
     "BENCHMARK_RESULT_SCHEMA_VERSION",
@@ -26,10 +29,13 @@ __all__ = [
     "benchmark_result_json_schema",
     "ExecutionRequest",
     "ExecutionResult",
+    "IRuntimeAdapter",
     "InferenceCliRequest",
     "InferenceRunResult",
     "InferenceResolvedPaths",
     "InferenceRuntimeOptions",
+    "RuntimeExecutionRequest",
+    "PyTorchRunRequest",
     "ResultExportRequest",
     "ResultExportResult",
 ]

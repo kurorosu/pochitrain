@@ -2,14 +2,12 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from torch.utils.data import DataLoader
 
 from .execution_types import ExecutionRequest, ExecutionResult
-
-if TYPE_CHECKING:
-    from pochitrain.inference.adapters.runtime_interface import IRuntimeAdapter
+from .runtime_adapter_protocol import IRuntimeAdapter
 
 
 @dataclass(frozen=True)
@@ -70,7 +68,7 @@ class RuntimeExecutionRequest:
     """ExecutionService に渡す実行コンテキスト."""
 
     data_loader: DataLoader[Any]
-    runtime_adapter: "IRuntimeAdapter"
+    runtime_adapter: IRuntimeAdapter
     execution_request: ExecutionRequest
 
 

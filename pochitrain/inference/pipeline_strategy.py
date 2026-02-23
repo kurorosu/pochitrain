@@ -74,6 +74,7 @@ class FastPipelineStrategy:
         Returns:
             fast パイプライン, またはフォールバック先の生成結果.
         """
+        dataset: PochiImageDataset
         fast_transform = convert_transform_for_fast_inference(val_transform)
         if fast_transform is not None:
             dataset = FastInferenceDataset(str(data_path), transform=fast_transform)

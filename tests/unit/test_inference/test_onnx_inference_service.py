@@ -7,6 +7,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
+from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
@@ -85,6 +86,48 @@ class TestResolveRuntimeOptions:
         assert options.pin_memory is False
         assert options.use_gpu is True
         assert options.use_gpu_pipeline is True
+
+
+class TestSessionAndAdapter:
+    """ONNX セッション作成とアダプタ生成のテスト."""
+
+    def test_create_onnx_session_returns_actual_use_gpu_flag(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """内部フォールバック時に actual_use_gpu=False を返す."""
+
+        class _FakeOnnxInference:
+            def __init__(self, model_path: Path, use_gpu: bool = False) -> None:
+                self.model_path = model_path
+                self.use_gpu = False
+
+        monkeypatch.setattr(
+            "pochitrain.onnx.OnnxInference",
+            _FakeOnnxInference,
+        )
+
+        service = OnnxInferenceService()
+        inference, actual_use_gpu = service.create_onnx_session(
+            tmp_path / "model.onnx",
+            use_gpu=True,
+        )
+
+        assert isinstance(inference, _FakeOnnxInference)
+        assert actual_use_gpu is False
+
+    def test_create_runtime_adapter_returns_onnx_adapter(self) -> None:
+        """ONNX 推論インスタンスから ONNX アダプタを生成できる."""
+
+        class _DummyInference:
+            use_gpu = False
+
+            def run_pure(self) -> None:
+                return None
+
+        adapter = OnnxInferenceService().create_runtime_adapter(_DummyInference())
+        assert isinstance(adapter, OnnxRuntimeAdapter)
 
 
 class TestResolveInputSize:

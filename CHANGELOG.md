@@ -6,10 +6,10 @@
 ## [Unreleased]
 
 ### Added
-- ベンチマーク実行基盤で `pytorch` runtime を追加し, `base` スイートから `pochi infer` を実行できるようにした.
+- ベンチマーク実行基盤で `pytorch` runtime を追加し, `base` スイートから `pochi infer` を実行できるようにした ([#261](https://github.com/kurorosu/pochitrain/pull/261)).
   - `tools/benchmark/suites.yaml` の `model_paths` と `cases` に `pytorch` を追加した.
   - `tools/benchmark/loader.py` と `tools/benchmark/runner.py` を更新し, runtime 検証とコマンド分岐を対応した.
-- `pochi infer` に `--benchmark-json`, `--benchmark-env-name`, `--pipeline` を追加し, ベンチマーク結果の JSON 出力に対応した.
+- `pochi infer` に `--benchmark-json`, `--benchmark-env-name`, `--pipeline` を追加し, ベンチマーク結果の JSON 出力に対応した ([#261](https://github.com/kurorosu/pochitrain/pull/261)).
   - `build_pytorch_benchmark_result` を追加し, ONNX/TRT と同じ `benchmark_result.json` スキーマへ統一した.
 
 ### Changed
@@ -18,6 +18,7 @@
   - `InferenceRunResult` をランタイム横断の集約型として統一した.
   - パス解決と runtime option 解決の責務を Service 層へ集約した.
   - `pochi infer` の `--output` 指定時の出力挙動を ONNX/TRT と同じルールに統一した.
+  - `infer-onnx` と `infer-trt` の CLI から手動の DataLoader / ExecutionRequest / 結果エクスポート処理を削除し, Service 委譲フローに統一した.
 
 ### Fixed
 - N/A.

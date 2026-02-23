@@ -1,4 +1,4 @@
-"""infer_onnx と infer_trt のパイプライン整合性テスト."""
+"""推論パイプライン整合性テスト."""
 
 from pathlib import Path
 
@@ -9,12 +9,7 @@ from PIL import Image
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
 
-from pochitrain.cli.infer_onnx import (
-    _create_dataset_and_params as onnx_create_dataset_and_params,
-)
-from pochitrain.cli.infer_trt import (
-    _create_dataset_and_params as trt_create_dataset_and_params,
-)
+from pochitrain.inference.pipeline_strategy import create_dataset_and_params
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.pochi_dataset import (
@@ -70,10 +65,10 @@ class TestPipelineConsistency:
         data_root = _make_data_root(tmp_path)
         transform = _valid_transform()
 
-        onnx_ds, onnx_pipe, onnx_mean, onnx_std = onnx_create_dataset_and_params(
+        onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
             "current", data_root, transform
         )
-        trt_ds, trt_pipe, trt_mean, trt_std = trt_create_dataset_and_params(
+        trt_ds, trt_pipe, trt_mean, trt_std = create_dataset_and_params(
             "current", data_root, transform
         )
 
@@ -88,12 +83,10 @@ class TestPipelineConsistency:
         data_root = _make_data_root(tmp_path)
         transform = _valid_transform()
 
-        onnx_ds, onnx_pipe, _, _ = onnx_create_dataset_and_params(
+        onnx_ds, onnx_pipe, _, _ = create_dataset_and_params(
             "fast", data_root, transform
         )
-        trt_ds, trt_pipe, _, _ = trt_create_dataset_and_params(
-            "fast", data_root, transform
-        )
+        trt_ds, trt_pipe, _, _ = create_dataset_and_params("fast", data_root, transform)
 
         assert isinstance(onnx_ds, FastInferenceDataset)
         assert isinstance(trt_ds, FastInferenceDataset)
@@ -104,12 +97,10 @@ class TestPipelineConsistency:
         data_root = _make_data_root(tmp_path)
         transform = _pil_only_transform()
 
-        onnx_ds, onnx_pipe, _, _ = onnx_create_dataset_and_params(
+        onnx_ds, onnx_pipe, _, _ = create_dataset_and_params(
             "fast", data_root, transform
         )
-        trt_ds, trt_pipe, _, _ = trt_create_dataset_and_params(
-            "fast", data_root, transform
-        )
+        trt_ds, trt_pipe, _, _ = create_dataset_and_params("fast", data_root, transform)
 
         assert isinstance(onnx_ds, PochiImageDataset)
         assert isinstance(trt_ds, PochiImageDataset)
@@ -120,10 +111,10 @@ class TestPipelineConsistency:
         data_root = _make_data_root(tmp_path)
         transform = _no_normalize_transform()
 
-        onnx_ds, onnx_pipe, onnx_mean, onnx_std = onnx_create_dataset_and_params(
+        onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
             "gpu", data_root, transform
         )
-        trt_ds, trt_pipe, trt_mean, trt_std = trt_create_dataset_and_params(
+        trt_ds, trt_pipe, trt_mean, trt_std = create_dataset_and_params(
             "gpu", data_root, transform
         )
 
@@ -138,10 +129,10 @@ class TestPipelineConsistency:
         data_root = _make_data_root(tmp_path)
         transform = _valid_transform()
 
-        onnx_ds, onnx_pipe, onnx_mean, onnx_std = onnx_create_dataset_and_params(
+        onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
             "gpu", data_root, transform
         )
-        trt_ds, trt_pipe, trt_mean, trt_std = trt_create_dataset_and_params(
+        trt_ds, trt_pipe, trt_mean, trt_std = create_dataset_and_params(
             "gpu", data_root, transform
         )
 
@@ -162,7 +153,7 @@ class TestAutoResolutionDifference:
 
         onnx_auto_cpu = onnx_service.resolve_pipeline("auto", use_gpu=False)
         onnx_auto_gpu = onnx_service.resolve_pipeline("auto", use_gpu=True)
-        trt_auto = trt_service.resolve_pipeline("auto")
+        trt_auto = trt_service.resolve_pipeline("auto", use_gpu=True)
 
         assert onnx_auto_cpu == "fast"
         assert onnx_auto_gpu == "gpu"
