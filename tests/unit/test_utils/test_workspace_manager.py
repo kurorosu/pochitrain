@@ -50,10 +50,6 @@ class TestPochiWorkspaceManager:
             manager = PochiWorkspaceManager(temp_dir)
             workspace = manager.create_workspace()
 
-            # get_current_workspace
-            current_workspace = manager.get_current_workspace()
-            assert current_workspace == workspace
-
             # get_models_dir
             models_dir = manager.get_models_dir()
             assert models_dir == workspace / "models"

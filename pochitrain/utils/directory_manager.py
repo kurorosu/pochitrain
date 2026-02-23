@@ -12,7 +12,6 @@ from .timestamp_utils import (
     find_next_index,
     format_workspace_name,
     get_current_date_str,
-    parse_timestamp_dir,
 )
 
 
@@ -78,15 +77,6 @@ class PochiWorkspaceManager:
         self.current_workspace = workspace_path
 
         return workspace_path
-
-    def get_current_workspace(self) -> Optional[Path]:
-        """
-        現在のワークスペースのパスを取得.
-
-        Returns:
-            Optional[Path]: 現在のワークスペースのパス、未作成の場合はNone
-        """
-        return self.current_workspace
 
     def get_models_dir(self) -> Path:
         """
