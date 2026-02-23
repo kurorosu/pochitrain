@@ -105,8 +105,8 @@ class IExecutionService(Protocol):
         ...
 
 
-class IOnnxTrtInferenceService(ABC):
-    """ONNX/TRT推論サービスの共通基底インターフェース."""
+class IInferenceOrchestrationService(ABC):
+    """推論サービスの共通基底インターフェース."""
 
     execution_service_factory: type[IExecutionService]
 
@@ -153,7 +153,7 @@ class IOnnxTrtInferenceService(ABC):
         )
 
     @abstractmethod
-    def resolve_pipeline(self, requested: str, *args: Any, **kwargs: Any) -> str:
+    def resolve_pipeline(self, requested: str, use_gpu: bool) -> str:
         """ランタイム固有のパイプライン名を解決する."""
 
     @abstractmethod

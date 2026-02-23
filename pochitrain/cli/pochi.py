@@ -31,7 +31,6 @@ from pochitrain.inference.benchmark import (
 from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
-    PyTorchRunRequest,
 )
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
@@ -397,7 +396,10 @@ def infer_command(args: argparse.Namespace) -> None:
     workspace_dir = resolved_paths.output_dir
 
     use_gpu = pochi_config.device == "cuda"
-    pipeline = service.resolve_pipeline(cli_request.requested_pipeline)
+    pipeline = service.resolve_pipeline(
+        cli_request.requested_pipeline,
+        use_gpu=use_gpu,
+    )
     runtime_options = service.resolve_runtime_options(
         config=config,
         pipeline=pipeline,
@@ -424,8 +426,12 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
+        runtime_request = service.build_runtime_execution_request(
+            predictor=predictor,
+            val_loader=val_loader,
+        )
         run_result = service.run(
-            PyTorchRunRequest(predictor=predictor, val_loader=val_loader)
+            runtime_request,
         )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")

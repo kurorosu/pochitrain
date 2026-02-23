@@ -13,11 +13,11 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
-from pochitrain.inference.types.execution_types import ExecutionResult
+from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
     InferenceRunResult,
-    PyTorchRunRequest,
+    RuntimeExecutionRequest,
 )
 
 
@@ -73,12 +73,12 @@ class TestResolvePipeline:
     def test_auto_returns_current(self) -> None:
         """auto 指定時は current を返すこと."""
         service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("auto") == "current"
+        assert service.resolve_pipeline("auto", use_gpu=True) == "current"
 
     def test_non_auto_also_returns_current(self) -> None:
         """非auto指定時も current を返すこと."""
         service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline("gpu") == "current"
+        assert service.resolve_pipeline("gpu", use_gpu=True) == "current"
 
 
 class TestResolvePaths:
@@ -251,39 +251,58 @@ class TestRunInference:
 class TestRun:
     """run のテスト."""
 
-    def test_run_delegates_to_run_inference(self) -> None:
-        """run が run_inference を委譲呼び出しすることを検証する."""
+    def test_run_returns_inference_run_result(self) -> None:
+        """ExecutionService の結果を共通結果型へ変換することを検証する."""
         service = PyTorchInferenceService(_build_logger())
+        data_loader = MagicMock()
 
-        expected = InferenceRunResult(
-            predictions=[0],
-            confidences=[0.9],
-            true_labels=[0],
-            num_samples=1,
-            correct=1,
-            avg_time_per_image=1.0,
-            total_samples=1,
-            warmup_samples=0,
-            avg_total_time_per_image=2.0,
+        class _DummyRuntimeAdapter:
+            @property
+            def use_cuda_timing(self) -> bool:
+                return False
+
+            def get_timing_stream(self) -> torch.cuda.Stream | None:
+                return None
+
+            def warmup(self, image: torch.Tensor, request: ExecutionRequest) -> None:
+                return None
+
+            def set_input(
+                self, images: torch.Tensor, request: ExecutionRequest
+            ) -> None:
+                return None
+
+            def run_inference(self) -> None:
+                return None
+
+            def get_output(self):
+                return None
+
+        class _FakeExecutionService:
+            def run(self, data_loader, runtime, request):  # noqa: ANN001
+                return ExecutionResult(
+                    predictions=[1, 0],
+                    confidences=[0.9, 0.8],
+                    true_labels=[1, 1],
+                    total_inference_time_ms=6.0,
+                    total_samples=2,
+                    warmup_samples=1,
+                    e2e_total_time_ms=12.0,
+                )
+
+        result = service.run(
+            RuntimeExecutionRequest(
+                data_loader=data_loader,
+                runtime_adapter=_DummyRuntimeAdapter(),
+                execution_request=ExecutionRequest(use_gpu_pipeline=False),
+            ),
+            execution_service=_FakeExecutionService(),
         )
 
-        with patch.object(
-            service,
-            "run_inference",
-            return_value=expected,
-        ) as mock_run_inference:
-            request = PyTorchRunRequest(
-                predictor=MagicMock(),
-                val_loader=MagicMock(),
-            )
-            result = service.run(request)
-
-        mock_run_inference.assert_called_once_with(
-            predictor=request.predictor,
-            val_loader=request.val_loader,
-            execution_service=None,
-        )
-        assert result == expected
+        assert result.correct == 1
+        assert result.num_samples == 2
+        assert result.avg_time_per_image == 3.0
+        assert result.avg_total_time_per_image == 6.0
 
 
 class TestAggregateAndExport:

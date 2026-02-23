@@ -183,7 +183,7 @@ def main() -> None:
         logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
 
     # パイプライン解決
-    pipeline = orchestration_service.resolve_pipeline(args.pipeline)
+    pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu=True)
     runtime_options = orchestration_service.resolve_runtime_options(config, pipeline)
     batch_size = runtime_options.batch_size
     num_workers = runtime_options.num_workers

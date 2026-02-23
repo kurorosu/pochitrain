@@ -2,12 +2,12 @@
 
 from typing import Any, Dict, Optional
 
-from pochitrain.inference.interfaces import IOnnxTrtInferenceService
+from pochitrain.inference.interfaces import IInferenceOrchestrationService
 
 from .execution_service import ExecutionService
 
 
-class OnnxInferenceService(IOnnxTrtInferenceService):
+class OnnxInferenceService(IInferenceOrchestrationService):
     """ONNX推論CLIで必要な解決処理を提供するサービス."""
 
     execution_service_factory = ExecutionService

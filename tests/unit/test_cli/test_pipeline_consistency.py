@@ -162,7 +162,7 @@ class TestAutoResolutionDifference:
 
         onnx_auto_cpu = onnx_service.resolve_pipeline("auto", use_gpu=False)
         onnx_auto_gpu = onnx_service.resolve_pipeline("auto", use_gpu=True)
-        trt_auto = trt_service.resolve_pipeline("auto")
+        trt_auto = trt_service.resolve_pipeline("auto", use_gpu=True)
 
         assert onnx_auto_cpu == "fast"
         assert onnx_auto_gpu == "gpu"

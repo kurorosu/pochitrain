@@ -21,12 +21,12 @@ class TestResolvePipeline:
     def test_auto_returns_gpu(self):
         """auto 指定時は gpu に解決される."""
         service = TensorRTInferenceService()
-        assert service.resolve_pipeline("auto") == "gpu"
+        assert service.resolve_pipeline("auto", use_gpu=True) == "gpu"
 
     def test_passthrough_for_non_auto(self):
         """auto 以外はそのまま返す."""
         service = TensorRTInferenceService()
-        assert service.resolve_pipeline("fast") == "fast"
+        assert service.resolve_pipeline("fast", use_gpu=True) == "fast"
 
 
 class TestResolvePaths:

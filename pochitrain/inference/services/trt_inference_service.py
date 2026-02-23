@@ -2,25 +2,27 @@
 
 from typing import Any, Dict, Optional
 
-from pochitrain.inference.interfaces import IOnnxTrtInferenceService
+from pochitrain.inference.interfaces import IInferenceOrchestrationService
 
 from .execution_service import ExecutionService
 
 
-class TensorRTInferenceService(IOnnxTrtInferenceService):
+class TensorRTInferenceService(IInferenceOrchestrationService):
     """TensorRT推論CLIで必要な解決処理を提供するサービス."""
 
     execution_service_factory = ExecutionService
 
-    def resolve_pipeline(self, requested: str) -> str:
+    def resolve_pipeline(self, requested: str, use_gpu: bool) -> str:
         """TensorRT推論で実際に使うパイプライン名を解決する.
 
         Args:
             requested: ユーザー指定パイプライン.
+            use_gpu: GPU推論を使うかどうか（TensorRTでは未使用）.
 
         Returns:
             解決後パイプライン名.
         """
+        _ = use_gpu
         if requested == "auto":
             return "gpu"
         return requested

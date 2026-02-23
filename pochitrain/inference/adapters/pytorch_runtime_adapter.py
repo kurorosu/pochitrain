@@ -31,8 +31,23 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
         Returns:
             CUDA実行時はTrue.
         """
-        device_type = str(getattr(self.predictor.device, "type", "cpu"))
+        device = getattr(self.predictor, "device", "cpu")
+        device_type = str(getattr(device, "type", device))
         return device_type == "cuda"
+
+    @property
+    def _device(self) -> torch.device:
+        """推論に使うデバイスを返す.
+
+        Returns:
+            推論デバイス. 未設定時はCPU.
+        """
+        device = getattr(self.predictor, "device", None)
+        if isinstance(device, torch.device):
+            return device
+        if isinstance(device, str):
+            return torch.device(device)
+        return torch.device("cpu")
 
     def get_timing_stream(self) -> torch.cuda.Stream | None:
         """CUDA Event計測に使うストリームを返す.
@@ -54,7 +69,7 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
         if image.ndim == 3:
             image = image.unsqueeze(0)
 
-        batch = image.to(self.predictor.device, non_blocking=request.gpu_non_blocking)
+        batch = image.to(self._device, non_blocking=request.gpu_non_blocking)
         self.predictor.model.eval()
         with torch.inference_mode():
             for _ in range(request.warmup_repeats):
@@ -72,7 +87,7 @@ class PyTorchRuntimeAdapter(IRuntimeAdapter):
         if not isinstance(images, torch.Tensor):
             images = torch.as_tensor(images)
         self._input_batch = images.to(
-            self.predictor.device,
+            self._device,
             non_blocking=request.gpu_non_blocking,
         )
 
