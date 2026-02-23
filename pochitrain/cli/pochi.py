@@ -381,12 +381,14 @@ def infer_command(args: argparse.Namespace) -> None:
 
     # 出力ディレクトリの決定（modelsと同階層）
     if args.output:
-        output_dir = args.output
+        workspace_dir = Path(args.output)
+        workspace_dir.mkdir(parents=True, exist_ok=True)
     else:
-        model_dir = model_path.parent  # models フォルダ
-        work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
-        output_dir = str(work_dir / "inference_results")
-
+        model_dir = model_path.parent
+        work_dir = model_dir.parent
+        output_base_dir = work_dir / "inference_results"
+        workspace_manager = InferenceWorkspaceManager(str(output_base_dir))
+        workspace_dir = workspace_manager.create_workspace()
     # Service に委譲して推論実行
     service = PyTorchInferenceService(logger)
 
@@ -421,9 +423,6 @@ def infer_command(args: argparse.Namespace) -> None:
             else None
         )
 
-        workspace_manager = InferenceWorkspaceManager(output_dir)
-        workspace_dir = workspace_manager.create_workspace()
-
         service.aggregate_and_export(
             workspace_dir=workspace_dir,
             model_path=model_path,
@@ -440,11 +439,9 @@ def infer_command(args: argparse.Namespace) -> None:
 
         logger.info("推論完了")
 
-        workspace_info = workspace_manager.get_workspace_info()
         logger.info(
-            f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
+            f"ワークスペース: {workspace_dir.name}へサマリーファイルを出力しました"
         )
-
     except Exception as e:
         logger.error(f"CSV出力エラー: {e}")
         return

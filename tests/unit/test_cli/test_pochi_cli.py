@@ -362,12 +362,6 @@ class TestInferCommandServiceDelegation:
         mock_service.detect_input_size.return_value = (3, 224, 224)
         mock_service.run_inference.return_value = ([0, 1], [0.9, 0.8], {}, 100.0)
 
-        mock_workspace = mock_workspace_mgr_cls.return_value
-        mock_workspace.create_workspace.return_value = tmp_path / "workspace"
-        mock_workspace.get_workspace_info.return_value = {
-            "workspace_name": "test_workspace"
-        }
-
         args = self._make_args(tmp_path)
         infer_command(args)
 
@@ -375,6 +369,59 @@ class TestInferCommandServiceDelegation:
         mock_service.create_dataloader.assert_called_once()
         mock_service.detect_input_size.assert_called_once()
         mock_service.run_inference.assert_called_once()
+        mock_service.aggregate_and_export.assert_called_once()
+        mock_workspace_mgr_cls.assert_not_called()
+
+    @patch("pochitrain.cli.pochi.PyTorchInferenceService")
+    @patch("pochitrain.cli.pochi.InferenceWorkspaceManager")
+    @patch("pochitrain.cli.pochi.ConfigLoader")
+    @patch("pochitrain.cli.pochi.validate_data_path")
+    @patch("pochitrain.cli.pochi.validate_model_path")
+    def test_creates_workspace_when_output_not_specified(
+        self,
+        mock_validate_model: MagicMock,
+        mock_validate_data: MagicMock,
+        mock_config_loader: MagicMock,
+        mock_workspace_mgr_cls: MagicMock,
+        mock_service_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """--output 未指定時のみ InferenceWorkspaceManager を使うことを検証する."""
+        mock_config_loader.load_config.return_value = {
+            "model_name": "resnet18",
+            "num_classes": 2,
+            "device": "cpu",
+            "epochs": 1,
+            "batch_size": 4,
+            "learning_rate": 0.001,
+            "optimizer": "Adam",
+            "train_data_root": "data/train",
+            "val_data_root": "data/val",
+            "num_workers": 0,
+            "train_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "val_transform": transforms.Compose(
+                [transforms.Resize(224), transforms.ToTensor()]
+            ),
+            "enable_layer_wise_lr": False,
+        }
+
+        mock_service = mock_service_cls.return_value
+        mock_service.create_predictor.return_value = MagicMock()
+        mock_service.create_dataloader.return_value = (MagicMock(), MagicMock())
+        mock_service.detect_input_size.return_value = (3, 224, 224)
+        mock_service.run_inference.return_value = ([0, 1], [0.9, 0.8], {}, 100.0)
+
+        mock_workspace = mock_workspace_mgr_cls.return_value
+        mock_workspace.create_workspace.return_value = tmp_path / "workspace"
+
+        args = self._make_args(tmp_path)
+        args.output = None
+        infer_command(args)
+
+        mock_workspace_mgr_cls.assert_called_once()
+        mock_workspace.create_workspace.assert_called_once()
         mock_service.aggregate_and_export.assert_called_once()
 
     @patch("pochitrain.cli.pochi.PyTorchInferenceService")
