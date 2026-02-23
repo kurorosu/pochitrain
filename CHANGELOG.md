@@ -26,11 +26,12 @@
   - `json_utils.write_json_file` を追加し, 推論/ベンチ結果のJSON書き出しを共通化した.
   - `model_loading.load_model_from_checkpoint` を追加し, `PochiPredictor` と `OnnxExporter` のモデル読み込みを統一した.
   - `result_builder` の3ランタイム向けビルダーを共通内部ビルダーへ集約した.
-- 周辺ユーティリティの冗長実装を整理し, ワークスペース生成と時刻書式の重複を解消した.
+- 周辺ユーティリティの冗長実装を整理し, ワークスペース生成と時刻書式の重複を解消した ([#268](https://github.com/kurorosu/pochitrain/pull/268)).
   - `InferenceWorkspaceManager.create_workspace` の重複処理を親クラスへ集約した.
   - 時刻書式を `timestamp_utils` 定数へ集約し, `base_csv_exporter` のハードコードを置換した.
   - 混同行列計算の2系統実装について, 訓練系(Torch Tensor)と推論系(NumPy/list)の使い分け方針をdocstringに明記した.
   - テストコード全体の低価値コメントを整理し, 意図説明コメントのみを残した.
+- 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した.
 
 ### Fixed
 - N/A.

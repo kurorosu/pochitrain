@@ -145,13 +145,11 @@ class OnnxExporter:
                 "モデルが設定されていません. load_model()を先に呼び出してください."
             )
 
-        # 1. ONNXモデルの構造検証
         logger.info("ONNXモデルの構造を検証中...")
         onnx_model = onnx.load(str(onnx_path))
         onnx.checker.check_model(onnx_model)
         logger.info("構造検証: OK")
 
-        # 2. PyTorchとONNXの出力比較
         logger.info("PyTorchとONNXの出力を比較中...")
         dummy_input = torch.randn(
             1, 3, input_size[0], input_size[1], device=self.device

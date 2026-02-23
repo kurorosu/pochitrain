@@ -38,11 +38,8 @@ class PochiTrainer:
         create_workspace (bool, optional): ワークスペースを作成するか（推論時はFalse）
     """
 
-    # 型アノテーション（推論時にワークスペース作成をスキップするため、current_workspaceがNoneになる可能性がある）
-    current_workspace: Optional[
-        Path
-    ]  # 推論モードではNone、訓練モードではPathオブジェクト
-    work_dir: Path  # ワークスペース作成の有無に関わらず常にPathオブジェクト
+    current_workspace: Optional[Path]
+    work_dir: Path
 
     def __init__(
         self,
