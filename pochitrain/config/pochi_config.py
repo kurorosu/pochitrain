@@ -163,7 +163,6 @@ class PochiConfig(BaseModel):
         """Dict から PochiConfig を生成. Pydantic バリデーションが自動実行される."""
         payload = dict(config)
 
-        # サブ config の組み立て
         if payload.get("early_stopping") is not None:
             payload["early_stopping"] = EarlyStoppingConfig.model_validate(
                 payload["early_stopping"]

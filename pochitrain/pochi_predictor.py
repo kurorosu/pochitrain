@@ -51,26 +51,22 @@ class PochiPredictor:
         model_path: str,
     ):
         """PochiPredictorを初期化."""
-        # モデル設定の保存
         self.model_name = model_name
         self.num_classes = num_classes
 
-        # デバイスの設定
         self.device = torch.device(device)
 
-        # ロガーの設定
         logger_manager = LoggerManager()
         self.logger: logging.Logger = logger_manager.get_logger("pochitrain")
 
-        # モデルの作成（推論用のため事前学習済み重みは不要）
+        # 推論用のため事前学習済み重みは不要.
         self.model = create_model(model_name, num_classes, pretrained=False)
         self.model.to(self.device)
 
-        # 訓練メタ情報（チェックポイントから復元される）
+        # 訓練メタ情報はチェックポイントから復元される.
         self.best_accuracy = 0.0
         self.epoch = 0
 
-        # 学習済みモデルの読み込み
         self.model_path = Path(model_path)
         self._load_trained_model()
 
@@ -89,7 +85,6 @@ class PochiPredictor:
             )
             self.model.eval()  # 推論モードに設定
 
-            # メタ情報の取得
             if "best_accuracy" in metadata:
                 self.best_accuracy = metadata["best_accuracy"]
                 self.logger.debug(f"学習時の最高精度: {self.best_accuracy:.2f}%")
@@ -130,8 +125,7 @@ class PochiPredictor:
 
         use_cuda = self.device.type == "cuda"
 
-        # ウォームアップ: 最初のバッチで10回事前実行
-        # dataset[0]を直接アクセスし, DataLoaderのイテレーションに影響させない
+        # dataset[0]へ直接アクセスして, DataLoaderのイテレーション状態を汚さずにウォームアップする.
         warmup_data, _ = data_loader.dataset[0]
         if not isinstance(warmup_data, torch.Tensor):
             warmup_data = torch.tensor(warmup_data)
@@ -142,7 +136,6 @@ class PochiPredictor:
             if use_cuda:
                 torch.cuda.synchronize()
 
-        # CUDA Eventをループ外で1回だけ生成
         if use_cuda:
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
@@ -160,13 +153,11 @@ class PochiPredictor:
                 batch_size = data.size(0)
 
                 if batch_idx == 0:
-                    # 最初のバッチは計測対象外（ウォームアップ）
                     output = self.model(data)
                     if use_cuda:
                         torch.cuda.synchronize()
                     warmup_samples = batch_size
                 else:
-                    # 推論時間計測（モデル推論部分のみ）
                     if use_cuda:
                         start_event.record()
                         output = self.model(data)
@@ -180,7 +171,6 @@ class PochiPredictor:
 
                     total_samples += batch_size
 
-                # 後処理（計測対象外）
                 logits = output.cpu().numpy()  # D2H転送 + 暗黙同期
                 predicted, confidence = post_process_logits(logits)
 

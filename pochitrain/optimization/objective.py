@@ -53,19 +53,16 @@ class ClassificationObjective(IObjectiveFunction):
         # 遅延インポート（循環参照回避）
         from pochitrain import PochiTrainer
 
-        # パラメータをサジェスト
         suggested_params = self._param_suggestor.suggest(trial)
 
-        # トレーナーを作成（ワークスペースは作成しない）
         trainer = PochiTrainer(
             model_name=self._base_config.model_name,
             num_classes=self._base_config.num_classes,
             device=self._device,
             pretrained=self._base_config.pretrained,
-            create_workspace=False,  # Optuna最適化中はワークスペース不要
+            create_workspace=False,
         )
 
-        # 訓練設定をセットアップ
         trainer.setup_training(
             learning_rate=suggested_params.get(
                 "learning_rate",
@@ -87,7 +84,6 @@ class ClassificationObjective(IObjectiveFunction):
             layer_wise_lr_config=suggested_params.get("layer_wise_lr_config"),
         )
 
-        # 訓練実行（短いエポック数）
         best_accuracy = self._train_and_evaluate(trainer, trial)
 
         return best_accuracy
@@ -109,21 +105,16 @@ class ClassificationObjective(IObjectiveFunction):
         best_accuracy = 0.0
 
         for epoch in range(1, self._optuna_epochs + 1):
-            # 1エポック訓練
             trainer.train_one_epoch(epoch=epoch, train_loader=self._train_loader)
 
-            # 検証
             val_metrics = trainer.validate(self._val_loader)
             accuracy = val_metrics.get("val_accuracy", 0.0)
 
-            # 最良精度を更新
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
 
-            # Pruning: 中間結果を報告
             trial.report(accuracy, epoch)
 
-            # Pruningチェック
             if trial.should_prune():
                 raise optuna.TrialPruned()
 

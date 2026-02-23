@@ -40,16 +40,13 @@ class TrainingMetricsExporter(BaseCSVExporter):
         super().__init__(output_dir=output_dir, logger=logger)
         self.enable_visualization = enable_visualization
 
-        # 層別学習率グラフの設定
         if layer_wise_lr_graph_config is None:
             layer_wise_lr_graph_config = {}
         self.layer_wise_lr_graph_config = layer_wise_lr_graph_config
         self.use_log_scale = layer_wise_lr_graph_config.get("use_log_scale", True)
 
-        # メトリクス履歴の初期化
         self.metrics_history: List[Dict[str, Any]] = []
 
-        # CSVヘッダー定義（拡張可能な設計）
         self.base_headers = [
             "epoch",
             "learning_rate",
@@ -103,14 +100,11 @@ class TrainingMetricsExporter(BaseCSVExporter):
             "val_accuracy": val_accuracy if val_accuracy is not None else "",
         }
 
-        # 拡張メトリクスを追加
         for key, value in kwargs.items():
             metrics[key] = value
 
-        # 層別学習率の状態を記録
         metrics["layer_wise_lr_enabled"] = layer_wise_lr_enabled
 
-        # 層別学習率のカラムを動的に追加
         if layer_wise_lr_enabled:
             for key in kwargs:
                 if key.startswith("lr_") and key not in self.extended_headers:
@@ -118,7 +112,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         self.metrics_history.append(metrics)
 
-        # ログ出力（層別学習率対応）
         if layer_wise_lr_enabled:
             lr_display = f"{learning_rate:.6f} (層別設定)"
         else:
@@ -146,16 +139,13 @@ class TrainingMetricsExporter(BaseCSVExporter):
         filename = self._generate_filename("training_metrics", filename)
         output_path = self._build_output_path(filename)
 
-        # 全ヘッダーの結合
         all_headers = self.base_headers + self.extended_headers
 
-        # CSVファイルの書き込み
         with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=all_headers)
             writer.writeheader()
 
             for metrics in self.metrics_history:
-                # 存在しないキーには空文字を設定
                 row = {header: metrics.get(header, "") for header in all_headers}
                 writer.writerow(row)
 
@@ -182,13 +172,11 @@ class TrainingMetricsExporter(BaseCSVExporter):
             self.logger.warning("記録されたメトリクスがありません")
             return None
 
-        # データの抽出
         epochs = [m["epoch"] for m in self.metrics_history]
         learning_rates = [m["learning_rate"] for m in self.metrics_history]
         train_losses = [m["train_loss"] for m in self.metrics_history]
         train_accuracies = [m["train_accuracy"] for m in self.metrics_history]
 
-        # 検証データがある場合のみ抽出
         has_val_data = any(m["val_loss"] != "" for m in self.metrics_history)
         val_losses: List[float] = []
         val_accuracies: List[float] = []
@@ -204,15 +192,12 @@ class TrainingMetricsExporter(BaseCSVExporter):
                 if m["val_accuracy"] != ""
             ]
 
-        # ベースファイル名の生成
         if base_filename is None:
             timestamp = self._generate_filename("training_metrics")
-            # .csv を除いてベース名として使う
             base_filename = timestamp.removesuffix(".csv")
 
         output_paths = []
 
-        # 1. 損失推移グラフ
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(
             epochs,
@@ -246,10 +231,8 @@ class TrainingMetricsExporter(BaseCSVExporter):
         output_paths.append(loss_path)
         self.logger.info(f"損失グラフを生成: {loss_path}")
 
-        # 2. 精度推移グラフ（層別学習率対応）
         fig, ax1 = plt.subplots(figsize=(10, 6))
 
-        # 精度を第1軸にプロット
         color_train = "tab:red"
         color_val = "tab:blue"
         ax1.plot(
@@ -276,13 +259,11 @@ class TrainingMetricsExporter(BaseCSVExporter):
         ax1.tick_params(axis="y")
         ax1.grid(True, alpha=0.3)
 
-        # 層別学習率が有効かどうかを判定（メトリクス履歴から取得）
         layer_wise_lr_active = any(
             m.get("layer_wise_lr_enabled", False) for m in self.metrics_history
         )
 
         if not layer_wise_lr_active:
-            # 通常の場合：学習率を第2軸にプロット
             ax2 = ax1.twinx()
             color_lr = "tab:green"
             ax2.plot(
@@ -298,7 +279,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
             ax2.set_ylabel("Learning Rate", fontsize=12, color=color_lr)
             ax2.tick_params(axis="y", labelcolor=color_lr)
 
-            # 凡例を統合
             lines1, labels1 = ax1.get_legend_handles_labels()
             lines2, labels2 = ax2.get_legend_handles_labels()
             ax1.legend(
@@ -307,7 +287,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
             title = "Accuracy and Learning Rate"
         else:
-            # 層別学習率有効時：学習率を表示しない
             ax1.legend(loc="center right", fontsize=11)
             title = "Accuracy (Layer-wise LR Active)"
 
@@ -320,7 +299,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
         output_paths.append(acc_path)
         self.logger.info(f"精度・学習率グラフを生成: {acc_path}")
 
-        # 3. 層別学習率グラフ（層別学習率有効時のみ）
         if layer_wise_lr_active:
             lr_graph_path = self._generate_layer_wise_lr_graph(base_filename)
             if lr_graph_path:
@@ -341,7 +319,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
         if not self.metrics_history:
             return None
 
-        # 層別学習率のカラムを抽出
         lr_columns = []
         for key in self.metrics_history[0].keys():
             if key.startswith("lr_"):
@@ -352,10 +329,8 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         epochs = [m["epoch"] for m in self.metrics_history]
 
-        # グラフ作成
         fig, ax = plt.subplots(figsize=(12, 8))
 
-        # 各層の学習率をプロット
         colors = plt.get_cmap("tab10")(range(len(lr_columns)))
         for i, lr_col in enumerate(lr_columns):
             layer_name = lr_col.replace("lr_", "")
@@ -425,7 +400,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
         if not valid_metrics:
             return None
 
-        # 精度系は最大、損失系は最小を取得
         if "accuracy" in metric.lower():
             best = max(valid_metrics, key=lambda x: x[metric])
         else:
@@ -449,7 +423,6 @@ class TrainingMetricsExporter(BaseCSVExporter):
             "final_train_accuracy": self.metrics_history[-1]["train_accuracy"],
         }
 
-        # 検証データがある場合
         if self.metrics_history[-1]["val_loss"] != "":
             summary["final_val_loss"] = self.metrics_history[-1]["val_loss"]
             summary["final_val_accuracy"] = self.metrics_history[-1]["val_accuracy"]

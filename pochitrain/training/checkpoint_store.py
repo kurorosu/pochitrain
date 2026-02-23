@@ -80,12 +80,10 @@ class CheckpointStore:
             scheduler: スケジューラ
             best_accuracy: ベスト精度
         """
-        # 既存のベストモデルファイルを削除
         for existing_file in self.work_dir.glob("best_epoch*.pth"):
             existing_file.unlink()
             self.logger.info(f"既存のベストモデルを削除: {existing_file}")
 
-        # 新しいベストモデルを保存
         best_filename = f"best_epoch{epoch}.pth"
         checkpoint_path = self.save_checkpoint(
             best_filename, epoch, model, optimizer, scheduler, best_accuracy

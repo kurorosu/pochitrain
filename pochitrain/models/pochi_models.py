@@ -23,7 +23,6 @@ class PochiModel(nn.Module):
         """PochiModelを初期化."""
         super().__init__()
 
-        # サポートするモデル
         supported_models = {
             "resnet18": models.resnet18,
             "resnet34": models.resnet34,
@@ -36,11 +35,9 @@ class PochiModel(nn.Module):
                 f"サポートされているモデル: {list(supported_models.keys())}"
             )
 
-        # モデルの作成 - 新しいweights APIを使用
         weights = "DEFAULT" if pretrained else None
         self.model = supported_models[model_name](weights=weights)
 
-        # 最終層を置き換え
         if hasattr(self.model, "fc"):
             in_features = self.model.fc.in_features
             self.model.fc = nn.Linear(in_features, num_classes)

@@ -65,10 +65,8 @@ class TrainingConfigurator:
         """
         lr_config = layer_wise_lr_config or {}
 
-        # 損失関数の設定 (クラス重み対応)
         criterion = self._build_criterion(class_weights, num_classes)
 
-        # パラメータグループの構築
         if enable_layer_wise_lr:
             param_groups = self._build_layer_wise_param_groups(
                 model, learning_rate, lr_config
@@ -77,10 +75,8 @@ class TrainingConfigurator:
         else:
             param_groups = [{"params": model.parameters(), "lr": learning_rate}]
 
-        # 最適化器の構築
         optimizer = self._build_optimizer(optimizer_name, param_groups)
 
-        # スケジューラーの構築
         scheduler = self._build_scheduler(optimizer, scheduler_name, scheduler_params)
 
         self.logger.debug(f"最適化器: {optimizer_name} (学習率: {learning_rate})")
@@ -206,7 +202,6 @@ class TrainingConfigurator:
         """
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
 
-        # 層ごとにパラメータを分類
         layer_params: Dict[str, List] = {}
         for name, param in model.named_parameters():
             if param.requires_grad:
@@ -215,7 +210,6 @@ class TrainingConfigurator:
                     layer_params[layer_group] = []
                 layer_params[layer_group].append(param)
 
-        # パラメータグループを作成
         param_groups = []
         for layer_name, params in layer_params.items():
             lr = layer_rates.get(layer_name, base_lr)
@@ -238,7 +232,7 @@ class TrainingConfigurator:
         Returns:
             str: 層グループ名.
         """
-        # ResNetの構造に基づいて層を分類 (順序重要: より具体的なものから先に判定)
+        # ResNet構造に基づいて, より具体的な層から優先判定する.
         if "layer1" in param_name:
             return "layer1"
         elif "layer2" in param_name:

@@ -50,7 +50,6 @@ class PochiImageDataset(Dataset):
         self.transform = transform
         self.extensions = extensions
 
-        # データの読み込み
         self.image_paths: List[Path] = []
         self.labels: List[int] = []
         self.classes: List[str] = []
@@ -62,7 +61,6 @@ class PochiImageDataset(Dataset):
         if not self.root.exists():
             raise FileNotFoundError(f"データディレクトリが見つかりません: {self.root}")
 
-        # クラスフォルダの取得
         class_folders = [d for d in self.root.iterdir() if d.is_dir()]
         class_folders.sort()
 
@@ -72,7 +70,6 @@ class PochiImageDataset(Dataset):
         self.classes = [folder.name for folder in class_folders]
         class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
 
-        # 画像ファイルの読み込み
         for class_folder in class_folders:
             class_idx = class_to_idx[class_folder.name]
 
@@ -93,7 +90,6 @@ class PochiImageDataset(Dataset):
         image_path = self.image_paths[index]
         label = self.labels[index]
 
-        # 画像の読み込み
         image: Union[Tensor, Image.Image] = Image.open(image_path).convert("RGB")
 
         if self.transform:
@@ -342,7 +338,6 @@ def convert_transform_for_fast_inference(
     Returns:
         FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    # PIL専用transform (テンソル入力では動作しない)
     _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
 
     new_transforms: List[Any] = []
@@ -394,7 +389,6 @@ def get_basic_transforms(
         transforms.Compose: 変換処理
     """
     if is_training:
-        # 訓練用の変換（データ拡張あり）
         return transforms.Compose(
             [
                 transforms.RandomResizedCrop(image_size),
@@ -407,7 +401,6 @@ def get_basic_transforms(
             ]
         )
     else:
-        # 検証用の変換（データ拡張なし）
         return transforms.Compose(
             [
                 transforms.Resize(int(image_size * 1.14)),  # 256 for 224
@@ -442,7 +435,6 @@ def create_data_loaders(
     Returns:
         Tuple[DataLoader, DataLoader, List[str]]: (訓練ローダー, 検証ローダー, クラス名)
     """
-    # 訓練データセット
     train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
@@ -453,7 +445,6 @@ def create_data_loaders(
         pin_memory=pin_memory,
     )
 
-    # 検証データセット
     val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
     val_loader = DataLoader(

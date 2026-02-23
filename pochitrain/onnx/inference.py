@@ -83,12 +83,9 @@ class OnnxInference:
             images: 入力画像 (batch, channels, height, width)
         """
         if self.io_binding:
-            # GPU上のメモリにデータをバインド（H2D転送が発生）
             self.io_binding.bind_cpu_input(self.input_name, images)
-            # 出力バッファもバインド
             self.io_binding.bind_output(self.output_name, "cuda")
         else:
-            # CPUの場合は単純に保持
             self._temp_cpu_images = images
 
     def set_input_gpu(self, tensor: torch.Tensor) -> None:
@@ -125,7 +122,6 @@ class OnnxInference:
         if self.io_binding:
             self.session.run_with_iobinding(self.io_binding)
         else:
-            # CPUの場合は通常のrunを実行（転送コストがないため）
             self._temp_cpu_outputs = self.session.run(
                 [self.output_name], {self.input_name: self._temp_cpu_images}
             )
@@ -137,7 +133,6 @@ class OnnxInference:
             出力ロジット (batch, num_classes)
         """
         if self.io_binding:
-            # GPUからCPUへ結果を取得（D2H転送が発生）
             outputs = self.io_binding.copy_outputs_to_cpu()
             return cast(np.ndarray, outputs[0])
         else:

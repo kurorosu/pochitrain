@@ -53,7 +53,6 @@ class LoggerManager:
             return
 
         self._default_level = LogLevel.INFO
-        # 常にモジュール名・行数を表示するフォーマット
         self._format = (
             "%(asctime)s|%(log_color)s%(levelname)-5.5s%(reset)s|"
             "%(module)-18s|%(lineno)03d| %(message)s"
@@ -106,19 +105,15 @@ class LoggerManager:
         """
         logger = logging.getLogger(name)
 
-        # 既にハンドラーが設定されている場合はそのまま返す
         if logger.handlers:
             return logger
 
-        # ログレベルの設定
         log_level = getattr(logging, level.value)
         logger.setLevel(log_level)
 
-        # ハンドラーとフォーマッターの作成
         handler = self._create_handler()
         logger.addHandler(handler)
 
-        # 親ロガーへの伝播を防ぐ
         logger.propagate = False
 
         return logger
