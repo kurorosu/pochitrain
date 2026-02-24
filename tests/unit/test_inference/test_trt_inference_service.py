@@ -71,7 +71,7 @@ class TestResolveRuntimeOptions:
         """TensorRT実行向けの固定値を組み立てる."""
         service = TensorRTInferenceService()
         options = service.resolve_runtime_options(
-            config={"num_workers": 2, "pin_memory": False},
+            config={"num_workers": 2, "infer_pin_memory": False},
             pipeline="gpu",
         )
 

@@ -537,6 +537,8 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 | `model_name` | モデル名 | 'resnet18' |
 | `pretrained` | 事前学習済みモデル使用 | True |
 | `batch_size` | バッチサイズ | 32 |
+| `train_pin_memory` | 学習DataLoaderのpin_memory設定 | True |
+| `infer_pin_memory` | 推論DataLoaderのpin_memory設定 | True |
 | `epochs` | エポック数 | 50 |
 | `learning_rate` | 学習率 | 0.001 |
 | `optimizer` | 最適化器 | 'Adam' |
