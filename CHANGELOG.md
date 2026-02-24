@@ -6,7 +6,7 @@
 ## [Unreleased]
 
 ### Added
-- ベンチマーク機能を `bench` 独立コマンドとして CLI 登録し, `uv run bench --suite base` で実行可能にした ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+- ベンチマーク機能を `bench` 独立コマンドとして CLI 登録し, `uv run bench --suite base` で実行可能にした ([#272](https://github.com/kurorosu/pochitrain/pull/272)).
   - `tools/benchmark/` のモジュール群を `pochitrain/benchmark/` へ移動し, 絶対インポートに統一した.
   - `pochitrain/cli/bench.py` にエントリポイントを作成し, `pyproject.toml` の `[project.scripts]` に登録した.
   - `tools/benchmark/suites.yaml` を `configs/bench_suites.yaml` へ移動した.
@@ -36,6 +36,7 @@
   - 混同行列計算の2系統実装について, 訓練系(Torch Tensor)と推論系(NumPy/list)の使い分け方針をdocstringに明記した.
   - テストコード全体の低価値コメントを整理し, 意図説明コメントのみを残した.
 - 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した.
+- Jetson の推論ベンチマーク再現性向上のため, `README.md` と `GPU環境セットアップガイド` に `nvpmodel` / `jetson_clocks` の運用手順を追記した ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
 
 ### Fixed
 - N/A.
