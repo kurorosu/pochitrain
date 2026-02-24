@@ -9,7 +9,7 @@ from pathlib import Path
 from statistics import mean, pstdev
 from typing import Any, DefaultDict, Dict, List, Tuple
 
-from utils import now_jst_timestamp, to_float, write_json
+from pochitrain.benchmark.utils import now_jst_timestamp, to_float, write_json
 
 
 def _collect_benchmark_paths(input_dir: Path) -> List[Path]:

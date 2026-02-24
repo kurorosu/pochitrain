@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 from typing import List
 
-from models import CaseConfig, SuiteConfig
-from utils import now_local_timestamp
+from pochitrain.benchmark.models import CaseConfig, SuiteConfig
+from pochitrain.benchmark.utils import now_local_timestamp
 
-LOGGER = logging.getLogger("pochitrain.tools.benchmark")
+LOGGER = logging.getLogger("pochitrain.benchmark")
 
 
 def _resolve_config_path(model_path: Path) -> Path:

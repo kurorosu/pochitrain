@@ -6,6 +6,10 @@
 ## [Unreleased]
 
 ### Added
+- ベンチマーク機能を `bench` 独立コマンドとして CLI 登録し, `uv run bench --suite base` で実行可能にした ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+  - `tools/benchmark/` のモジュール群を `pochitrain/benchmark/` へ移動し, 絶対インポートに統一した.
+  - `pochitrain/cli/bench.py` にエントリポイントを作成し, `pyproject.toml` の `[project.scripts]` に登録した.
+  - `tools/benchmark/suites.yaml` を `configs/bench_suites.yaml` へ移動した.
 - ベンチマーク実行基盤で `pytorch` runtime を追加し, `base` スイートから `pochi infer` を実行できるようにした ([#261](https://github.com/kurorosu/pochitrain/pull/261)).
   - `tools/benchmark/suites.yaml` の `model_paths` と `cases` に `pytorch` を追加した.
   - `tools/benchmark/loader.py` と `tools/benchmark/runner.py` を更新し, runtime 検証とコマンド分岐を対応した.
