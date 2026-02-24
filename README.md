@@ -291,6 +291,23 @@ python -c "import numpy, scipy; print(numpy.__file__, numpy.__version__); print(
 `matplotlib` は Jetson では system package (`/usr/lib/...`) を使って問題ありません
 (必要なら `python -c "import matplotlib; print(matplotlib.__file__, matplotlib.__version__)"` で確認).
 
+### Jetson環境でベンチマーク前にクロックを固定する手順
+
+Jetson で推論ベンチマークを行う場合は, 先に電力モードとクロックを固定してください.
+これを行わないと, 動的電圧・周波数制御 (DVFS) の影響で `pure inference` の再現性が下がります.
+
+```bash
+sudo nvpmodel -m 2
+sudo jetson_clocks
+sudo jetson_clocks --show
+```
+
+補足.
+- `nvpmodel -m 2` は Jetson Orin Nano (JetPack 6.2.1) の `MAXN_SUPER` を想定.
+- 利用可能なモードは `sudo nvpmodel -q --verbose` で確認.
+- 温度影響を抑えたい場合は `sudo jetson_clocks --fan` を併用.
+- 詳細は `pochitrain/docs/gpu_environment_setup.md` の Jetson セクションを参照.
+
 ## 🔬 ハイパーパラメータ最適化
 
 Optunaを使ったハイパーパラメータ自動探索機能です.

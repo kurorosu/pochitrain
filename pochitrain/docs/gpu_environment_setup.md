@@ -182,6 +182,38 @@ print(ort.get_available_providers())
 # CUDAExecutionProvider が含まれていれば GPU 推論が可能
 ```
 
+## 5. Jetson ベンチマーク時の電力・クロック固定
+
+Jetson で推論ベンチマークを行う場合は, `nvpmodel` と `jetson_clocks` を事前に適用する.
+未適用だと動的電圧・周波数制御 (DVFS) により計測値が揺れ, `pure inference` の比較が不安定になる.
+
+### 手順 (Jetson Orin Nano, JetPack 6.2.1)
+
+```bash
+# 現在のモード確認
+sudo nvpmodel -q
+sudo nvpmodel -q --verbose
+
+# MAXN_SUPER (mode 2) へ設定
+sudo nvpmodel -m 2
+
+# クロック固定
+sudo jetson_clocks
+
+# 反映確認
+sudo jetson_clocks --show
+```
+
+### オプション
+
+- 温度影響を減らしたい場合: `sudo jetson_clocks --fan`
+- 計測再現性を優先する場合: ベンチ実行前に毎回 `nvpmodel` と `jetson_clocks` を再適用する
+
+### 注意
+
+- `jetson_clocks` は再起動で解除される.
+- `nvpmodel` は設定が残るため, 必要なら `sudo nvpmodel -m <元のmode_id>` で戻す.
+
 ## バージョン互換性
 
 各コンポーネントのバージョンは相互に制約がある. 以下の公式ドキュメントで対応表を確認すること.
