@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 
-LOGGER_NAME = "pochitrain.tools.benchmark"
+LOGGER_NAME = "pochitrain.benchmark"
 JST = timezone(timedelta(hours=9))
 
 

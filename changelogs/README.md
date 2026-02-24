@@ -21,6 +21,7 @@
 5. 各バージョンは `Added`, `Changed`, `Fixed`, `Removed` の順で記載する.
 6. `CHANGELOG.md` の `Archived Changelogs` を更新する.
 7. PR参照は `([#123](https://github.com/kurorosu/pochitrain/pull/123))` の明示リンク形式で記載する.
+8. PR参照には **PR 番号** を使う (Issue 番号ではない). PR 作成前は `N/A.` とする.
 
 ## Notes
 

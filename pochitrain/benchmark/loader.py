@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml  # type: ignore[import-untyped]
-from models import CaseConfig, SuiteConfig
+
+from pochitrain.benchmark.models import CaseConfig, SuiteConfig
 
 
 def _require_non_empty_str(value: Any, field: str) -> str:

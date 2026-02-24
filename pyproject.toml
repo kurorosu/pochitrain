@@ -58,6 +58,7 @@ export-onnx = "pochitrain.cli.export_onnx:main"
 infer-onnx = "pochitrain.cli.infer_onnx:main"
 infer-trt = "pochitrain.cli.infer_trt:main"
 vis-grad = "pochitrain.cli.visualize_gradient:main"
+bench = "pochitrain.cli.bench:main"
 
 [build-system]
 requires = ["hatchling"]

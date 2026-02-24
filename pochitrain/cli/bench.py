@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""推論ベンチマークの実行・集計スクリプト."""
+"""推論ベンチマークの実行・集計 CLI."""
 
 from __future__ import annotations
 
@@ -8,12 +7,12 @@ import logging
 from pathlib import Path
 from typing import Optional, Sequence
 
-from aggregator import aggregate_results
-from loader import load_suite_config
-from runner import run_suite
-from utils import configure_logger
+from pochitrain.benchmark.aggregator import aggregate_results
+from pochitrain.benchmark.loader import load_suite_config
+from pochitrain.benchmark.runner import run_suite
+from pochitrain.benchmark.utils import configure_logger
 
-LOGGER = logging.getLogger("pochitrain.tools.benchmark")
+LOGGER = logging.getLogger("pochitrain.benchmark")
 BENCHMARK_OUTPUT_ROOT = Path("benchmark_runs")
 
 
@@ -33,7 +32,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--suite", default=None, help="suites.yaml のスイート名")
     parser.add_argument(
         "--suites-file",
-        default="tools/benchmark/suites.yaml",
+        default="configs/bench_suites.yaml",
         help="スイート定義ファイルパス",
     )
     parser.add_argument(
