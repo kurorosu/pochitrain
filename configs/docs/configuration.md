@@ -23,6 +23,8 @@
 | `val_data_root` | str/None | 検証データのパス (Noneで検証なし) |
 | `batch_size` | int | バッチサイズ |
 | `num_workers` | int | データローダーのワーカー数 |
+| `train_pin_memory` | bool | 学習DataLoaderのpin_memory設定 |
+| `infer_pin_memory` | bool | 推論DataLoaderのpin_memory設定 |
 
 ### 訓練設定
 
@@ -539,7 +541,8 @@ scheduler_params = {
 
 - **num_workers**: CPUコア数の1/2〜1倍に設定
 - **batch_size**: GPUメモリに応じて調整
-- **pin_memory**: GPU使用時は`True`に設定 (現在は自動)
+- **train_pin_memory**: 学習DataLoader向けの pin_memory 設定
+- **infer_pin_memory**: 推論DataLoader向けの pin_memory 設定
 
 ## Optunaハイパーパラメータ最適化設定
 

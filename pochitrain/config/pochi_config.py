@@ -57,6 +57,8 @@ class PochiConfig(BaseModel):
     scheduler_params: Optional[Dict[str, Any]] = None
     work_dir: str = "work_dirs"
     num_workers: int = 0
+    train_pin_memory: bool = True
+    infer_pin_memory: bool = True
     mean: List[float] = Field(default_factory=lambda: [0.485, 0.456, 0.406])
     std: List[float] = Field(default_factory=lambda: [0.229, 0.224, 0.225])
     enable_metrics_export: bool = True

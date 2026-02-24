@@ -247,7 +247,7 @@ class TestInferCommandServiceDelegation:
 
     @staticmethod
     def _build_config_dict(
-        data_root: Path, *, pin_memory: bool = True
+        data_root: Path, *, infer_pin_memory: bool = True
     ) -> dict[str, object]:
         """infer_command 用の最小設定辞書を生成する."""
         return {
@@ -261,7 +261,7 @@ class TestInferCommandServiceDelegation:
             "train_data_root": "data/train",
             "val_data_root": str(data_root),
             "num_workers": 0,
-            "pin_memory": pin_memory,
+            "infer_pin_memory": infer_pin_memory,
             "train_transform": transforms.Compose(
                 [transforms.Resize(224), transforms.ToTensor()]
             ),
@@ -280,7 +280,7 @@ class TestInferCommandServiceDelegation:
         import pochitrain.cli.pochi as pochi_module
 
         args = self._make_args(tmp_path)
-        config = self._build_config_dict(Path(args.data), pin_memory=False)
+        config = self._build_config_dict(Path(args.data), infer_pin_memory=False)
         monkeypatch.setattr(
             pochi_module.ConfigLoader,
             "load_config",

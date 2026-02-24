@@ -46,6 +46,8 @@ class TestPochiConfigFromDict:
         assert config.cudnn_benchmark is False
         assert config.work_dir == "work_dirs"
         assert config.num_workers == 0
+        assert config.train_pin_memory is True
+        assert config.infer_pin_memory is True
         assert config.mean == [0.485, 0.456, 0.406]
         assert config.std == [0.229, 0.224, 0.225]
         assert config.early_stopping is None

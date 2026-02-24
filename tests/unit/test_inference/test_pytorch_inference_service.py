@@ -118,7 +118,7 @@ class TestResolveRuntimeOptions:
         """設定値から実行オプションを解決できること."""
         service = PyTorchInferenceService(_build_logger())
         options = service.resolve_runtime_options(
-            config={"batch_size": 8, "num_workers": 4, "pin_memory": False},
+            config={"batch_size": 8, "num_workers": 4, "infer_pin_memory": False},
             pipeline="current",
             use_gpu=False,
         )

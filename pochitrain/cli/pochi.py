@@ -195,6 +195,7 @@ def train_command(args: argparse.Namespace) -> None:
             val_root=pochi_config.val_data_root,
             batch_size=pochi_config.batch_size,
             num_workers=pochi_config.num_workers,
+            pin_memory=pochi_config.train_pin_memory,
             train_transform=pochi_config.train_transform,
             val_transform=pochi_config.val_transform,
         )
@@ -542,6 +543,7 @@ def optimize_command(args: argparse.Namespace) -> None:
             val_root=pochi_config.val_data_root or "data/val",
             batch_size=pochi_config.batch_size,
             num_workers=pochi_config.num_workers,
+            pin_memory=pochi_config.train_pin_memory,
             train_transform=pochi_config.train_transform,
             val_transform=pochi_config.val_transform,
         )

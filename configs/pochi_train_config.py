@@ -15,6 +15,8 @@ train_data_root = "data/train"  # 訓練データのパス
 val_data_root = "data/val"  # 検証データのパス
 batch_size = 16  # バッチサイズ
 num_workers = 0  # データローダーのワーカー数（Ctrl+Cエラー回避のため0に設定）
+train_pin_memory = True  # 学習DataLoaderのpin_memory設定
+infer_pin_memory = True  # 推論DataLoaderのpin_memory設定
 # GPU前処理時の float32 変換を non_blocking で行うかどうか
 gpu_non_blocking = True
 

@@ -37,6 +37,9 @@
   - テストコード全体の低価値コメントを整理し, 意図説明コメントのみを残した.
 - 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した.
 - Jetson の推論ベンチマーク再現性向上のため, `README.md` と `GPU環境セットアップガイド` に `nvpmodel` / `jetson_clocks` の運用手順を追記した ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+- `pin_memory` 設定を学習と推論で分離し, `train_pin_memory` / `infer_pin_memory` で個別制御できるようにした ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+  - 学習CLIは `train_pin_memory` を `create_data_loaders` へ渡すように変更した.
+  - 推論Serviceは `infer_pin_memory` を参照する.
 
 ### Fixed
 - N/A.

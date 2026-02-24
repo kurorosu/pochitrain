@@ -76,7 +76,7 @@ class TestResolveRuntimeOptions:
         """設定値から実行オプションを組み立てる."""
         service = OnnxInferenceService()
         options = service.resolve_runtime_options(
-            config={"batch_size": 8, "num_workers": 4, "pin_memory": False},
+            config={"batch_size": 8, "num_workers": 4, "infer_pin_memory": False},
             pipeline="gpu",
             use_gpu=True,
         )

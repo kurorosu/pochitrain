@@ -117,7 +117,7 @@ def gpu_fallback_test_env(tmp_path_factory):
         'device = "cuda"\n'
         "batch_size = 1\n"
         "num_workers = 0\n"
-        "pin_memory = False\n",
+        "infer_pin_memory = False\n",
         encoding="utf-8",
     )
 

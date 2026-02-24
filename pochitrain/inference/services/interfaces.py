@@ -158,7 +158,7 @@ class IInferenceService(ABC):
             pipeline=pipeline,
             batch_size=self._resolve_batch_size(config),
             num_workers=int(config.get("num_workers", 0)),
-            pin_memory=bool(config.get("pin_memory", True)),
+            pin_memory=bool(config.get("infer_pin_memory", True)),
             use_gpu=use_gpu,
             use_gpu_pipeline=pipeline == "gpu",
         )
