@@ -1,7 +1,7 @@
 ---
 name: Refactor Request
 about: リファクタリングの提案
-labels: refactoring
+labels: refactor
 ---
 
 ## Summary
@@ -28,7 +28,7 @@ labels: refactoring
 
 ## Labels
 
-`refactoring`
+`refactor`
 
 ## Branch
 

@@ -5,6 +5,7 @@
 
 ## Files
 
+- `1.6.x.md`: `v1.6.0` から `v1.6.9`.
 - `1.5.x.md`: `v1.5.0` から `v1.5.9`.
 - `1.4.x.md`: `v1.4.0` から `v1.4.9`.
 - `1.3.x.md`: `v1.3.0` から `v1.3.9`.
@@ -21,6 +22,7 @@
 5. 各バージョンは `Added`, `Changed`, `Fixed`, `Removed` の順で記載する.
 6. `CHANGELOG.md` の `Archived Changelogs` を更新する.
 7. PR参照は `([#123](https://github.com/kurorosu/pochitrain/pull/123))` の明示リンク形式で記載する.
+8. PR参照には **PR 番号** を使う (Issue 番号ではない). PR 作成前は `N/A.` とする.
 
 ## Notes
 

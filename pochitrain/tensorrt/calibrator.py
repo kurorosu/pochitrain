@@ -123,7 +123,6 @@ def _create_calibrator_class() -> type:
             self.current_index = 0
             self.input_shape = input_shape
 
-            # DataLoaderで効率的にデータを供給
             self._data_loader = DataLoader(
                 dataset,
                 batch_size=batch_size,
@@ -133,7 +132,6 @@ def _create_calibrator_class() -> type:
             )
             self._data_iter = iter(self._data_loader)
 
-            # GPUバッファ確保 (PyTorch CUDAテンソル)
             self._d_input = torch.empty(
                 (batch_size, *input_shape), dtype=torch.float32, device="cuda"
             )

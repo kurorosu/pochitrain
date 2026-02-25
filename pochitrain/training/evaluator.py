@@ -1,4 +1,9 @@
-"""検証・混同行列計算・精度計算を担当するモジュール."""
+"""検証・混同行列計算・精度計算を担当するモジュール.
+
+Note:
+    本モジュールの混同行列計算は, 訓練ループ内のTorch Tensorをそのまま扱う.
+    推論CLI向けのNumPyベース実装は ``pochitrain.utils.inference_utils`` に分離している.
+"""
 
 import logging
 from pathlib import Path
@@ -49,7 +54,6 @@ class Evaluator:
         correct = 0
         total = 0
 
-        # 混同行列計算のためのリスト
         all_predicted: List[torch.Tensor] = []
         all_targets: List[torch.Tensor] = []
 
@@ -66,7 +70,6 @@ class Evaluator:
                 total += batch_size
                 correct += predicted.eq(target).sum().item()
 
-                # 混同行列用にデータを保存
                 all_predicted.append(predicted)
                 all_targets.append(target)
 
@@ -74,7 +77,6 @@ class Evaluator:
         avg_loss = total_loss / total if total > 0 else 0.0
         accuracy = 100.0 * correct / total if total > 0 else 0.0
 
-        # 混同行列の計算と出力
         if num_classes_for_cm is not None and all_predicted and all_targets:
             all_predicted_tensor = torch.cat(all_predicted, dim=0)
             all_targets_tensor = torch.cat(all_targets, dim=0)
@@ -93,8 +95,10 @@ class Evaluator:
         """純粋なPyTorchテンソル操作による混同行列計算.
 
         sklearn.metrics.confusion_matrixやtorchmetricsを使用せず,
-        基本的なPyTorchテンソル操作のみで混同行列を計算します.
-        これにより, Ctrl+C割り込み時のFortranランタイムエラーを回避できます.
+        基本的なPyTorchテンソル操作のみで混同行列を計算する.
+        これにより, Ctrl+C割り込み時のFortranランタイムエラーを回避できる.
+        また, 訓練時はGPU上のTensorを直接集計できるため, NumPy変換を挟まない.
+        推論CLI側は入力型がlist[int]/NumPy配列であるため, 別実装として保持する.
 
         Args:
             predicted: 予測ラベル (各要素は0からnum_classes-1の整数)

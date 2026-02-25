@@ -1,4 +1,12 @@
-"""推論実行サービスが依存するランタイム抽象."""
+"""ランタイムアダプタの Protocol 定義.
+
+IRuntimeAdapter は `typing.Protocol` を採用する.
+主な理由は次のとおり.
+
+- 構造的型付けにより, 必要メソッドを満たす実装を柔軟に受け入れられる.
+- テストで Fake / Stub を差し替える際に, 明示的な継承が不要で記述負荷が低い.
+- ランタイム実装の差分を最小化しつつ, mypy で静的検証できる.
+"""
 
 from typing import Protocol
 
@@ -10,22 +18,22 @@ from pochitrain.inference.types.execution_types import ExecutionRequest
 
 
 class IRuntimeAdapter(Protocol):
-    """推論ランタイム差分を吸収する抽象インターフェース."""
+    """推論ランタイム差分を吸収するアダプタインターフェース."""
 
     @property
     def use_cuda_timing(self) -> bool:
-        """CUDA Event計測を使用するかどうかを返す.
+        """CUDA Event 計測を使用可能か返す.
 
         Returns:
-            CUDA Event計測を使用可能ならTrue.
+            CUDA Event 計測を使用可能ならTrue.
         """
         ...
 
     def get_timing_stream(self) -> torch.cuda.Stream | None:
-        """CUDA Event 計測に使うストリームを返す.
+        """CUDA Event 計測対象ストリームを返す.
 
         Returns:
-            計測対象ストリーム. ストリーム指定しない場合はNone.
+            計測対象ストリーム. 指定しない場合はNone.
         """
         ...
 
@@ -33,7 +41,7 @@ class IRuntimeAdapter(Protocol):
         """単一画像でウォームアップを実行する.
 
         Args:
-            image: 単一画像テンソル (C,H,W) を想定.
+            image: 単一画像テンソル (C,H,W).
             request: 実行パラメータ.
         """
         ...

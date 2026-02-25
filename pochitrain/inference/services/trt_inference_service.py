@@ -1,100 +1,91 @@
 """TensorRT推論CLI向けのオーケストレーション補助サービス."""
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pochitrain.inference.types.orchestration_types import (
-    InferenceCliRequest,
-    InferenceResolvedPaths,
-    InferenceRuntimeOptions,
-)
-from pochitrain.utils import (
-    get_default_output_base_dir,
-    validate_data_path,
-)
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
+from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
+from pochitrain.inference.services.interfaces import IInferenceService
+from pochitrain.logging import LoggerManager
+from pochitrain.pochi_dataset import get_basic_transforms
+
+from .execution_service import ExecutionService
 
 
-class TensorRTInferenceService:
+class TensorRTInferenceService(IInferenceService):
     """TensorRT推論CLIで必要な解決処理を提供するサービス."""
 
-    def resolve_paths(
-        self,
-        request: InferenceCliRequest,
-        config: Dict[str, Any],
-    ) -> InferenceResolvedPaths:
-        """データパスと出力先を解決する.
+    execution_service_factory = ExecutionService
+
+    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+        """サービスを初期化する.
 
         Args:
-            request: CLI入力を格納した共通リクエスト.
-            config: 設定辞書.
+            logger: ロガーインスタンス. 未指定時はモジュールロガーを利用する.
+        """
+        super().__init__(logger=logger or LoggerManager().get_logger(__name__))
+
+    def create_trt_inference(self, engine_path: Path) -> Any:
+        """TensorRT推論インスタンスを生成する.
+
+        Args:
+            engine_path: TensorRTエンジンファイルパス.
 
         Returns:
-            解決済みのパス情報.
-
-        Raises:
-            ValueError: データパス解決に失敗した場合.
+            TensorRT推論インスタンス.
         """
-        if request.data_path is not None:
-            data_path = request.data_path
-        elif "val_data_root" in config:
-            data_path = Path(config["val_data_root"])
-        else:
-            raise ValueError(
-                "--data を指定するか, configにval_data_rootを設定してください"
-            )
+        from pochitrain.tensorrt import TensorRTInference
 
-        validate_data_path(data_path)
+        return TensorRTInference(engine_path)
 
-        if request.output_dir is not None:
-            output_dir = request.output_dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            base_dir = get_default_output_base_dir(request.model_path)
-            workspace_manager = InferenceWorkspaceManager(str(base_dir))
-            output_dir = workspace_manager.create_workspace()
+    def resolve_val_transform(self, config: Dict[str, Any], inference: Any) -> Any:
+        """Config またはエンジン入力形状から val_transform を解決する.
 
-        return InferenceResolvedPaths(
-            model_path=request.model_path,
-            data_path=data_path,
-            output_dir=output_dir,
-        )
+        Args:
+            config: 推論設定辞書.
+            inference: TensorRT推論インスタンス.
 
-    def resolve_pipeline(self, requested: str) -> str:
+        Returns:
+            解決した val_transform.
+        """
+        if "val_transform" in config:
+            return config["val_transform"]
+
+        engine_input_shape = inference.get_input_shape()
+        height = engine_input_shape[2]
+        width = engine_input_shape[3]
+        self.logger.debug(f"入力サイズをエンジンから取得: {height}x{width}")
+        return get_basic_transforms(image_size=height, is_training=False)
+
+    def create_runtime_adapter(self, inference: Any) -> TensorRTRuntimeAdapter:
+        """TensorRT推論インスタンスからランタイムアダプタを作成する.
+
+        Args:
+            inference: TensorRT推論インスタンス.
+
+        Returns:
+            TensorRTランタイムアダプタ.
+        """
+        return TensorRTRuntimeAdapter(inference)
+
+    def resolve_pipeline(self, requested: str, use_gpu: bool) -> str:
         """TensorRT推論で実際に使うパイプライン名を解決する.
 
         Args:
             requested: ユーザー指定パイプライン.
+            use_gpu: GPU推論を使うかどうか（TensorRTでは未使用）.
 
         Returns:
             解決後パイプライン名.
         """
+        _ = use_gpu
         if requested == "auto":
             return "gpu"
         return requested
 
-    def resolve_runtime_options(
-        self,
-        config: Dict[str, Any],
-        pipeline: str,
-    ) -> InferenceRuntimeOptions:
-        """TensorRT推論向け実行オプションを構築する.
-
-        Args:
-            config: 設定辞書.
-            pipeline: 解決済みパイプライン名.
-
-        Returns:
-            推論実行オプション.
-        """
-        return InferenceRuntimeOptions(
-            pipeline=pipeline,
-            batch_size=1,
-            num_workers=int(config.get("num_workers", 0)),
-            pin_memory=bool(config.get("pin_memory", True)),
-            use_gpu=True,
-            use_gpu_pipeline=pipeline == "gpu",
-        )
+    def _resolve_batch_size(self, config: Dict[str, Any]) -> int:
+        """TensorRT推論時のバッチサイズを解決する."""
+        return 1
 
     def resolve_input_size(self, shape: Any) -> Optional[tuple[int, int, int]]:
         """TensorRT入力形状から入力サイズを解決する.

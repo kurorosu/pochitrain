@@ -31,27 +31,19 @@ class GradientTracer:
         aggregation_method: str = "median",
     ):
         """GradientTracerを初期化."""
-        # 勾配履歴を保存する辞書 {layer_name: [grad_norm_epoch1, grad_norm_epoch2, ...]}
         self.gradient_history: Dict[str, List[float]] = {}
-
-        # エポック数
         self.epochs: List[int] = []
-
-        # 層名リスト（順序保持）
         self.layer_names: List[str] = []
 
-        # ロガーの設定
         if logger is None:
             self.logger = LoggerManager().get_logger(__name__)
         else:
             self.logger = logger
 
-        # フィルタリング・グループ化設定
         self.exclude_patterns = exclude_patterns if exclude_patterns else []
         self.group_by_block = group_by_block
         self.aggregation_method = aggregation_method.lower()
 
-        # 集約方法のバリデーション
         valid_methods = ["median", "mean", "max", "rms"]
         if self.aggregation_method not in valid_methods:
             self.logger.warning(
@@ -134,38 +126,29 @@ class GradientTracer:
             model (nn.Module): 訓練されたモデル
             epoch (int): 現在のエポック番号
         """
-        # エポック番号を記録
         self.epochs.append(epoch)
 
-        # 一時的なグループごとの勾配ノルムを収集
         grouped_gradients: Dict[str, List[float]] = defaultdict(list)
 
-        # 各パラメータの勾配ノルムを収集
         for name, param in model.named_parameters():
-            # 除外パターンに一致する場合はスキップ
             if self._should_exclude(name):
                 continue
 
-            # 勾配ノルムを計算
             if param.grad is not None:
                 grad_norm = param.grad.norm().item()
             else:
                 grad_norm = 0.0
 
-            # グループ名を取得
             group_name = self._get_group_name(name)
             grouped_gradients[group_name].append(grad_norm)
 
-        # グループごとに集約して記録
         for group_name, grad_norms in grouped_gradients.items():
             aggregated_norm = self._aggregate_gradients(grad_norms)
 
-            # 初回の場合は層名リストに追加
             if group_name not in self.gradient_history:
                 self.gradient_history[group_name] = []
                 self.layer_names.append(group_name)
 
-            # 勾配ノルムを記録
             self.gradient_history[group_name].append(aggregated_norm)
 
         self.logger.debug(
@@ -183,18 +166,14 @@ class GradientTracer:
             self.logger.warning("記録されたデータがありません")
             return
 
-        # ディレクトリが存在しない場合は作成
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # CSVに書き込み
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
 
-            # ヘッダー行
             header = ["epoch"] + self.layer_names
             writer.writerow(header)
 
-            # データ行
             for i, epoch in enumerate(self.epochs):
                 row: List[Union[int, float]] = [epoch]
                 for layer_name in self.layer_names:
@@ -221,7 +200,6 @@ class GradientTracer:
             "layer_names": self.layer_names.copy(),
         }
 
-        # 各層の統計情報
         layer_stats = {}
         for layer_name in self.layer_names:
             grad_norms = self.gradient_history[layer_name]

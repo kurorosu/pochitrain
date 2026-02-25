@@ -10,8 +10,6 @@ Example:
 """
 
 from .config import PochiConfig
-
-# Logging
 from .logging import LoggerManager
 from .models.pochi_models import PochiModel, create_model
 from .pochi_dataset import (
@@ -19,24 +17,17 @@ from .pochi_dataset import (
     PochiImageDataset,
     create_data_loaders,
     get_basic_transforms,
-    print_dataset_info,
 )
 from .pochi_predictor import PochiPredictor
-
-# Pochiインターフェース
 from .pochi_trainer import PochiTrainer
-
-# ユーティリティ
 from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
 __all__ = [
-    # Logging
     "LoggerManager",
-    # Pochiインターフェース
     "PochiTrainer",
     "PochiPredictor",
     "PochiConfig",
@@ -46,8 +37,6 @@ __all__ = [
     "create_data_loaders",
     "get_basic_transforms",
     "create_model",
-    "print_dataset_info",
-    # ユーティリティ
     "PochiWorkspaceManager",
     "InferenceWorkspaceManager",
 ]

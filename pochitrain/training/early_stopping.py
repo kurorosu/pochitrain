@@ -35,14 +35,12 @@ class EarlyStopping:
         self.monitor = monitor
         self.logger = logger
 
-        # 内部状態
         self.best_value: Optional[float] = None
         self.counter = 0
         self.should_stop = False
         self.best_epoch = 0
 
-        # 監視メトリクスに応じて比較方向を決定
-        # val_accuracy: 大きいほど良い, val_loss: 小さいほど良い
+        # val_accuracyは高い方, val_lossは低い方を改善とみなす.
         self._is_improvement = (
             self._higher_is_better
             if monitor == "val_accuracy"
@@ -69,18 +67,15 @@ class EarlyStopping:
             bool: 訓練を停止すべき場合True
         """
         if self.best_value is None:
-            # 初回: ベスト値を初期化
             self.best_value = value
             self.best_epoch = epoch
             return False
 
         if self._is_improvement(value, self.best_value):
-            # 改善があった場合: ベスト値を更新しカウンターをリセット
             self.best_value = value
             self.best_epoch = epoch
             self.counter = 0
         else:
-            # 改善がなかった場合: カウンターを増加
             self.counter += 1
             if self.logger:
                 self.logger.info(

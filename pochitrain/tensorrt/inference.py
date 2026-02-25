@@ -69,7 +69,6 @@ class TensorRTInference:
         if not self.engine_path.exists():
             raise FileNotFoundError(f"エンジンファイルが見つかりません: {engine_path}")
 
-        # エンジン読み込み
         trt_logger = trt.Logger(trt.Logger.WARNING)
         with open(self.engine_path, "rb") as f:
             engine_data = f.read()
@@ -82,16 +81,13 @@ class TensorRTInference:
 
         self.context = self.engine.create_execution_context()
 
-        # 名前ベースで入出力バインディングを解決
         bindings = self._resolve_io_bindings(trt)
         self.input_name: str = bindings["input"]
         self.output_name: str = bindings["output"]
 
-        # 入出力shape取得（名前ベース）
         self.input_shape = tuple(self.engine.get_tensor_shape(self.input_name))
         self.output_shape = tuple(self.engine.get_tensor_shape(self.output_name))
 
-        # PyTorch CUDAテンソルをバッファとして確保
         self._d_input = torch.empty(
             self.input_shape, dtype=torch.float32, device="cuda"
         )
@@ -99,7 +95,6 @@ class TensorRTInference:
             self.output_shape, dtype=torch.float32, device="cuda"
         )
 
-        # 名前ベースでテンソルアドレスを事前設定（execute時のループ不要）
         self.context.set_tensor_address(self.input_name, self._d_input.data_ptr())
         self.context.set_tensor_address(self.output_name, self._d_output.data_ptr())
 
@@ -209,7 +204,6 @@ class TensorRTInference:
         Returns:
             (予測クラス, 信頼度) のタプル
         """
-        # バッチ処理（現在はバッチサイズ1のみ対応）
         batch_size = images.shape[0]
         all_logits = []
 

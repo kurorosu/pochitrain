@@ -75,7 +75,6 @@ class TestTrainingMetricsExporter:
         with tempfile.TemporaryDirectory() as temp_dir:
             exporter = TrainingMetricsExporter(output_dir=Path(temp_dir))
 
-            # メトリクスを記録
             for epoch in range(1, 4):
                 exporter.record_epoch(
                     epoch=epoch,
@@ -86,14 +85,12 @@ class TestTrainingMetricsExporter:
                     val_accuracy=83.0,
                 )
 
-            # CSVに出力
             csv_path = exporter.export_to_csv("test_metrics.csv")
 
             assert csv_path is not None
             assert csv_path.exists()
             assert csv_path.name == "test_metrics.csv"
 
-            # CSVファイルの内容確認
             with open(csv_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
                 assert len(lines) == 4  # ヘッダー + 3エポック
@@ -115,7 +112,6 @@ class TestTrainingMetricsExporter:
                 output_dir=Path(temp_dir), enable_visualization=True
             )
 
-            # メトリクスを記録
             for epoch in range(1, 4):
                 exporter.record_epoch(
                     epoch=epoch,
@@ -126,7 +122,6 @@ class TestTrainingMetricsExporter:
                     val_accuracy=78.0 + epoch,
                 )
 
-            # グラフを生成
             graph_paths = exporter.generate_graphs("test_graph")
 
             assert graph_paths is not None
@@ -163,7 +158,6 @@ class TestTrainingMetricsExporter:
                 output_dir=Path(temp_dir), enable_visualization=True
             )
 
-            # 層別学習率付きメトリクスを記録
             for epoch in range(1, 4):
                 exporter.record_epoch(
                     epoch=epoch,
@@ -190,7 +184,6 @@ class TestTrainingMetricsExporter:
         with tempfile.TemporaryDirectory() as temp_dir:
             exporter = TrainingMetricsExporter(output_dir=Path(temp_dir))
 
-            # メトリクスを記録（エポック3が最高精度）
             exporter.record_epoch(
                 epoch=1,
                 learning_rate=0.001,
@@ -231,7 +224,6 @@ class TestTrainingMetricsExporter:
         with tempfile.TemporaryDirectory() as temp_dir:
             exporter = TrainingMetricsExporter(output_dir=Path(temp_dir))
 
-            # メトリクスを記録
             for epoch in range(1, 6):
                 exporter.record_epoch(
                     epoch=epoch,
@@ -262,7 +254,6 @@ class TestTrainingMetricsExporter:
             assert "param_1" in exporter.extended_headers
             assert "param_2" in exporter.extended_headers
 
-            # 拡張メトリクス付きで記録
             exporter.record_epoch(
                 epoch=1,
                 learning_rate=0.001,
@@ -287,7 +278,6 @@ class TestTrainingMetricsExporter:
             assert exporter.metrics_history[0]["val_loss"] == ""
             assert exporter.metrics_history[0]["val_accuracy"] == ""
 
-            # CSVに出力して確認
             csv_path = exporter.export_to_csv()
             assert csv_path is not None
             assert csv_path.exists()

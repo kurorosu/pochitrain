@@ -11,9 +11,11 @@ from .types import (
     ExecutionResult,
     InferenceCliRequest,
     InferenceResolvedPaths,
+    InferenceRunResult,
     InferenceRuntimeOptions,
     ResultExportRequest,
     ResultExportResult,
+    RuntimeExecutionRequest,
 )
 
 __all__ = [
@@ -24,8 +26,10 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
     "InferenceCliRequest",
+    "InferenceRunResult",
     "InferenceResolvedPaths",
     "InferenceRuntimeOptions",
+    "RuntimeExecutionRequest",
     "ResultExportRequest",
     "ResultExportResult",
 ]

@@ -31,7 +31,6 @@ class TestLayerWiseLR:
             enable_layer_wise_lr=False,
         )
 
-        # 通常のパラメータグループが作成されることを確認
         assert len(trainer.optimizer.param_groups) == 1
         assert trainer.optimizer.param_groups[0]["lr"] == 0.001
         assert not trainer.enable_layer_wise_lr
@@ -57,14 +56,12 @@ class TestLayerWiseLR:
             layer_wise_lr_config=layer_wise_lr_config,
         )
 
-        # 複数のパラメータグループが作成されることを確認
         assert len(trainer.optimizer.param_groups) > 1
         assert trainer.enable_layer_wise_lr
         assert trainer.base_learning_rate == 0.001
 
     def test_get_base_learning_rate(self, trainer):
         """基本学習率取得のテスト."""
-        # 層別学習率無効時
         trainer.setup_training(
             learning_rate=0.001,
             optimizer_name="SGD",
@@ -74,7 +71,6 @@ class TestLayerWiseLR:
         assert lr == 0.001
         assert not trainer.is_layer_wise_lr_enabled()
 
-        # 層別学習率有効時
         layer_wise_lr_config = {
             "layer_rates": {
                 "fc": 0.01,
@@ -108,7 +104,6 @@ class TestLayerWiseLR:
             layer_wise_lr_config=layer_wise_lr_config,
         )
 
-        # スケジューラーが設定されることを確認
         assert trainer.scheduler is not None
         assert trainer.enable_layer_wise_lr
 
@@ -127,15 +122,12 @@ class TestLayerWiseLR:
             layer_wise_lr_config=layer_wise_lr_config,
         )
 
-        # ログ出力メソッドが呼ばれることを確認
         assert trainer.enable_layer_wise_lr
 
     def test_layer_wise_lr_validation_error(self, trainer):
         """不正な層別学習率設定でのエラーテスト."""
-        # layer_ratesが空の場合
         layer_wise_lr_config = {"layer_rates": {}}
 
-        # エラーが発生しないことを確認（バリデーションは別途テスト）
         trainer.setup_training(
             learning_rate=0.001,
             optimizer_name="SGD",

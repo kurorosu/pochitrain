@@ -80,12 +80,10 @@ class CheckpointStore:
             scheduler: スケジューラ
             best_accuracy: ベスト精度
         """
-        # 既存のベストモデルファイルを削除
         for existing_file in self.work_dir.glob("best_epoch*.pth"):
             existing_file.unlink()
             self.logger.info(f"既存のベストモデルを削除: {existing_file}")
 
-        # 新しいベストモデルを保存
         best_filename = f"best_epoch{epoch}.pth"
         checkpoint_path = self.save_checkpoint(
             best_filename, epoch, model, optimizer, scheduler, best_accuracy
@@ -112,49 +110,3 @@ class CheckpointStore:
         self.save_checkpoint(
             "last_model.pth", epoch, model, optimizer, scheduler, best_accuracy
         )
-
-    def load_checkpoint(
-        self,
-        filename: str,
-        model: nn.Module,
-        device: torch.device,
-        optimizer: Optional[optim.Optimizer] = None,
-        scheduler: Optional[optim.lr_scheduler.LRScheduler] = None,
-    ) -> Dict[str, Any]:
-        """チェックポイントの読み込み.
-
-        Args:
-            filename: 読み込むファイル名
-            model: モデル (state_dict がロードされる)
-            device: デバイス
-            optimizer: オプティマイザ (state_dict がロードされる)
-            scheduler: スケジューラ (state_dict がロードされる)
-
-        Returns:
-            復元された状態情報 {"epoch": int, "best_accuracy": float}
-
-        Raises:
-            FileNotFoundError: チェックポイントファイルが存在しない場合
-        """
-        checkpoint_path = self.work_dir / filename
-
-        if not checkpoint_path.exists():
-            raise FileNotFoundError(
-                f"チェックポイントが見つかりません: {checkpoint_path}"
-            )
-
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-
-        model.load_state_dict(checkpoint["model_state_dict"])
-        if optimizer is not None and checkpoint["optimizer_state_dict"] is not None:
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
-        if "scheduler_state_dict" in checkpoint and scheduler is not None:
-            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        self.logger.info(f"チェックポイントを読み込み: {checkpoint_path}")
-
-        return {
-            "epoch": checkpoint["epoch"],
-            "best_accuracy": checkpoint["best_accuracy"],
-        }

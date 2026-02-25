@@ -46,6 +46,8 @@ class TestPochiConfigFromDict:
         assert config.cudnn_benchmark is False
         assert config.work_dir == "work_dirs"
         assert config.num_workers == 0
+        assert config.train_pin_memory is True
+        assert config.infer_pin_memory is True
         assert config.mean == [0.485, 0.456, 0.406]
         assert config.std == [0.229, 0.224, 0.225]
         assert config.early_stopping is None
@@ -133,7 +135,6 @@ class TestPochiConfigFieldValidation:
     旧 validation/ のテスト観点を移植.
     """
 
-    # --- model_name ---
     def test_unsupported_model_name_raises_error(self) -> None:
         """サポート外のモデル名で ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -141,7 +142,6 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
-    # --- num_classes ---
     def test_zero_num_classes_raises_error(self) -> None:
         """num_classes が 0 の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -158,7 +158,6 @@ class TestPochiConfigFieldValidation:
         ):
             PochiConfig.from_dict(payload)
 
-    # --- epochs ---
     def test_zero_epochs_raises_error(self) -> None:
         """epochs が 0 の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -175,7 +174,6 @@ class TestPochiConfigFieldValidation:
         ):
             PochiConfig.from_dict(payload)
 
-    # --- batch_size ---
     def test_negative_batch_size_raises_error(self) -> None:
         """batch_size が負の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -192,7 +190,6 @@ class TestPochiConfigFieldValidation:
         ):
             PochiConfig.from_dict(payload)
 
-    # --- learning_rate ---
     def test_zero_learning_rate_raises_error(self) -> None:
         """learning_rate が 0 の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -214,7 +211,6 @@ class TestPochiConfigFieldValidation:
         config = PochiConfig.from_dict(payload)
         assert config.learning_rate == 1.0
 
-    # --- optimizer ---
     def test_unsupported_optimizer_raises_error(self) -> None:
         """サポート外のオプティマイザで ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -222,7 +218,6 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
-    # --- device ---
     def test_invalid_device_raises_error(self) -> None:
         """不正なデバイス指定で ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -230,7 +225,6 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
-    # --- train_data_root ---
     def test_empty_train_data_root_raises_error(self) -> None:
         """train_data_root が空文字の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()
@@ -238,7 +232,6 @@ class TestPochiConfigFieldValidation:
         with pytest.raises(ValidationError):
             PochiConfig.from_dict(payload)
 
-    # --- transform ---
     def test_none_train_transform_raises_error(self) -> None:
         """train_transform が None の場合に ValidationError になることを確認する."""
         payload = _build_minimum_config()

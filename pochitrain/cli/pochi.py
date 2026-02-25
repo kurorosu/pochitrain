@@ -10,7 +10,6 @@ import logging
 import re
 import signal
 import sys
-import time
 from pathlib import Path
 from types import FrameType
 from typing import Any, Dict, Optional, Sized, cast
@@ -24,17 +23,22 @@ from pochitrain import (
     create_data_loaders,
 )
 from pochitrain.cli.arg_types import positive_int
+from pochitrain.inference.benchmark import (
+    build_pytorch_benchmark_result,
+    resolve_env_name,
+    write_benchmark_result_json,
+)
 from pochitrain.inference.services import PyTorchInferenceService
+from pochitrain.inference.types.orchestration_types import (
+    InferenceCliRequest,
+)
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
     load_config_auto,
-    validate_data_path,
     validate_model_path,
 )
-from pochitrain.utils.directory_manager import InferenceWorkspaceManager
 
-# グローバル変数で訓練停止フラグを管理
 training_interrupted = False
 
 
@@ -100,7 +104,6 @@ def find_best_model(work_dir: str) -> Path:
     if not models_dir.exists():
         raise FileNotFoundError(f"モデルディレクトリが見つかりません: {models_dir}")
 
-    # best_epoch*.pth ファイルを検索
     model_files = list(models_dir.glob("best_epoch*.pth"))
 
     if not model_files:
@@ -108,7 +111,6 @@ def find_best_model(work_dir: str) -> Path:
             f"ベストモデルが見つかりません: {models_dir}/best_epoch*.pth"
         )
 
-    # 最新のモデルを選択（エポック番号が最大のもの）
     best_model = max(
         model_files,
         key=lambda x: (
@@ -120,7 +122,6 @@ def find_best_model(work_dir: str) -> Path:
 
 def train_command(args: argparse.Namespace) -> None:
     """訓練サブコマンドの実行."""
-    # Ctrl+Cの安全な処理を設定
     signal.signal(signal.SIGINT, create_signal_handler(debug=args.debug))
 
     logger = setup_logging(debug=args.debug)
@@ -129,7 +130,6 @@ def train_command(args: argparse.Namespace) -> None:
         "安全終了: 訓練中にCtrl+Cを押すと、現在のエポック完了後に安全に終了します。"
     )
 
-    # 設定ファイルの読み込み
     try:
         config = ConfigLoader.load_config(args.config)
         logger.info(f"設定ファイルを読み込みました: {args.config}")
@@ -144,7 +144,6 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error(f"設定にエラーがあります:\n{e}")
         return
 
-    # train_data_root / val_data_root の存在チェック (train のみ)
     if not Path(pochi_config.train_data_root).exists():
         logger.error(f"訓練データパスが存在しません: {pochi_config.train_data_root}")
         return
@@ -155,14 +154,12 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error(f"検証データパスが存在しません: {pochi_config.val_data_root}")
         return
 
-    # 設定確認ログ
     logger.debug("=== 設定確認 ===")
     logger.debug(f"モデル: {pochi_config.model_name}")
     logger.debug(f"デバイス: {pochi_config.device}")
     logger.debug(f"学習率: {pochi_config.learning_rate}")
     logger.debug(f"オプティマイザー: {pochi_config.optimizer}")
 
-    # スケジューラー設定の明示的ログ出力
     scheduler_name = pochi_config.scheduler
     if scheduler_name is None:
         logger.info("スケジューラー: なし（固定学習率）")
@@ -171,14 +168,12 @@ def train_command(args: argparse.Namespace) -> None:
         scheduler_params = pochi_config.scheduler_params
         logger.debug(f"スケジューラーパラメータ: {scheduler_params}")
 
-    # クラス重み設定の明示的ログ出力
     class_weights = pochi_config.class_weights
     if class_weights is None:
         logger.debug("クラス重み: なし（均等扱い）")
     else:
         logger.debug(f"クラス重み: {class_weights}")
 
-    # 層別学習率設定の明示的ログ出力
     enable_layer_wise_lr = pochi_config.enable_layer_wise_lr
     if enable_layer_wise_lr:
         logger.debug("層別学習率: 有効")
@@ -190,7 +185,6 @@ def train_command(args: argparse.Namespace) -> None:
     else:
         logger.debug("層別学習率: 無効")
 
-    # データローダーの作成
     logger.debug("データローダーを作成しています...")
     try:
         if pochi_config.val_data_root is None:
@@ -201,6 +195,7 @@ def train_command(args: argparse.Namespace) -> None:
             val_root=pochi_config.val_data_root,
             batch_size=pochi_config.batch_size,
             num_workers=pochi_config.num_workers,
+            pin_memory=pochi_config.train_pin_memory,
             train_transform=pochi_config.train_transform,
             val_transform=pochi_config.val_transform,
         )
@@ -210,7 +205,6 @@ def train_command(args: argparse.Namespace) -> None:
         logger.debug(f"訓練バッチ数: {len(train_loader)}")
         logger.debug(f"検証バッチ数: {len(val_loader)}")
 
-        # 設定のクラス数を更新
         config["num_classes"] = len(classes)
         pochi_config.num_classes = len(classes)
 
@@ -218,7 +212,6 @@ def train_command(args: argparse.Namespace) -> None:
         logger.error(f"データローダーの作成に失敗しました: {e}")
         return
 
-    # トレーナーの作成
     logger.debug("トレーナーを作成しています...")
     trainer = PochiTrainer(
         model_name=pochi_config.model_name,
@@ -229,7 +222,6 @@ def train_command(args: argparse.Namespace) -> None:
         cudnn_benchmark=pochi_config.cudnn_benchmark,
     )
 
-    # 訓練設定
     logger.debug("訓練設定を行っています...")
     trainer.setup_training(
         learning_rate=pochi_config.learning_rate,
@@ -249,7 +241,6 @@ def train_command(args: argparse.Namespace) -> None:
         ),
     )
 
-    # データセットパスの保存
     logger.debug("データセットパスを保存しています...")
     train_paths = []
     if hasattr(train_loader.dataset, "get_file_paths"):
@@ -268,18 +259,15 @@ def train_command(args: argparse.Namespace) -> None:
     if val_file is not None:
         logger.debug(f"検証データパスを保存: {val_file}")
 
-    # 設定ファイルの保存
     logger.debug("設定ファイルを保存しています...")
     config_path_obj = Path(args.config)
     saved_config_path = trainer.workspace_manager.save_config(config_path_obj)
     logger.debug(f"設定ファイルを保存しました: {saved_config_path}")
 
-    # メトリクスエクスポート設定の適用
     trainer.enable_metrics_export = pochi_config.enable_metrics_export
     if trainer.enable_metrics_export:
         logger.debug("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
-    # Early Stopping設定のログ出力（初期化はsetup_training()で完了済み）
     early_stopping_config = (
         cast(Dict[str, Any], pochi_config.early_stopping.model_dump())
         if pochi_config.early_stopping is not None
@@ -288,7 +276,6 @@ def train_command(args: argparse.Namespace) -> None:
     if not (early_stopping_config and early_stopping_config.get("enabled", False)):
         logger.debug("Early Stopping: 無効")
 
-    # 勾配トレース設定の適用
     trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
         logger.debug("勾配トレース機能が有効です")
@@ -297,7 +284,6 @@ def train_command(args: argparse.Namespace) -> None:
         )
         trainer.gradient_tracking_config.update(gradient_config)
 
-    # 訓練実行
     logger.info("訓練を開始します...")
     trainer.train(
         train_loader=train_loader,
@@ -324,11 +310,9 @@ def get_indexed_output_dir(base_dir: str) -> Path:
     """
     base_path = Path(base_dir)
 
-    # ベースディレクトリが存在しない場合はそのまま返す
     if not base_path.exists():
         return base_path
 
-    # 連番を探索
     parent = base_path.parent
     stem = base_path.name
     index = 1
@@ -345,12 +329,10 @@ def infer_command(args: argparse.Namespace) -> None:
     logger = setup_logging(debug=args.debug)
     logger.debug("=== pochitrain 推論モード ===")
 
-    # モデルパス確認
     model_path = Path(args.model_path)
     validate_model_path(model_path)
     logger.debug(f"使用するモデル: {model_path}")
 
-    # 設定ファイル読み込み（自動検出または指定）
     if args.config_path:
         config_path = Path(args.config_path)
         try:
@@ -368,27 +350,37 @@ def infer_command(args: argparse.Namespace) -> None:
         logger.error(f"設定にエラーがあります:\n{e}")
         return
 
-    # データパスの決定（--data指定 or configのval_data_root）
-    if args.data:
-        data_path = Path(args.data)
-    elif pochi_config.val_data_root:
-        data_path = Path(pochi_config.val_data_root)
-        logger.debug(f"データパスをconfigから取得: {data_path}")
-    else:
-        logger.error("--data を指定するか、configにval_data_rootを設定してください")
-        return
-    validate_data_path(data_path)
-
-    # 出力ディレクトリの決定（modelsと同階層）
-    if args.output:
-        output_dir = args.output
-    else:
-        model_dir = model_path.parent  # models フォルダ
-        work_dir = model_dir.parent  # work_dirs/YYYYMMDD_XXX フォルダ
-        output_dir = str(work_dir / "inference_results")
-
-    # Service に委譲して推論実行
     service = PyTorchInferenceService(logger)
+
+    requested_pipeline = str(getattr(args, "pipeline", "current"))
+    cli_request = InferenceCliRequest(
+        model_path=model_path,
+        data_path=Path(args.data) if args.data else None,
+        output_dir=Path(args.output) if args.output else None,
+        requested_pipeline=requested_pipeline,
+    )
+    try:
+        resolved_paths = service.resolve_paths(cli_request, config)
+    except ValueError as e:
+        logger.error(str(e))
+        return
+    except Exception as e:
+        logger.error(f"パス解決エラー: {e}")
+        return
+
+    data_path = resolved_paths.data_path
+    workspace_dir = resolved_paths.output_dir
+
+    use_gpu = pochi_config.device == "cuda"
+    pipeline = service.resolve_pipeline(
+        cli_request.requested_pipeline,
+        use_gpu=use_gpu,
+    )
+    runtime_options = service.resolve_runtime_options(
+        config=config,
+        pipeline=pipeline,
+        use_gpu=use_gpu,
+    )
 
     try:
         predictor = service.create_predictor(pochi_config, model_path)
@@ -398,7 +390,19 @@ def infer_command(args: argparse.Namespace) -> None:
 
     logger.debug("データローダーを作成しています...")
     try:
-        val_loader, val_dataset = service.create_dataloader(pochi_config, data_path)
+        (
+            val_loader,
+            val_dataset,
+            pipeline,
+            norm_mean,
+            norm_std,
+        ) = service.create_dataloader(
+            config,
+            data_path,
+            pochi_config.val_transform,
+            pipeline,
+            runtime_options,
+        )
     except Exception as e:
         logger.error(f"データローダー作成エラー: {e}")
         return
@@ -406,14 +410,23 @@ def infer_command(args: argparse.Namespace) -> None:
     input_size = service.detect_input_size(pochi_config, val_dataset)
 
     try:
-        predicted_labels, confidence_scores, metrics, e2e_total_time_ms = (
-            service.run_inference(predictor, val_loader)
+        runtime_adapter = service.create_runtime_adapter(predictor)
+        runtime_request = service.build_runtime_execution_request(
+            data_loader=val_loader,
+            runtime_adapter=runtime_adapter,
+            use_gpu_pipeline=pipeline == "gpu",
+            norm_mean=norm_mean,
+            norm_std=norm_std,
+            use_cuda_timing=runtime_adapter.use_cuda_timing,
+            gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
+        )
+        run_result = service.run(
+            runtime_request,
         )
     except Exception as e:
         logger.error(f"推論実行エラー: {e}")
         return
 
-    # 結果出力
     try:
         cm_config = (
             cast(Dict[str, Any], pochi_config.confusion_matrix_config.model_dump())
@@ -421,30 +434,64 @@ def infer_command(args: argparse.Namespace) -> None:
             else None
         )
 
-        workspace_manager = InferenceWorkspaceManager(output_dir)
-        workspace_dir = workspace_manager.create_workspace()
-
         service.aggregate_and_export(
             workspace_dir=workspace_dir,
             model_path=model_path,
             data_path=data_path,
             dataset=val_dataset,
-            predicted_labels=predicted_labels,
-            confidence_scores=confidence_scores,
-            metrics=metrics,
-            e2e_total_time_ms=e2e_total_time_ms,
+            run_result=run_result,
             input_size=input_size,
             model_info=predictor.get_model_info(),
             cm_config=cm_config,
+            results_filename="pytorch_inference_results.csv",
+            summary_filename="pytorch_inference_summary.txt",
         )
+
+        if bool(getattr(args, "benchmark_json", False)):
+            configured_env_name = getattr(
+                args, "benchmark_env_name", None
+            ) or config.get("benchmark_env_name")
+            env_name = resolve_env_name(
+                use_gpu=use_gpu,
+                configured_env_name=(
+                    str(configured_env_name)
+                    if configured_env_name is not None
+                    else None
+                ),
+            )
+            benchmark_result = build_pytorch_benchmark_result(
+                use_gpu=use_gpu,
+                pipeline=pipeline,
+                model_name=str(config.get("model_name", model_path.stem)),
+                batch_size=runtime_options.batch_size,
+                gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
+                pin_memory=runtime_options.pin_memory,
+                input_size=input_size,
+                avg_time_per_image=run_result.avg_time_per_image,
+                avg_total_time_per_image=run_result.avg_total_time_per_image,
+                num_samples=run_result.num_samples,
+                total_samples=run_result.total_samples,
+                warmup_samples=run_result.warmup_samples,
+                accuracy=run_result.accuracy_percent,
+                env_name=env_name,
+            )
+            try:
+                benchmark_json_path = write_benchmark_result_json(
+                    output_dir=workspace_dir,
+                    benchmark_result=benchmark_result,
+                )
+                logger.info(
+                    f"ベンチマークJSONを出力しました: {benchmark_json_path.name}"
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.warning(
+                    f"ベンチマークJSONの保存に失敗しました, error: {exc}",
+                )
 
         logger.info("推論完了")
-
-        workspace_info = workspace_manager.get_workspace_info()
         logger.info(
-            f"ワークスペース: {workspace_info['workspace_name']}へサマリーファイルを出力しました"
+            f"ワークスペース: {workspace_dir.name}へサマリーファイルを出力しました"
         )
-
     except Exception as e:
         logger.error(f"CSV出力エラー: {e}")
         return
@@ -455,7 +502,6 @@ def optimize_command(args: argparse.Namespace) -> None:
     logger = setup_logging(debug=args.debug)
     logger.info("=== pochitrain Optuna最適化モード ===")
 
-    # 設定ファイルの読み込み
     try:
         config = ConfigLoader.load_config(args.config)
         logger.info(f"設定ファイルを読み込みました: {args.config}")
@@ -469,7 +515,7 @@ def optimize_command(args: argparse.Namespace) -> None:
         logger.error(f"設定にエラーがあります:\n{e}")
         return
 
-    # Optuna関連のインポート（遅延インポート）
+    # optional依存のため, optimize 実行時のみ読み込む.
     try:
         from pochitrain.optimization import (
             ClassificationObjective,
@@ -487,11 +533,9 @@ def optimize_command(args: argparse.Namespace) -> None:
         )
         return
 
-    # 出力ディレクトリの決定（インデックス付き）
     output_dir = get_indexed_output_dir(args.output)
     logger.info(f"出力ディレクトリ: {output_dir}")
 
-    # データローダーの作成
     logger.debug("データローダーを作成しています...")
     try:
         train_loader, val_loader, classes = create_data_loaders(
@@ -499,6 +543,7 @@ def optimize_command(args: argparse.Namespace) -> None:
             val_root=pochi_config.val_data_root or "data/val",
             batch_size=pochi_config.batch_size,
             num_workers=pochi_config.num_workers,
+            pin_memory=pochi_config.train_pin_memory,
             train_transform=pochi_config.train_transform,
             val_transform=pochi_config.val_transform,
         )
@@ -512,7 +557,6 @@ def optimize_command(args: argparse.Namespace) -> None:
         logger.error(f"データローダーの作成に失敗しました: {e}")
         return
 
-    # パラメータサジェスターを作成
     if pochi_config.optuna is None or not pochi_config.optuna.search_space:
         logger.error("search_spaceが設定されていません")
         return
@@ -520,7 +564,6 @@ def optimize_command(args: argparse.Namespace) -> None:
     param_suggestor = DefaultParamSuggestor(search_space)
     logger.info(f"探索空間: {list(search_space.keys())}")
 
-    # 目的関数を作成
     objective = ClassificationObjective(
         base_config=pochi_config,
         param_suggestor=param_suggestor,
@@ -530,11 +573,9 @@ def optimize_command(args: argparse.Namespace) -> None:
         device=pochi_config.device,
     )
 
-    # Study管理を作成
     storage = pochi_config.optuna.storage
     study_manager = OptunaStudyManager(storage=storage)
 
-    # Studyを作成
     logger.info("Optuna Studyを作成しています...")
     study = study_manager.create_study(
         study_name=pochi_config.optuna.study_name,
@@ -546,7 +587,6 @@ def optimize_command(args: argparse.Namespace) -> None:
     logger.info(f"方向: {pochi_config.optuna.direction}")
     logger.info(f"サンプラー: {pochi_config.optuna.sampler}")
 
-    # 最適化を実行
     n_trials = pochi_config.optuna.n_trials
     logger.info(f"最適化を開始します（{n_trials}試行）...")
     study_manager.optimize(
@@ -555,7 +595,6 @@ def optimize_command(args: argparse.Namespace) -> None:
         n_jobs=pochi_config.optuna.n_jobs,
     )
 
-    # 結果を取得
     best_params = study_manager.get_best_params()
     best_value = study_manager.get_best_value()
 
@@ -567,22 +606,17 @@ def optimize_command(args: argparse.Namespace) -> None:
     for key, value in best_params.items():
         logger.info(f"  {key}: {value}")
 
-    # 結果をエクスポート
     logger.info(f"結果を出力しています: {output_dir}")
 
-    # JSON形式でエクスポート
     json_exporter = JsonResultExporter()
     json_exporter.export(best_params, best_value, study, str(output_dir))
 
-    # Python設定ファイル形式でエクスポート
     config_exporter = ConfigExporter(pochi_config)
     config_exporter.export(best_params, best_value, study, str(output_dir))
 
-    # 統計情報とパラメータ重要度をエクスポート
     statistics_exporter = StatisticsExporter()
     statistics_exporter.export(best_params, best_value, study, str(output_dir))
 
-    # 可視化グラフをエクスポート（Plotly HTML）
     visualization_exporter = VisualizationExporter()
     visualization_exporter.export(best_params, best_value, study, str(output_dir))
 
@@ -602,7 +636,6 @@ def convert_command(args: argparse.Namespace) -> None:
     logger = setup_logging(debug=args.debug)
     logger.debug("=== pochitrain TensorRT変換モード ===")
 
-    # TensorRTの利用可否チェック
     try:
         from pochitrain.tensorrt.converter import TensorRTConverter
         from pochitrain.tensorrt.inference import check_tensorrt_availability
@@ -619,13 +652,11 @@ def convert_command(args: argparse.Namespace) -> None:
         )
         return
 
-    # ONNXモデルパス確認
     onnx_path = Path(args.onnx_path)
     if not onnx_path.exists():
         logger.error(f"ONNXモデルが見つかりません: {onnx_path}")
         return
 
-    # 精度モードの決定
     if args.int8:
         precision = "int8"
     elif args.fp16:
@@ -633,7 +664,6 @@ def convert_command(args: argparse.Namespace) -> None:
     else:
         precision = "fp32"
 
-    # 出力パスの決定
     if args.output:
         output_path = Path(args.output)
     else:
@@ -646,8 +676,7 @@ def convert_command(args: argparse.Namespace) -> None:
     logger.info(f"精度: {precision.upper()}")
     logger.info(f"出力: {output_path}")
 
-    # 入力サイズの取得 (--input-size または ONNXモデルから)
-    # 動的シェイプONNXの変換時に全精度で必要
+    # 動的シェイプONNXの変換時は全精度で入力サイズ指定が必要.
     input_shape = None
     if args.input_size:
         # チャンネル数は RGB (C=3) 固定. pochitrain は RGB 画像のみ対応.
@@ -661,7 +690,6 @@ def convert_command(args: argparse.Namespace) -> None:
             input_tensor = onnx_model.graph.input[0]
             input_dims = input_tensor.type.tensor_type.shape.dim
 
-            # 動的シェイプの検出 (dim_value=0 は動的次元)
             dynamic_dims = [
                 d.dim_param for d in input_dims[1:] if d.dim_value == 0 and d.dim_param
             ]
@@ -682,12 +710,10 @@ def convert_command(args: argparse.Namespace) -> None:
         except Exception as e:
             logger.debug(f"ONNX動的シェイプ検出中にエラー: {e}")
 
-    # INT8の場合はキャリブレータを準備
     calibrator = None
     if precision == "int8":
         from pochitrain.tensorrt.calibrator import create_int8_calibrator
 
-        # 設定ファイル読み込み（キャリブレーションデータとtransformの取得）
         config = None
         if args.config_path:
             config_path = Path(args.config_path)
@@ -698,10 +724,8 @@ def convert_command(args: argparse.Namespace) -> None:
                 logger.error(f"設定ファイル読み込みエラー: {e}")
                 return
         else:
-            # ONNXモデルパスからconfig自動検出
             config = load_config_auto(onnx_path)
 
-        # キャリブレーションデータパスの決定
         if args.calib_data:
             calib_data_root = args.calib_data
         elif config.get("val_data_root"):
@@ -718,7 +742,6 @@ def convert_command(args: argparse.Namespace) -> None:
             logger.error(f"キャリブレーションデータが見つかりません: {calib_data_path}")
             return
 
-        # transformの取得
         if "val_transform" not in config:
             logger.error(
                 "configにval_transformが設定されていません. "
@@ -727,11 +750,9 @@ def convert_command(args: argparse.Namespace) -> None:
             return
         transform = config["val_transform"]
 
-        # INT8キャリブレータ用の入力形状を決定
         if input_shape is not None:
             calib_input_shape = input_shape
         else:
-            # 静的ONNXからキャリブレータ用の入力形状を取得
             try:
                 import onnx
 
@@ -744,7 +765,6 @@ def convert_command(args: argparse.Namespace) -> None:
                 logger.error(f"ONNXモデルから入力形状を取得できません: {e}")
                 return
 
-        # キャリブレーションキャッシュパスの決定
         cache_file = str(output_path.with_suffix(".cache"))
 
         max_calib_samples = args.calib_samples
@@ -768,7 +788,6 @@ def convert_command(args: argparse.Namespace) -> None:
             logger.error(f"キャリブレータ作成エラー: {e}")
             return
 
-    # 変換実行
     try:
         converter = TensorRTConverter(
             onnx_path=onnx_path,
@@ -786,7 +805,6 @@ def convert_command(args: argparse.Namespace) -> None:
         logger.error(f"TensorRT変換エラー: {e}")
         return
 
-    # 使い方のヒント
     logger.info("推論するには:")
     logger.info(f"  uv run infer-trt {engine_path}")
 
@@ -798,32 +816,32 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 訓練
+  訓練
   uv run pochi train --config configs/pochi_train_config.py
 
-  # 推論（基本）
+  推論（基本）
   uv run pochi infer
     -m work_dirs/20250813_003/models/best_epoch40.pth
     -d data/val
     -c work_dirs/20250813_003/config.py
 
-  # 推論（カスタム出力先）
+  推論（カスタム出力先）
   uv run pochi infer
     --model-path work_dirs/20250813_003/models/best_epoch40.pth
     --data data/test
     --config-path work_dirs/20250813_003/config.py
     --output custom_results
 
-  # ハイパーパラメータ最適化
+  ハイパーパラメータ最適化
   uv run pochi optimize --config configs/pochi_train_config.py
 
-  # TensorRT変換（INT8量子化）
+  TensorRT変換（INT8量子化）
   uv run pochi convert model.onnx --int8
 
-  # TensorRT変換（FP16）
+  TensorRT変換（FP16）
   uv run pochi convert model.onnx --fp16
 
-  # TensorRT変換（キャリブレーションデータ指定）
+  TensorRT変換（キャリブレーションデータ指定）
   uv run pochi convert model.onnx --int8 --calib-data data/val
         """,
     )
@@ -832,7 +850,6 @@ def main() -> None:
 
     subparsers = parser.add_subparsers(dest="command", help="サブコマンド")
 
-    # 訓練サブコマンド
     train_parser = subparsers.add_parser("train", help="モデル訓練")
     train_parser.add_argument(
         "--config",
@@ -840,7 +857,6 @@ def main() -> None:
         help="設定ファイルパス (default: configs/pochi_train_config.py)",
     )
 
-    # 推論サブコマンド
     infer_parser = subparsers.add_parser("infer", help="モデル推論")
     infer_parser.add_argument("model_path", help="モデルファイルパス")
     infer_parser.add_argument(
@@ -856,8 +872,23 @@ def main() -> None:
         "-o",
         help="結果出力ディレクトリ（default: モデルと同じディレクトリ/inference_results）",
     )
+    infer_parser.add_argument(
+        "--pipeline",
+        choices=("auto", "current", "fast", "gpu"),
+        default="current",
+        help="前処理パイプライン. 現在は current のみ実行されます.",
+    )
+    infer_parser.add_argument(
+        "--benchmark-json",
+        action="store_true",
+        help="ベンチマーク結果を benchmark_result.json として出力する",
+    )
+    infer_parser.add_argument(
+        "--benchmark-env-name",
+        default=None,
+        help="ベンチマーク結果の環境ラベル（省略時は自動決定）",
+    )
 
-    # 最適化サブコマンド
     optimize_parser = subparsers.add_parser("optimize", help="ハイパーパラメータ最適化")
     optimize_parser.add_argument(
         "--config",
@@ -871,7 +902,6 @@ def main() -> None:
         help="結果出力ディレクトリ (default: work_dirs/optuna_results)",
     )
 
-    # TensorRT変換サブコマンド
     convert_parser = subparsers.add_parser(
         "convert", help="ONNXモデルをTensorRTエンジンに変換"
     )

@@ -55,7 +55,6 @@ def post_process_logits(
         predicted: 予測クラスインデックス (batch_size,)
         confidence: 最大確率値 (batch_size,)
     """
-    # 数値安定性のためmax減算してからsoftmax
     exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
     probabilities = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
 
@@ -73,7 +72,10 @@ def compute_confusion_matrix(
     """NumPyベースの混同行列計算.
 
     sklearn.metrics.confusion_matrixを使用せず,
-    基本的なNumPy操作のみで混同行列を計算します.
+    基本的なNumPy操作のみで混同行列を計算する.
+    推論CLIはONNX/TRT/PyTorchの出力を最終的にlist[int]へ正規化して扱うため,
+    本関数はTorch非依存で実装している.
+    訓練ループ内のTorch Tensor向け実装は ``pochitrain.training.evaluator`` に分離している.
 
     Args:
         predicted_labels: 予測ラベルのリスト
@@ -119,7 +121,6 @@ def save_confusion_matrix_image(
 
     _import_matplotlib_fontja_if_available()
 
-    # デフォルト設定
     default_config: Dict[str, Any] = {
         "title": "Confusion Matrix",
         "xlabel": "Predicted Label",
@@ -131,28 +132,22 @@ def save_confusion_matrix_image(
         "cmap": "Blues",
     }
 
-    # 設定をマージ（cm_configが指定されていれば優先）
     config = default_config.copy()
     if cm_config:
         config.update(cm_config)
 
-    # 混同行列を計算
     cm = compute_confusion_matrix(predicted_labels, true_labels, len(class_names))
 
-    # プロット作成
     fig, ax = plt.subplots(figsize=config["figsize"])
 
-    # ヒートマップを描画
     cmap_value: str = str(config["cmap"])
     ax.imshow(cm, interpolation="nearest", cmap=cmap_value)
 
-    # ラベル設定
     ax.set_xticks(np.arange(len(class_names)))
     ax.set_yticks(np.arange(len(class_names)))
     ax.set_xticklabels(class_names)
     ax.set_yticklabels(class_names)
 
-    # ラベルとタイトル
     xlabel: str = str(config["xlabel"])
     ylabel: str = str(config["ylabel"])
     title: str = str(config["title"])
@@ -160,7 +155,6 @@ def save_confusion_matrix_image(
     ax.set_ylabel(ylabel, fontsize=config["label_fontsize"])
     ax.set_title(title, fontsize=config["title_fontsize"])
 
-    # 各セルに数値を表示
     for i in range(len(class_names)):
         for j in range(len(class_names)):
             ax.text(
@@ -173,10 +167,8 @@ def save_confusion_matrix_image(
                 fontsize=config["fontsize"],
             )
 
-    # レイアウト調整
     plt.tight_layout()
 
-    # ファイル保存
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / filename
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -198,7 +190,6 @@ def auto_detect_config_path(model_path: Path) -> Path:
     Returns:
         検出されたconfig.pyのパス (例: work_dirs/20260126_001/config.py)
     """
-    # models フォルダ -> work_dir フォルダ -> config.py
     work_dir = model_path.parent.parent
     return work_dir / "config.py"
 
@@ -215,7 +206,6 @@ def get_default_output_base_dir(model_path: Path) -> Path:
     Returns:
         ベースディレクトリパス (例: work_dirs/20260126_001/inference_results/)
     """
-    # models フォルダ -> work_dir フォルダ -> inference_results
     work_dir = model_path.parent.parent
     return work_dir / "inference_results"
 
@@ -432,7 +422,6 @@ def save_classification_report(
     num_classes = len(class_names)
     labels = list(range(num_classes))
 
-    # クラス別メトリクス
     precision, recall, f1, support = precision_recall_fscore_support(
         true_labels, predicted_labels, labels=labels, zero_division=0
     )

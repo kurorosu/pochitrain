@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
@@ -184,11 +184,18 @@ trainer.train(
 ### 予測の実行
 
 ```python
-# モデルの読み込み
-trainer.load_checkpoint('best_checkpoint.pth')
+from pochitrain import PochiPredictor
 
-# 予測の実行
-predictions, confidences = trainer.predict(test_loader)
+# 推論器の作成（初期化時にモデルを読み込む）
+predictor = PochiPredictor(
+    model_name='resnet18',
+    num_classes=len(classes),
+    device='cuda',
+    model_path='work_dirs/20251018_001/models/best_epoch40.pth',
+)
+
+# 推論の実行
+predictions, confidences, metrics = predictor.predict(test_loader)
 ```
 
 ## 🎯 特徴
@@ -283,6 +290,23 @@ python -c "import numpy, scipy; print(numpy.__file__, numpy.__version__); print(
 混在は解消されています.
 `matplotlib` は Jetson では system package (`/usr/lib/...`) を使って問題ありません
 (必要なら `python -c "import matplotlib; print(matplotlib.__file__, matplotlib.__version__)"` で確認).
+
+### Jetson環境でベンチマーク前にクロックを固定する手順
+
+Jetson で推論ベンチマークを行う場合は, 先に電力モードとクロックを固定してください.
+これを行わないと, 動的電圧・周波数制御 (DVFS) の影響で `pure inference` の再現性が下がります.
+
+```bash
+sudo nvpmodel -m 2
+sudo jetson_clocks
+sudo jetson_clocks --show
+```
+
+補足.
+- `nvpmodel -m 2` は Jetson Orin Nano (JetPack 6.2.1) の `MAXN_SUPER` を想定.
+- 利用可能なモードは `sudo nvpmodel -q --verbose` で確認.
+- 温度影響を抑えたい場合は `sudo jetson_clocks --fan` を併用.
+- 詳細は `pochitrain/docs/gpu_environment_setup.md` の Jetson セクションを参照.
 
 ## 🔬 ハイパーパラメータ最適化
 
@@ -513,6 +537,8 @@ uv run infer-trt work_dirs/20251018_001/models/model.engine \
 | `model_name` | モデル名 | 'resnet18' |
 | `pretrained` | 事前学習済みモデル使用 | True |
 | `batch_size` | バッチサイズ | 32 |
+| `train_pin_memory` | 学習DataLoaderのpin_memory設定 | True |
+| `infer_pin_memory` | 推論DataLoaderのpin_memory設定 | True |
 | `epochs` | エポック数 | 50 |
 | `learning_rate` | 学習率 | 0.001 |
 | `optimizer` | 最適化器 | 'Adam' |

@@ -1,11 +1,13 @@
 """推論ランタイムアダプタモジュール."""
 
+from .engine_runtime_adapter import EngineRuntimeAdapter
 from .onnx_runtime_adapter import OnnxRuntimeAdapter
-from .runtime_interface import IRuntimeAdapter
+from .pytorch_runtime_adapter import PyTorchRuntimeAdapter
 from .trt_runtime_adapter import TensorRTRuntimeAdapter
 
 __all__ = [
-    "IRuntimeAdapter",
+    "EngineRuntimeAdapter",
     "OnnxRuntimeAdapter",
+    "PyTorchRuntimeAdapter",
     "TensorRTRuntimeAdapter",
 ]

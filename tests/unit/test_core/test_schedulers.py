@@ -42,15 +42,12 @@ class TestExponentialLRScheduler:
             scheduler_params={"gamma": 0.95},
         )
 
-        # 初期学習率を記録
         initial_lr = trainer.optimizer.param_groups[0]["lr"]
         assert abs(initial_lr - 0.001) < 1e-6
 
-        # 1ステップ進める
         trainer.optimizer.step()
         trainer.scheduler.step()
 
-        # 学習率が gamma 倍に減衰したことを確認
         new_lr = trainer.optimizer.param_groups[0]["lr"]
         expected_lr = 0.001 * 0.95
         assert abs(new_lr - expected_lr) < 1e-8
@@ -74,7 +71,6 @@ class TestExponentialLRScheduler:
         )
 
         assert trainer.scheduler is not None
-        # パラメータグループが複数存在することを確認
         assert len(trainer.optimizer.param_groups) > 1
 
 
@@ -123,18 +119,15 @@ class TestLinearLRScheduler:
             },
         )
 
-        # 初期学習率を記録
         initial_lr = trainer.optimizer.param_groups[0]["lr"]
         assert abs(initial_lr - 0.001) < 1e-6
 
-        # 複数ステップ進めて学習率が線形に減衰することを確認
         lrs = [initial_lr]
         for _ in range(10):
             trainer.optimizer.step()
             trainer.scheduler.step()
             lrs.append(trainer.optimizer.param_groups[0]["lr"])
 
-        # 学習率が単調減少していることを確認
         for i in range(len(lrs) - 1):
             assert lrs[i] >= lrs[i + 1]
 
@@ -161,7 +154,6 @@ class TestLinearLRScheduler:
         )
 
         assert trainer.scheduler is not None
-        # パラメータグループが複数存在することを確認
         assert len(trainer.optimizer.param_groups) > 1
 
 

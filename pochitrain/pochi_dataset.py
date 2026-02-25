@@ -12,7 +12,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset
 from torchvision.io import ImageReadMode, decode_image
 
 from pochitrain.logging import LoggerManager
@@ -50,7 +50,6 @@ class PochiImageDataset(Dataset):
         self.transform = transform
         self.extensions = extensions
 
-        # データの読み込み
         self.image_paths: List[Path] = []
         self.labels: List[int] = []
         self.classes: List[str] = []
@@ -62,7 +61,6 @@ class PochiImageDataset(Dataset):
         if not self.root.exists():
             raise FileNotFoundError(f"データディレクトリが見つかりません: {self.root}")
 
-        # クラスフォルダの取得
         class_folders = [d for d in self.root.iterdir() if d.is_dir()]
         class_folders.sort()
 
@@ -72,7 +70,6 @@ class PochiImageDataset(Dataset):
         self.classes = [folder.name for folder in class_folders]
         class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
 
-        # 画像ファイルの読み込み
         for class_folder in class_folders:
             class_idx = class_to_idx[class_folder.name]
 
@@ -93,7 +90,6 @@ class PochiImageDataset(Dataset):
         image_path = self.image_paths[index]
         label = self.labels[index]
 
-        # 画像の読み込み
         image: Union[Tensor, Image.Image] = Image.open(image_path).convert("RGB")
 
         if self.transform:
@@ -342,7 +338,6 @@ def convert_transform_for_fast_inference(
     Returns:
         FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    # PIL専用transform (テンソル入力では動作しない)
     _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
 
     new_transforms: List[Any] = []
@@ -394,7 +389,6 @@ def get_basic_transforms(
         transforms.Compose: 変換処理
     """
     if is_training:
-        # 訓練用の変換（データ拡張あり）
         return transforms.Compose(
             [
                 transforms.RandomResizedCrop(image_size),
@@ -407,7 +401,6 @@ def get_basic_transforms(
             ]
         )
     else:
-        # 検証用の変換（データ拡張なし）
         return transforms.Compose(
             [
                 transforms.Resize(int(image_size * 1.14)),  # 256 for 224
@@ -442,7 +435,6 @@ def create_data_loaders(
     Returns:
         Tuple[DataLoader, DataLoader, List[str]]: (訓練ローダー, 検証ローダー, クラス名)
     """
-    # 訓練データセット
     train_dataset = PochiImageDataset(train_root, transform=train_transform)
 
     train_loader = DataLoader(
@@ -453,7 +445,6 @@ def create_data_loaders(
         pin_memory=pin_memory,
     )
 
-    # 検証データセット
     val_dataset = PochiImageDataset(val_root, transform=val_transform)
 
     val_loader = DataLoader(
@@ -465,62 +456,3 @@ def create_data_loaders(
     )
 
     return train_loader, val_loader, train_dataset.get_classes()
-
-
-def create_simple_transforms(image_size: int = 224) -> dict:
-    """
-    シンプルな変換セットを作成.
-
-    Args:
-        image_size (int): 画像サイズ
-
-    Returns:
-        dict: 変換セット
-    """
-    return {
-        "train": get_basic_transforms(image_size, is_training=True),
-        "val": get_basic_transforms(image_size, is_training=False),
-        "simple": transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-            ]
-        ),
-    }
-
-
-# データセットの情報を表示するヘルパー関数
-def print_dataset_info(dataset: PochiImageDataset) -> None:
-    """データセットの情報を表示."""
-    print("データセット情報:")
-    print(f"  総サンプル数: {len(dataset)}")
-    print(f"  クラス数: {len(dataset.classes)}")
-    print(f"  クラス名: {dataset.classes}")
-
-    class_counts = dataset.get_class_counts()
-    print("  各クラスのサンプル数:")
-    for cls_name, count in class_counts.items():
-        print(f"    {cls_name}: {count}")
-
-
-def split_dataset(
-    dataset: PochiImageDataset, train_ratio: float = 0.8
-) -> Tuple[Dataset, Dataset]:
-    """
-    データセットを訓練用と検証用に分割.
-
-    Args:
-        dataset (PochiImageDataset): 分割するデータセット
-        train_ratio (float): 訓練用の割合
-
-    Returns:
-        Tuple[Subset[Any], Subset[Any]]: (訓練用データセット, 検証用データセット)
-    """
-    from torch.utils.data import random_split
-
-    total_size = len(dataset)
-    train_size = int(total_size * train_ratio)
-    val_size = total_size - train_size
-
-    splits: List[Subset[Any]] = random_split(dataset, [train_size, val_size])
-    return splits[0], splits[1]

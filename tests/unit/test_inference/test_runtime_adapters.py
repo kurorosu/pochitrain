@@ -5,6 +5,7 @@ from typing import Any, cast
 import torch
 
 from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
+from pochitrain.inference.adapters.pytorch_runtime_adapter import PyTorchRuntimeAdapter
 from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
 from pochitrain.inference.types.execution_types import ExecutionRequest
 
@@ -66,7 +67,7 @@ def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> No
         return images.to(dtype=torch.float32)
 
     monkeypatch.setattr(
-        "pochitrain.inference.adapters.trt_runtime_adapter.gpu_normalize",
+        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
         _fake_gpu_normalize,
     )
 
@@ -98,7 +99,7 @@ def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> N
         return images.to(dtype=torch.float32)
 
     monkeypatch.setattr(
-        "pochitrain.inference.adapters.onnx_runtime_adapter.gpu_normalize",
+        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
         _fake_gpu_normalize,
     )
 
@@ -114,3 +115,34 @@ def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> N
     adapter.set_input(images, request)
 
     assert captured["non_blocking"] is False
+
+
+def test_pytorch_adapter_runs_model_and_returns_numpy() -> None:
+    """PyTorch adapter がモデル実行結果を numpy で返すことを確認."""
+
+    class _StubModel:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def eval(self) -> None:
+            return None
+
+        def __call__(self, inputs: torch.Tensor) -> torch.Tensor:
+            self.calls += 1
+            return torch.ones((inputs.size(0), 2), dtype=torch.float32)
+
+    class _StubPredictor:
+        def __init__(self) -> None:
+            self.device = torch.device("cpu")
+            self.model = _StubModel()
+
+    adapter = PyTorchRuntimeAdapter(cast(Any, _StubPredictor()))
+    request = ExecutionRequest(use_gpu_pipeline=False)
+    images = torch.zeros((1, 3, 4, 4), dtype=torch.float32)
+
+    adapter.set_input(images, request)
+    adapter.run_inference()
+    output = adapter.get_output()
+
+    assert output.shape == (1, 2)
+    assert adapter.predictor.model.calls == 1

@@ -22,7 +22,6 @@ class TestMainWorkflow:
     def _create_config_file(config_dir: Path, train_root: str, val_root: str) -> Path:
         """テスト用設定ファイルを作成."""
         config_content = f"""
-# 統合テスト用設定
 model_name = "resnet18"
 num_classes = 2
 pretrained = False  # テスト高速化のため
@@ -104,7 +103,6 @@ device = "cpu"
             assert val_file.exists()
             assert train_file.parent.name == "paths"
 
-            # ファイル内容の確認
             saved_train_paths = (
                 train_file.read_text(encoding="utf-8").strip().split("\n")
             )

@@ -9,16 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple
 
-
-def generate_timestamp_dir() -> str:
-    """
-    現在の日付から yyyymmdd_001 形式の文字列を生成.
-
-    Returns:
-        str: "20241220_001" のような形式の文字列
-    """
-    today = datetime.now().strftime("%Y%m%d")
-    return f"{today}_001"
+WORKSPACE_DATE_FORMAT = "%Y%m%d"
+WORKSPACE_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 
 
 def find_next_index(base_dir: Path, date_str: str) -> int:
@@ -91,7 +83,7 @@ def get_current_date_str() -> str:
     Returns:
         str: 現在の日付文字列 (例: "20241220")
     """
-    return datetime.now().strftime("%Y%m%d")
+    return datetime.now().strftime(WORKSPACE_DATE_FORMAT)
 
 
 def get_current_timestamp() -> str:
@@ -101,7 +93,7 @@ def get_current_timestamp() -> str:
     Returns:
         str: 現在の日時文字列 (例: "20241220_153045")
     """
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    return datetime.now().strftime(WORKSPACE_TIMESTAMP_FORMAT)
 
 
 def format_workspace_name(date_str: str, index: int) -> str:

@@ -2,7 +2,7 @@
 
 ## 計測メタ情報
 
-- 最終更新日: 2026-02-22
+- 最終更新日: 2026-02-24
 - 時刻表記: `YYYY-MM-DD HH:MM:SS` (JST)
 
 ## 指標定義
@@ -105,13 +105,40 @@ uv run python tools/benchmark/run_benchmark.py --aggregate-only --input-dir benc
 
 ## 2. pin_memory A/B
 
-計測予定.
+### 2.1 resnet18
 
-### 2.1 計測テンプレート
+#### Windows 11 + RTX4070Ti
 
-| Environment | Runtime | pin_memory=True 推論 | pin_memory=True E2E | pin_memory=False 推論 | pin_memory=False E2E |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Windows 11 + RTX4070Ti | TensorRT INT8 | 未計測 | 未計測 | 未計測 | 未計測 |
-| Windows 11 + RTX4070Ti | ONNX FP32 | 未計測 | 未計測 | 未計測 | 未計測 |
-| Jetson Orin Nano | TensorRT INT8 | 未計測 | 未計測 | 未計測 | 未計測 |
-| Jetson Orin Nano | ONNX FP32 | 未計測 | 未計測 | 未計測 | 未計測 |
+- 計測日: 2026-02-24
+- 条件: `image_size=512x512`, `batch_size=1`, `runs=3`, `device=cuda`
+
+| Runtime | Pipeline | pin_memory | 推論 avg ms/image | E2E avg ms/image | Accuracy avg % |
+| --- | --- | --- | ---: | ---: | ---: |
+| TensorRT INT8 | current | True | 1.5598 | 8.7788 | 100.00 |
+| TensorRT INT8 | current | False | 1.5717 | 9.2366 | 100.00 |
+| TensorRT INT8 | fast | True | 1.5559 | 7.7838 | 100.00 |
+| TensorRT INT8 | fast | False | 1.5702 | 9.5739 | 100.00 |
+| TensorRT INT8 | gpu | True | 1.0911 | 4.5879 | 100.00 |
+| TensorRT INT8 | gpu | False | 1.0977 | 4.4112 | 100.00 |
+| ONNX FP32 | current | True | 13.5728 | 21.2122 | 100.00 |
+| ONNX FP32 | current | False | 13.5679 | 20.7834 | 100.00 |
+| ONNX FP32 | fast | True | 13.5734 | 20.6670 | 100.00 |
+| ONNX FP32 | fast | False | 13.5809 | 20.2642 | 100.00 |
+| ONNX FP32 | gpu | True | 12.1551 | 16.5040 | 92.98 |
+| ONNX FP32 | gpu | False | 12.2021 | 16.4108 | 92.98 |
+| PyTorch FP32 | current | True | 14.2258 | 22.7227 | 100.00 |
+| PyTorch FP32 | current | False | 14.2264 | 21.1343 | 100.00 |
+| PyTorch FP32 | fast | True | 14.1536 | 20.5654 | 100.00 |
+| PyTorch FP32 | fast | False | 14.1993 | 20.6883 | 100.00 |
+| PyTorch FP32 | gpu | True | 13.3934 | 16.9591 | 100.00 |
+| PyTorch FP32 | gpu | False | 13.3203 | 16.8297 | 100.00 |
+
+所見.
+- `pin_memory` は本計測条件では大差なしで, runtime と pipeline により揺らぐ.
+- TensorRT は `current/fast` で `True` 優位, `gpu` は `False` 優位で一貫しない.
+- ONNX と PyTorch は `True/False` で概ね同等.
+- ONNX `pipeline=gpu` の `accuracy=92.98%` は `pin_memory` の値に依存せず再現しており, 別要因として切り分けが必要.
+
+推奨設定.
+- デフォルトは `train_pin_memory=True`, `infer_pin_memory=True` を維持する.
+- Jetson を含む実機運用では, `benchmark` の実測を基準に個別に切り替える.

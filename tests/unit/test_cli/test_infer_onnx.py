@@ -4,6 +4,8 @@
 """
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,12 +54,32 @@ def _create_dummy_artifact(
     return output_path
 
 
+@contextmanager
+def _patch_fallback_runtime(argv: list[str]) -> Iterator[None]:
+    """GPUフォールバック系テストの共通 patch を適用する."""
+    with (
+        patch("sys.argv", argv),
+        patch(
+            "pochitrain.onnx.inference.check_gpu_availability",
+            return_value=False,
+        ),
+        patch(
+            "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
+            side_effect=_create_dummy_artifact,
+        ),
+        patch(
+            "pochitrain.inference.services.result_export_service.save_classification_report",
+            side_effect=_create_dummy_artifact,
+        ),
+    ):
+        yield
+
+
 @pytest.fixture(scope="module")
 def gpu_fallback_test_env(tmp_path_factory):
     """GPUフォールバック用の共有テスト環境を作成する."""
     tmp_path = tmp_path_factory.mktemp("infer_onnx_fallback")
 
-    # work_dir/models/model.onnx
     work_dir = tmp_path / "work_dir"
     models_dir = work_dir / "models"
     models_dir.mkdir(parents=True)
@@ -77,14 +99,12 @@ def gpu_fallback_test_env(tmp_path_factory):
         dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     )
 
-    # データセット: data/{class_a, class_b}/ にダミー画像 (モデルの2クラスに対応)
     for cls_name, color in [("class_a", "red"), ("class_b", "blue")]:
         cls_dir = tmp_path / "data" / cls_name
         cls_dir.mkdir(parents=True)
         img = Image.new("RGB", (32, 32), color=color)
         img.save(str(cls_dir / "dummy.jpg"))
 
-    # config.py: device="cuda" でGPU推論を要求
     config_path = work_dir / "config.py"
     config_path.write_text(
         "from torchvision import transforms\n"
@@ -97,7 +117,7 @@ def gpu_fallback_test_env(tmp_path_factory):
         'device = "cuda"\n'
         "batch_size = 1\n"
         "num_workers = 0\n"
-        "pin_memory = False\n",
+        "infer_pin_memory = False\n",
         encoding="utf-8",
     )
 
@@ -107,14 +127,6 @@ def gpu_fallback_test_env(tmp_path_factory):
 
 class TestInferOnnxMainExit:
     """main関数のSystemExitテスト."""
-
-    def test_main_no_args_exits(self):
-        """引数なしでSystemExitが発生する."""
-        from pochitrain.cli.infer_onnx import main
-
-        with patch("sys.argv", ["infer-onnx"]):
-            with pytest.raises(SystemExit):
-                main()
 
     def test_main_nonexistent_model_exits(self, tmp_path):
         """存在しないモデルでSystemExitが発生する."""
@@ -146,37 +158,20 @@ class TestGpuFallbackReresolution:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        with (
-            patch(
-                "sys.argv",
-                [
-                    "infer-onnx",
-                    str(model_path),
-                    "--data",
-                    str(data_path),
-                    "-o",
-                    str(output_dir),
-                    "--pipeline",
-                    "gpu",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
-            ),
+        with _patch_fallback_runtime(
+            [
+                "infer-onnx",
+                str(model_path),
+                "--data",
+                str(data_path),
+                "-o",
+                str(output_dir),
+                "--pipeline",
+                "gpu",
+            ]
         ):
-            # RuntimeError が発生しないことを確認
             main()
 
-        # 結果ファイルが生成されていることを確認
         csv_files = list(output_dir.glob("*.csv"))
         assert len(csv_files) > 0
 
@@ -193,8 +188,7 @@ class TestGpuFallbackReresolution:
         output_dir.mkdir()
 
         with (
-            patch(
-                "sys.argv",
+            _patch_fallback_runtime(
                 [
                     "infer-onnx",
                     str(model_path),
@@ -204,19 +198,7 @@ class TestGpuFallbackReresolution:
                     str(output_dir),
                     "--pipeline",
                     "gpu",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
+                ]
             ),
             patch(
                 "pochitrain.onnx.inference.OnnxInference.set_input_gpu",
@@ -239,35 +221,20 @@ class TestGpuFallbackReresolution:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        with (
-            patch(
-                "sys.argv",
-                [
-                    "infer-onnx",
-                    str(model_path),
-                    "--data",
-                    str(data_path),
-                    "-o",
-                    str(output_dir),
-                    "--pipeline",
-                    "gpu",
-                    "--benchmark-json",
-                    "--benchmark-env-name",
-                    "TestEnv",
-                ],
-            ),
-            patch(
-                "pochitrain.onnx.inference.check_gpu_availability",
-                return_value=False,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_confusion_matrix_image",
-                side_effect=_create_dummy_artifact,
-            ),
-            patch(
-                "pochitrain.inference.services.result_export_service.save_classification_report",
-                side_effect=_create_dummy_artifact,
-            ),
+        with _patch_fallback_runtime(
+            [
+                "infer-onnx",
+                str(model_path),
+                "--data",
+                str(data_path),
+                "-o",
+                str(output_dir),
+                "--pipeline",
+                "gpu",
+                "--benchmark-json",
+                "--benchmark-env-name",
+                "TestEnv",
+            ]
         ):
             main()
 

@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 
-LOGGER_NAME = "pochitrain.tools.benchmark"
+LOGGER_NAME = "pochitrain.benchmark"
 JST = timezone(timedelta(hours=9))
 
 
@@ -59,18 +59,6 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-
-
-def write_text(path: Path, content: str) -> None:
-    """テキストを UTF-8 で保存する.
-
-    Args:
-        path: 出力ファイルパス.
-        content: 保存内容.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(content)
 
 
 def to_float(value: Any) -> Optional[float]:

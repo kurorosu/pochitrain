@@ -11,6 +11,7 @@ import torch
 
 from pochitrain.logging import LoggerManager
 from pochitrain.models.pochi_models import create_model
+from pochitrain.utils.model_loading import load_model_from_checkpoint
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
@@ -53,15 +54,15 @@ class OnnxExporter:
         self.model = create_model(model_name, num_classes, pretrained=False)
         self.model.to(self.device)
 
-        checkpoint = torch.load(model_path, map_location=self.device)
-        if "model_state_dict" in checkpoint:
-            self.model.load_state_dict(checkpoint["model_state_dict"])
-            if "best_accuracy" in checkpoint:
-                logger.info(f"モデル精度: {checkpoint['best_accuracy']:.2f}%")
-            if "epoch" in checkpoint:
-                logger.info(f"エポック: {checkpoint['epoch']}")
-        else:
-            self.model.load_state_dict(checkpoint)
+        metadata = load_model_from_checkpoint(
+            model=self.model,
+            checkpoint_path=model_path,
+            device=self.device,
+        )
+        if "best_accuracy" in metadata:
+            logger.info(f"モデル精度: {metadata['best_accuracy']:.2f}%")
+        if "epoch" in metadata:
+            logger.info(f"エポック: {metadata['epoch']}")
 
         logger.info("モデルの読み込み完了")
 
@@ -144,13 +145,11 @@ class OnnxExporter:
                 "モデルが設定されていません. load_model()を先に呼び出してください."
             )
 
-        # 1. ONNXモデルの構造検証
         logger.info("ONNXモデルの構造を検証中...")
         onnx_model = onnx.load(str(onnx_path))
         onnx.checker.check_model(onnx_model)
         logger.info("構造検証: OK")
 
-        # 2. PyTorchとONNXの出力比較
         logger.info("PyTorchとONNXの出力を比較中...")
         dummy_input = torch.randn(
             1, 3, input_size[0], input_size[1], device=self.device

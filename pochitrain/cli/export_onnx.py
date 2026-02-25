@@ -29,16 +29,16 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 設定ファイルから情報を取得（推奨）
+  設定ファイルから情報を取得（推奨）
   uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 224 224
 
-  # 設定ファイルを明示的に指定
+  設定ファイルを明示的に指定
   uv run export-onnx model.pth --config work_dirs/20251018_001/config.py --input-size 224 224
 
-  # モデル情報を直接指定
+  モデル情報を直接指定
   uv run export-onnx model.pth --model-name resnet18 --num-classes 4 --input-size 224 224
 
-  # 出力先を指定
+  出力先を指定
   uv run export-onnx model.pth --input-size 224 224 -o output/model.onnx
         """,
     )
@@ -91,13 +91,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # モデルパスの確認
     model_path = Path(args.model_path)
     if not model_path.exists():
         logger.error(f"モデルファイルが見つかりません: {model_path}")
         sys.exit(1)
 
-    # 設定ファイルの探索
     config = None
     if args.config:
         config_path = Path(args.config)
@@ -120,7 +118,6 @@ def main() -> None:
             logger.warning(f"設定ファイルの読み込みに失敗: {e}")
             config = None
 
-    # モデル情報の取得
     model_name = args.model_name
     num_classes = args.num_classes
 
@@ -133,16 +130,13 @@ def main() -> None:
         logger.error("--num-classes を指定するか、設定ファイルを使用してください")
         sys.exit(1)
 
-    # 入力サイズの決定
     input_size = (args.input_size[0], args.input_size[1])
 
-    # 出力パスの決定
     if args.output:
         output_path = Path(args.output)
     else:
         output_path = model_path.with_suffix(".onnx")
 
-    # デバイス設定
     device = torch.device(args.device)
 
     logger.info(f"モデル: {model_name}")
@@ -151,7 +145,6 @@ def main() -> None:
     logger.info(f"エクスポートデバイス: {device}")
     logger.info(f"出力先: {output_path}")
 
-    # エクスポーター作成
     try:
         exporter = OnnxExporter(device=device)
         exporter.load_model(model_path, model_name, num_classes)
@@ -159,7 +152,6 @@ def main() -> None:
         logger.error(f"モデルの読み込みに失敗: {e}")
         sys.exit(1)
 
-    # ONNX変換
     try:
         logger.info("ONNX変換を実行中...")
         exporter.export(
@@ -171,7 +163,6 @@ def main() -> None:
         logger.error(f"ONNX変換に失敗: {e}")
         sys.exit(1)
 
-    # ONNX検証
     if not args.skip_verify:
         logger.info("--- ONNX検証 ---")
         try:
