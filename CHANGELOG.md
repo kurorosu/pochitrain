@@ -6,6 +6,23 @@
 ## [Unreleased]
 
 ### Added
+- なし.
+
+### Changed
+- なし.
+
+### Fixed
+- なし.
+
+### Removed
+- なし.
+
+## v1.7.0 (2026-02-25)
+
+### 概要
+- ベンチマーク機能の CLI 統合, 推論オーケストレーションの共通化, `pin_memory` 設定の学習/推論分離, および本番コード全体のリファクタリングを行ったリリースです.
+
+### Added
 - ベンチマーク機能を `bench` 独立コマンドとして CLI 登録し, `uv run bench --suite base` で実行可能にした ([#272](https://github.com/kurorosu/pochitrain/pull/272)).
   - `tools/benchmark/` のモジュール群を `pochitrain/benchmark/` へ移動し, 絶対インポートに統一した.
   - `pochitrain/cli/bench.py` にエントリポイントを作成し, `pyproject.toml` の `[project.scripts]` に登録した.
@@ -36,51 +53,21 @@
   - 混同行列計算の2系統実装について, 訓練系(Torch Tensor)と推論系(NumPy/list)の使い分け方針をdocstringに明記した.
   - テストコード全体の低価値コメントを整理し, 意図説明コメントのみを残した.
 - 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した.
-- Jetson の推論ベンチマーク再現性向上のため, `README.md` と `GPU環境セットアップガイド` に `nvpmodel` / `jetson_clocks` の運用手順を追記した ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
-- `pin_memory` 設定を学習と推論で分離し, `train_pin_memory` / `infer_pin_memory` で個別制御できるようにした ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+- Jetson の推論ベンチマーク再現性向上のため, `README.md` と `GPU環境セットアップガイド` に `nvpmodel` / `jetson_clocks` の運用手順を追記した ([#275](https://github.com/kurorosu/pochitrain/pull/275)).
+- `pin_memory` 設定を学習と推論で分離し, `train_pin_memory` / `infer_pin_memory` で個別制御できるようにした ([#277](https://github.com/kurorosu/pochitrain/pull/277)).
   - 学習CLIは `train_pin_memory` を `create_data_loaders` へ渡すように変更した.
   - 推論Serviceは `infer_pin_memory` を参照する.
+  - 既定値は `True` を推奨. Jetson (統合メモリ) 環境でも `True` の方が E2E 性能が同等以上であることを実測で確認した.
 
 ### Fixed
-- N/A.
+- なし.
 
 ### Removed
-- 本番未使用の補助メソッドを削除した.
-
-## v1.6.0 (2026-02-22)
-
-### 概要
-- 推論ベンチマークの任意実行基盤を追加し, TensorRT GPU パイプラインの計測バグ修正, ONNX/TRT 依存パッケージの管理と `gpu_non_blocking` 設定を整理したリリースです.
-
-### Added
-- 推論ベンチマーク記録用ドキュメントを追加し, `gpu_non_blocking` の実測結果と `pin_memory` 計測テンプレートを整理した ([#249](https://github.com/kurorosu/pochitrain/pull/249)).
-  - `pochitrain/docs/benchmark.md` を追加し, Windows/Jetson の計測値と計測日を記録した.
-- 推論ベンチマークの任意実行基盤を追加し, 条件定義から実行・集計までを自動化した ([#252](https://github.com/kurorosu/pochitrain/pull/252)).
-  - `infer-trt` / `infer-onnx` に `--benchmark-json`, `--benchmark-env-name` を追加し, オプトインで `benchmark_result.json` を出力できるようにした.
-  - `tools/benchmark/suites.yaml`, `tools/benchmark/run_benchmark.py`, `loader.py`, `runner.py`, `aggregator.py` を追加し, suite 定義に基づく実行と集計を実装した.
-
-### Changed
-- `onnx`, `onnxscript`, `onnxruntime-gpu` を `[dependency-groups] onnx` から `dependencies` へ移動し, `uv sync` のみで ONNX 関連コマンドが利用可能になるようにした ([#244](https://github.com/kurorosu/pochitrain/pull/244)).
-  - `[dependency-groups] onnx` グループを削除した.
-- ONNX/TRT の `pipeline=gpu` 前処理で使う `gpu_non_blocking` 設定を導入し, 非同期転送の A/B 比較を構成ファイルで切り替え可能にした ([#248](https://github.com/kurorosu/pochitrain/pull/248)).
-  - `configs/pochi_train_config.py` に `gpu_non_blocking = True` を追加し, 既定挙動を明示した.
-- ベンチマーク出力形式を整理し, 実運用時に不要な生成物を削減した ([#252](https://github.com/kurorosu/pochitrain/pull/252)).
-  - 出力先を `benchmark_runs/<suite>_<timestamp>/` に固定し, `.gitignore` で `benchmark_runs/` を無視対象にした.
-  - `benchmark_result.json` の時刻を JST (`YYYY-MM-DD HH:MM:SS`) へ統一し, `schema_version=1.0.0` を維持した.
-  - `benchmark_summary.csv/json` から `config.py` と重複する設定値を除外し, 性能指標中心の集計に変更した.
-  - `execution_manifest.json`, `stdout.log`, `stderr.log` の出力を廃止した.
-  - `pochitrain/docs/benchmark.md` に suites 設定, 実行, 再集計, 出力物の運用手順を追記した.
-
-### Fixed
-- TensorRT GPU パイプラインの精度低下と計測異常を修正した ([#245](https://github.com/kurorosu/pochitrain/pull/245)).
-  - GPU 入力時にデフォルトストリーム待機を追加し, INT8 精度低下を解消した.
-  - CUDA Event 計測を TRT 実行ストリームに統一し, 推論時間が異常に短く記録される問題を修正した.
-
-### Removed
-- `requirements.txt` から未使用の `scipy>=1.11.0` を削除した ([#244](https://github.com/kurorosu/pochitrain/pull/244)).
+- 本番未使用の補助メソッドを削除した ([#264](https://github.com/kurorosu/pochitrain/pull/264)).
 
 ## Archived Changelogs
 
+- [`changelogs/1.6.x.md`](./changelogs/1.6.x.md)
 - [`changelogs/1.5.x.md`](./changelogs/1.5.x.md)
 - [`changelogs/1.4.x.md`](./changelogs/1.4.x.md)
 - [`changelogs/1.3.x.md`](./changelogs/1.3.x.md)
