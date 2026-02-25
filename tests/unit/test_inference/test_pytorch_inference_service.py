@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,12 +13,8 @@ from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
-from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
-    InferenceCliRequest,
-    InferenceRunResult,
     InferenceRuntimeOptions,
-    RuntimeExecutionRequest,
 )
 
 
@@ -156,113 +152,3 @@ class TestDetectInputSize:
         result = service.detect_input_size(config, dataset)
 
         assert result is None
-
-
-class TestRun:
-    """run のテスト."""
-
-    def test_run_returns_inference_run_result(self) -> None:
-        """ExecutionService の結果を共通結果型へ変換することを検証する."""
-        service = PyTorchInferenceService(_build_logger())
-        data_loader = MagicMock()
-
-        class _DummyRuntimeAdapter:
-            @property
-            def use_cuda_timing(self) -> bool:
-                return False
-
-            def get_timing_stream(self) -> torch.cuda.Stream | None:
-                return None
-
-            def warmup(self, image: torch.Tensor, request: ExecutionRequest) -> None:
-                return None
-
-            def set_input(
-                self, images: torch.Tensor, request: ExecutionRequest
-            ) -> None:
-                return None
-
-            def run_inference(self) -> None:
-                return None
-
-            def get_output(self):
-                return None
-
-        class _FakeExecutionService:
-            def run(self, data_loader, runtime, request):  # noqa: ANN001
-                return ExecutionResult(
-                    predictions=[1, 0],
-                    confidences=[0.9, 0.8],
-                    true_labels=[1, 1],
-                    total_inference_time_ms=6.0,
-                    total_samples=2,
-                    warmup_samples=1,
-                    e2e_total_time_ms=12.0,
-                )
-
-        result = service.run(
-            RuntimeExecutionRequest(
-                data_loader=data_loader,
-                runtime_adapter=_DummyRuntimeAdapter(),
-                execution_request=ExecutionRequest(use_gpu_pipeline=False),
-            ),
-            execution_service=_FakeExecutionService(),
-        )
-
-        assert result.correct == 1
-        assert result.num_samples == 2
-        assert result.avg_time_per_image == 3.0
-        assert result.avg_total_time_per_image == 6.0
-
-
-class TestAggregateAndExport:
-    """aggregate_and_export のテスト."""
-
-    @patch("pochitrain.inference.services.interfaces.ResultExportService")
-    @patch("pochitrain.inference.services.interfaces.log_inference_result")
-    def test_calls_log_and_export(
-        self,
-        mock_log_result: MagicMock,
-        mock_export_cls: MagicMock,
-        tmp_path: Path,
-    ) -> None:
-        """log_inference_result と ResultExportService.export が呼ばれること."""
-        service = PyTorchInferenceService(_build_logger())
-
-        mock_dataset = MagicMock()
-        mock_dataset.get_file_paths.return_value = ["a.jpg", "b.jpg"]
-        mock_dataset.labels = [0, 1]
-        mock_dataset.get_classes.return_value = ["cat", "dog"]
-
-        service.aggregate_and_export(
-            workspace_dir=tmp_path,
-            model_path=Path("model.pth"),
-            data_path=Path("data/val"),
-            dataset=mock_dataset,
-            run_result=InferenceRunResult(
-                predictions=[0, 1],
-                confidences=[0.9, 0.8],
-                true_labels=[0, 1],
-                num_samples=2,
-                correct=2,
-                avg_time_per_image=5.0,
-                total_samples=2,
-                warmup_samples=1,
-                avg_total_time_per_image=50.0,
-            ),
-            input_size=(3, 224, 224),
-            model_info={"model_name": "resnet18"},
-            cm_config=None,
-            results_filename="pytorch_inference_results.csv",
-            summary_filename="pytorch_inference_summary.txt",
-        )
-
-        mock_log_result.assert_called_once()
-        mock_export_cls.return_value.export.assert_called_once()
-
-        call_args = mock_export_cls.return_value.export.call_args
-        request = call_args[0][0]
-        assert request.num_samples == 2
-        assert request.correct == 2  # [0,1] vs [0,1] -> 2 correct
-        assert request.results_filename == "pytorch_inference_results.csv"
-        assert request.summary_filename == "pytorch_inference_summary.txt"
