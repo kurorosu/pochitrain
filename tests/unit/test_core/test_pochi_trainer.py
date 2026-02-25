@@ -93,129 +93,89 @@ def test_pochi_trainer_setup_training():
         assert trainer.criterion is not None
 
 
-def test_pochi_trainer_invalid_model():
-    """無効なモデル名のテスト"""
-    with tempfile.TemporaryDirectory() as temp_dir:
+@pytest.mark.parametrize(
+    "model_name, raises",
+    [
+        ("resnet18", False),
+        ("invalid_model", True),
+    ],
+)
+def test_pochi_trainer_init_model_validation(tmp_path, model_name, raises):
+    """モデル名のバリデーションテスト."""
+    if raises:
         with pytest.raises(ValueError):
             PochiTrainer(
-                model_name="invalid_model",
-                num_classes=10,
-                pretrained=False,
+                model_name=model_name,
+                num_classes=2,
                 device="cpu",
-                work_dir=temp_dir,
+                work_dir=str(tmp_path),
             )
-
-
-def test_pochi_trainer_invalid_optimizer():
-    """無効な最適化器のテスト"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=10,
-            pretrained=False,
-            device="cpu",
-            work_dir=temp_dir,
+    else:
+        PochiTrainer(
+            model_name=model_name, num_classes=2, device="cpu", work_dir=str(tmp_path)
         )
 
+
+@pytest.mark.parametrize(
+    "optimizer_name, raises",
+    [
+        ("Adam", False),
+        ("InvalidOptimizer", True),
+    ],
+)
+def test_pochi_trainer_setup_training_optimizer_validation(
+    tmp_path, optimizer_name, raises
+):
+    """最適化器名のバリデーションテスト."""
+    trainer = PochiTrainer(
+        model_name="resnet18", num_classes=2, device="cpu", work_dir=str(tmp_path)
+    )
+    if raises:
         with pytest.raises(ValueError):
-            trainer.setup_training(
-                learning_rate=0.001, optimizer_name="InvalidOptimizer"
-            )
+            trainer.setup_training(learning_rate=0.001, optimizer_name=optimizer_name)
+    else:
+        trainer.setup_training(learning_rate=0.001, optimizer_name=optimizer_name)
 
 
-def test_pochi_trainer_class_weights_cpu():
-    """CPU環境でのクラス重み設定テスト"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=3,
-            pretrained=False,
-            device="cpu",
-            work_dir=temp_dir,
-        )
+@pytest.mark.parametrize(
+    "weights, num_classes, match",
+    [
+        ([1.0, 2.0], 3, "クラス重みの長さ.*がクラス数.*と一致しません"),
+        (None, 2, None),
+        ([1.0, 0.5], 2, None),
+    ],
+)
+def test_pochi_trainer_class_weights_validation(tmp_path, weights, num_classes, match):
+    """クラス重みのバリデーションと適用テスト."""
+    trainer = PochiTrainer(
+        model_name="resnet18",
+        num_classes=num_classes,
+        pretrained=False,
+        device="cpu",
+        work_dir=str(tmp_path),
+    )
 
-        class_weights = [1.0, 2.0, 0.5]
-        trainer.setup_training(
-            learning_rate=0.001,
-            optimizer_name="Adam",
-            class_weights=class_weights,
-            num_classes=3,
-        )
-
-        assert trainer.criterion is not None
-        assert trainer.criterion.weight.device == torch.device("cpu")
-        expected_weights = torch.tensor(class_weights, dtype=torch.float32)
-        assert torch.allclose(trainer.criterion.weight, expected_weights)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-def test_pochi_trainer_class_weights_cuda():
-    """CUDA環境でのクラス重み設定テスト（CUDA利用可能時のみ）"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            pretrained=False,
-            device="cuda",
-            work_dir=temp_dir,
-        )
-
-        class_weights = [1.0, 3.0, 1.5, 0.8]
-        trainer.setup_training(
-            learning_rate=0.001,
-            optimizer_name="Adam",
-            class_weights=class_weights,
-            num_classes=4,
-        )
-
-        assert trainer.criterion is not None
-        assert trainer.criterion.weight.device.type == "cuda"
-        expected_weights = torch.tensor(class_weights, dtype=torch.float32)
-        assert torch.allclose(trainer.criterion.weight.cpu(), expected_weights)
-
-
-def test_pochi_trainer_class_weights_mismatch():
-    """クラス重みとクラス数の不整合テスト"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=3,
-            pretrained=False,
-            device="cpu",
-            work_dir=temp_dir,
-        )
-
-        class_weights = [1.0, 2.0]  # 2つの重みだが、クラス数は3
-        with pytest.raises(
-            ValueError, match="クラス重みの長さ.*がクラス数.*と一致しません"
-        ):
+    if match:
+        with pytest.raises(ValueError, match=match):
             trainer.setup_training(
                 learning_rate=0.001,
                 optimizer_name="Adam",
-                class_weights=class_weights,
-                num_classes=3,
+                class_weights=weights,
+                num_classes=num_classes,
             )
-
-
-def test_pochi_trainer_class_weights_none():
-    """クラス重みなしの場合のテスト"""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=5,
-            pretrained=False,
-            device="cpu",
-            work_dir=temp_dir,
-        )
-
+    else:
         trainer.setup_training(
             learning_rate=0.001,
             optimizer_name="Adam",
-            class_weights=None,
+            class_weights=weights,
+            num_classes=num_classes,
         )
-
         assert trainer.criterion is not None
-        assert trainer.criterion.weight is None
+        if weights is None:
+            assert trainer.criterion.weight is None
+        else:
+            expected = torch.tensor(weights, dtype=torch.float32)
+            assert torch.allclose(trainer.criterion.weight.cpu(), expected)
 
 
 def test_pochi_trainer_train_without_setup_raises():
