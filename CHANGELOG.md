@@ -52,7 +52,7 @@
   - 時刻書式を `timestamp_utils` 定数へ集約し, `base_csv_exporter` のハードコードを置換した.
   - 混同行列計算の2系統実装について, 訓練系(Torch Tensor)と推論系(NumPy/list)の使い分け方針をdocstringに明記した.
   - テストコード全体の低価値コメントを整理し, 意図説明コメントのみを残した.
-- 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した.
+- 本番コード全体の低価値コメント (whatコメント) を整理し, whyコメントのみを残した ([#270](https://github.com/kurorosu/pochitrain/pull/270)).
 - Jetson の推論ベンチマーク再現性向上のため, `README.md` と `GPU環境セットアップガイド` に `nvpmodel` / `jetson_clocks` の運用手順を追記した ([#275](https://github.com/kurorosu/pochitrain/pull/275)).
 - `pin_memory` 設定を学習と推論で分離し, `train_pin_memory` / `infer_pin_memory` で個別制御できるようにした ([#277](https://github.com/kurorosu/pochitrain/pull/277)).
   - 学習CLIは `train_pin_memory` を `create_data_loaders` へ渡すように変更した.
