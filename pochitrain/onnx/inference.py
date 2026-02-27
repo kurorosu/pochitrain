@@ -47,6 +47,7 @@ class OnnxInference:
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.io_binding = None
+        self._bound_input_tensor: torch.Tensor | None = None
 
         if self.use_gpu:
             self.io_binding = self.session.io_binding()
@@ -82,6 +83,7 @@ class OnnxInference:
         Args:
             images: 入力画像 (batch, channels, height, width)
         """
+        self._bound_input_tensor = None
         if self.io_binding:
             self.io_binding.bind_cpu_input(self.input_name, images)
             self.io_binding.bind_output(self.output_name, "cuda")
@@ -103,14 +105,15 @@ class OnnxInference:
         if not self.io_binding:
             raise RuntimeError("GPU入力はGPUモード時のみ使用可能です")
 
-        tensor = tensor.contiguous()
+        # non_blocking 転送時でも推論完了まで入力バッファ寿命を保証する.
+        self._bound_input_tensor = tensor.contiguous()
         self.io_binding.bind_input(
             name=self.input_name,
             device_type="cuda",
             device_id=0,
             element_type=np.float32,
-            shape=tuple(tensor.shape),
-            buffer_ptr=tensor.data_ptr(),
+            shape=tuple(self._bound_input_tensor.shape),
+            buffer_ptr=self._bound_input_tensor.data_ptr(),
         )
         self.io_binding.bind_output(self.output_name, "cuda")
 
@@ -134,6 +137,7 @@ class OnnxInference:
         """
         if self.io_binding:
             outputs = self.io_binding.copy_outputs_to_cpu()
+            self._bound_input_tensor = None
             return cast(np.ndarray, outputs[0])
         else:
             return cast(np.ndarray, self._temp_cpu_outputs[0])
