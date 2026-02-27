@@ -9,10 +9,12 @@
 - なし.
 
 ### Changed
-- 推論テストの重複ケースを共通基底テストへ集約し, runtime 固有差分を ONNX/TRT/PyTorch 側へ分離した ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
-  - `test_base_inference_service.py` を追加し, `IInferenceService` の共通ロジック検証を一元化した.
-  - `test_infer_trt.py` を実運用に近いワークスペース構造で再構成し, 状態ベースの導線検証へ整理した.
-  - `test_pochi_config.py`, `test_sub_configs.py`, `test_pochi_trainer.py` の同種検証を `parametrize` 化し, 重複ケースを削減した.
+- 古典派テストへの再シフトを進め, CLI分割と重複ケース集約を実施した ([#N/A.](https://github.com/kurorosu/pochitrain/pull/N/A.)).
+  - `test_pochi_cli.py` を共通責務へ縮小し, `test_pochi_cli_infer.py` / `test_pochi_cli_train.py` へ物理分割した.
+  - `test_convert_cli.py` に成功系の引数伝播検証を追加し, セットアップをヘルパー化した.
+  - `test_inference_utils.py` を `parametrize` ベースへ集約し, 同型重複を削減した.
+  - ONNX/TRT/PyTorch の service テストを runtime 固有差分のみの最小維持セットへ再編した.
+  - `test_base_inference_service.py` で `IInferenceService` 共通ロジックを担保する構成を明確化した.
 
 ### Fixed
 - なし.
