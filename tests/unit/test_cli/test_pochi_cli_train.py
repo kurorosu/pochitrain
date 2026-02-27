@@ -33,14 +33,10 @@ class TestMainDispatchTrain:
 class TestTrainCommandValidationHandling:
     """train_command の ValidationError ハンドリングのテスト."""
 
-    def test_train_command_validation_error_returns_early(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Pydantic 検証エラー時に早期 return することを確認する."""
-        import pochitrain.cli.pochi as pochi_module
-
-        logger = MagicMock()
-        config = {
+    @staticmethod
+    def _build_minimal_config(**overrides: object) -> dict[str, object]:
+        """train_command 用の最小設定辞書を返す."""
+        config: dict[str, object] = {
             "model_name": "resnet18",
             "num_classes": 2,
             "device": "cpu",
@@ -53,25 +49,56 @@ class TestTrainCommandValidationHandling:
             "train_transform": transforms.Compose([transforms.ToTensor()]),
             "val_transform": transforms.Compose([transforms.ToTensor()]),
             "enable_layer_wise_lr": False,
-            "early_stopping": {
-                "enabled": False,
-                "patience": 0,
-            },
         }
+        config.update(overrides)
+        return config
 
-        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
-        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
+    @staticmethod
+    def _make_train_args(tmp_path: Path) -> argparse.Namespace:
+        """train_command 用の引数を生成する."""
+        return argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+
+    @staticmethod
+    def _patch_train_command_dependencies(
+        monkeypatch: pytest.MonkeyPatch,
+        module,
+        logger: MagicMock,
+        config: dict[str, object],
+    ) -> MagicMock:
+        """train_command の共通依存を差し替える."""
+        monkeypatch.setattr(module, "setup_logging", lambda **_: logger)
+        monkeypatch.setattr(module.signal, "signal", lambda *_: None)
         monkeypatch.setattr(
-            pochi_module.ConfigLoader,
+            module.ConfigLoader,
             "load_config",
             MagicMock(return_value=config),
         )
         create_data_loaders_mock = MagicMock()
-        monkeypatch.setattr(
-            pochi_module, "create_data_loaders", create_data_loaders_mock
+        monkeypatch.setattr(module, "create_data_loaders", create_data_loaders_mock)
+        return create_data_loaders_mock
+
+    def test_train_command_validation_error_returns_early(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Pydantic 検証エラー時に早期 return することを確認する."""
+        import pochitrain.cli.pochi as pochi_module
+
+        logger = MagicMock()
+        config = self._build_minimal_config(
+            # ここだけ意図的に不正値を入れて ValidationError を発生させる.
+            early_stopping={
+                "enabled": False,
+                "patience": 0,
+            }
+        )
+        create_data_loaders_mock = self._patch_train_command_dependencies(
+            monkeypatch,
+            pochi_module,
+            logger,
+            config,
         )
 
-        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        args = self._make_train_args(tmp_path)
         train_command(args)
 
         create_data_loaders_mock.assert_not_called()
@@ -88,35 +115,19 @@ class TestTrainCommandValidationHandling:
         missing_train = tmp_path / "missing_train"
         existing_val = tmp_path / "val"
         existing_val.mkdir()
-
-        config = {
-            "model_name": "resnet18",
-            "num_classes": 2,
-            "device": "cpu",
-            "epochs": 1,
-            "batch_size": 4,
-            "learning_rate": 0.001,
-            "optimizer": "Adam",
-            "train_data_root": str(missing_train),
-            "val_data_root": str(existing_val),
-            "train_transform": transforms.Compose([transforms.ToTensor()]),
-            "val_transform": transforms.Compose([transforms.ToTensor()]),
-            "enable_layer_wise_lr": False,
-        }
-
-        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
-        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
-        monkeypatch.setattr(
-            pochi_module.ConfigLoader,
-            "load_config",
-            MagicMock(return_value=config),
+        config = self._build_minimal_config(
+            # train_data_root を存在しないパスへ差し替える.
+            train_data_root=str(missing_train),
+            val_data_root=str(existing_val),
         )
-        create_data_loaders_mock = MagicMock()
-        monkeypatch.setattr(
-            pochi_module, "create_data_loaders", create_data_loaders_mock
+        create_data_loaders_mock = self._patch_train_command_dependencies(
+            monkeypatch,
+            pochi_module,
+            logger,
+            config,
         )
 
-        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        args = self._make_train_args(tmp_path)
         train_command(args)
 
         create_data_loaders_mock.assert_not_called()
@@ -133,35 +144,19 @@ class TestTrainCommandValidationHandling:
         existing_train = tmp_path / "train"
         existing_train.mkdir()
         missing_val = tmp_path / "missing_val"
-
-        config = {
-            "model_name": "resnet18",
-            "num_classes": 2,
-            "device": "cpu",
-            "epochs": 1,
-            "batch_size": 4,
-            "learning_rate": 0.001,
-            "optimizer": "Adam",
-            "train_data_root": str(existing_train),
-            "val_data_root": str(missing_val),
-            "train_transform": transforms.Compose([transforms.ToTensor()]),
-            "val_transform": transforms.Compose([transforms.ToTensor()]),
-            "enable_layer_wise_lr": False,
-        }
-
-        monkeypatch.setattr(pochi_module, "setup_logging", lambda **_: logger)
-        monkeypatch.setattr(pochi_module.signal, "signal", lambda *_: None)
-        monkeypatch.setattr(
-            pochi_module.ConfigLoader,
-            "load_config",
-            MagicMock(return_value=config),
+        config = self._build_minimal_config(
+            # val_data_root を存在しないパスへ差し替える.
+            train_data_root=str(existing_train),
+            val_data_root=str(missing_val),
         )
-        create_data_loaders_mock = MagicMock()
-        monkeypatch.setattr(
-            pochi_module, "create_data_loaders", create_data_loaders_mock
+        create_data_loaders_mock = self._patch_train_command_dependencies(
+            monkeypatch,
+            pochi_module,
+            logger,
+            config,
         )
 
-        args = argparse.Namespace(debug=False, config=str(tmp_path / "config.py"))
+        args = self._make_train_args(tmp_path)
         train_command(args)
 
         create_data_loaders_mock.assert_not_called()

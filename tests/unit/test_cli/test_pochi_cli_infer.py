@@ -169,14 +169,25 @@ class TestInferCommandServiceDelegation:
             self.aggregate_called = True
             self.captured["workspace_dir"] = kwargs["workspace_dir"]
 
-    def _make_args(self, tmp_path: Path) -> argparse.Namespace:
-        """テスト用の argparse.Namespace を生成する."""
-        model_path = tmp_path / "models" / "best.pth"
+    @staticmethod
+    def _create_dummy_model_file(base_dir: Path) -> Path:
+        """ダミーモデルファイルを作成して返す."""
+        model_path = base_dir / "models" / "best.pth"
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model_path.touch()
+        return model_path
 
-        data_path = tmp_path / "data"
-        data_path.mkdir(exist_ok=True)
+    @staticmethod
+    def _create_dummy_data_dir(base_dir: Path) -> Path:
+        """ダミー推論データディレクトリを作成して返す."""
+        data_path = base_dir / "data"
+        data_path.mkdir(parents=True, exist_ok=True)
+        return data_path
+
+    def _make_args(self, tmp_path: Path) -> argparse.Namespace:
+        """テスト用の argparse.Namespace を生成する."""
+        model_path = self._create_dummy_model_file(tmp_path)
+        data_path = self._create_dummy_data_dir(tmp_path)
 
         return argparse.Namespace(
             debug=False,
@@ -259,12 +270,8 @@ class TestInferCommandServiceDelegation:
         import pochitrain.cli.pochi as pochi_module
 
         work_dir = tmp_path / "work_dirs" / "20260223_001"
-        model_path = work_dir / "models" / "best.pth"
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        model_path.touch()
-
-        data_path = tmp_path / "data"
-        data_path.mkdir(parents=True, exist_ok=True)
+        model_path = self._create_dummy_model_file(work_dir)
+        data_path = self._create_dummy_data_dir(tmp_path)
 
         args = argparse.Namespace(
             debug=False,
