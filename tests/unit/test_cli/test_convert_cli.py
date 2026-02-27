@@ -36,6 +36,34 @@ def convert_args(monkeypatch: pytest.MonkeyPatch) -> ConvertArgsRunner:
     return _run
 
 
+def _collect_error_messages(logger: SimpleNamespace) -> list[str]:
+    """logger.error の呼び出しメッセージ一覧を返す."""
+    return [str(call.args[0]) for call in logger.error.call_args_list if call.args]
+
+
+def _make_dynamic_onnx_module() -> SimpleNamespace:
+    """動的シェイプのONNX入力を返す簡易モジュールを作る."""
+
+    def _dim(value: int, param: str = "") -> SimpleNamespace:
+        return SimpleNamespace(dim_value=value, dim_param=param)
+
+    dynamic_input = SimpleNamespace(
+        type=SimpleNamespace(
+            tensor_type=SimpleNamespace(
+                shape=SimpleNamespace(
+                    dim=[
+                        _dim(1),
+                        _dim(0, "height"),
+                        _dim(0, "width"),
+                    ]
+                )
+            )
+        )
+    )
+    model = SimpleNamespace(graph=SimpleNamespace(input=[dynamic_input]))
+    return SimpleNamespace(load=lambda _path: model)
+
+
 class TestConvertParser:
     """`convert` サブコマンドの引数パース検証."""
 
@@ -98,6 +126,7 @@ class FakeConverter:
     """`TensorRTConverter` を置き換えるテスト用ダミー."""
 
     instances: list["FakeConverter"] = []
+    latest_instance: "FakeConverter | None" = None
 
     def __init__(self, onnx_path: Path, workspace_size: int) -> None:
         """コンストラクタ引数と呼び出し履歴を保持."""
@@ -105,6 +134,7 @@ class FakeConverter:
         self.workspace_size = workspace_size
         self.convert_calls: list[dict] = []
         FakeConverter.instances.append(self)
+        FakeConverter.latest_instance = self
 
     def convert(
         self,
@@ -131,6 +161,7 @@ class TestConvertCommand:
     def setup_method(self) -> None:
         """テスト間でダミーインスタンスの履歴を初期化."""
         FakeConverter.instances.clear()
+        FakeConverter.latest_instance = None
 
     def test_output_suffix_and_input_shape(
         self,
@@ -172,8 +203,11 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        assert len(FakeConverter.instances) == 1
-        call = FakeConverter.instances[0].convert_calls[0]
+        instance = FakeConverter.latest_instance
+        assert instance is not None
+        assert instance.onnx_path == onnx_path
+        assert instance.workspace_size == (1 << 20)
+        call = instance.convert_calls[0]
         assert call["precision"] == "fp16"
         assert call["output_path"] == onnx_path.with_name("model_fp16.engine")
         assert call["input_shape"] == (3, 224, 224)
@@ -219,7 +253,11 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        call = FakeConverter.instances[0].convert_calls[0]
+        instance = FakeConverter.latest_instance
+        assert instance is not None
+        assert instance.onnx_path == onnx_path
+        assert instance.workspace_size == (1 << 20)
+        call = instance.convert_calls[0]
         assert call["precision"] == "fp32"
         assert call["output_path"] == explicit_output
         assert call["input_shape"] == (3, 128, 256)
@@ -281,8 +319,11 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        assert len(FakeConverter.instances) == 1
-        call = FakeConverter.instances[0].convert_calls[0]
+        instance = FakeConverter.latest_instance
+        assert instance is not None
+        assert instance.onnx_path == onnx_path
+        assert instance.workspace_size == (1 << 20)
+        call = instance.convert_calls[0]
         assert call["precision"] == "int8"
         assert call["output_path"] == onnx_path.with_name("model_int8.engine")
         assert call["calibrator"] is fake_calibrator
@@ -292,7 +333,82 @@ class TestConvertCommand:
         assert calibrator_args["input_shape"] == (3, 224, 224)
         assert calibrator_args["batch_size"] == 2
         assert calibrator_args["max_samples"] == 123
-        logger.error.assert_not_called()
+        error_messages = _collect_error_messages(logger)
+        assert not error_messages
+
+    def test_int8_uses_val_data_root_from_auto_config(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """INT8で--calib-data未指定時に自動設定のval_data_rootを使うことを確認."""
+        onnx_path = tmp_path / "model.onnx"
+        onnx_path.write_text("dummy", encoding="utf-8")
+        calib_dir = tmp_path / "auto_calib"
+        calib_dir.mkdir()
+
+        logger = SimpleNamespace(
+            debug=Mock(),
+            info=Mock(),
+            error=Mock(),
+        )
+        fake_calibrator = object()
+        calibrator_args: dict[str, object] = {}
+
+        def _fake_create_int8_calibrator(**kwargs: object) -> object:
+            calibrator_args.update(kwargs)
+            return fake_calibrator
+
+        import pochitrain.tensorrt.calibrator as calibrator_module
+        import pochitrain.tensorrt.converter as converter_module
+        import pochitrain.tensorrt.inference as inference_module
+
+        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+        monkeypatch.setattr(
+            inference_module, "check_tensorrt_availability", lambda: True
+        )
+        monkeypatch.setattr(
+            calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
+        )
+        monkeypatch.setattr(
+            pochi_cli,
+            "load_config_auto",
+            lambda _path: {
+                "val_data_root": str(calib_dir),
+                "val_transform": "dummy_transform",
+            },
+        )
+        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+        args = argparse.Namespace(
+            debug=False,
+            onnx_path=str(onnx_path),
+            fp16=False,
+            int8=True,
+            output=None,
+            config_path=None,
+            calib_data=None,
+            input_size=[256, 256],
+            calib_samples=50,
+            calib_batch_size=8,
+            workspace_size=1 << 21,
+        )
+
+        pochi_cli.convert_command(args)
+
+        instance = FakeConverter.latest_instance
+        assert instance is not None
+        assert instance.onnx_path == onnx_path
+        assert instance.workspace_size == (1 << 21)
+        call = instance.convert_calls[0]
+        assert call["precision"] == "int8"
+        assert call["calibrator"] is fake_calibrator
+        assert call["input_shape"] == (3, 256, 256)
+        assert calibrator_args["data_root"] == str(calib_dir)
+        assert calibrator_args["batch_size"] == 8
+        assert calibrator_args["max_samples"] == 50
+        error_messages = _collect_error_messages(logger)
+        assert not error_messages
 
     def test_dynamic_onnx_requires_input_size(
         self,
@@ -317,33 +433,7 @@ class TestConvertCommand:
             inference_module, "check_tensorrt_availability", lambda: True
         )
         monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
-
-        dynamic_onnx = SimpleNamespace(
-            load=lambda _path: SimpleNamespace(
-                graph=SimpleNamespace(
-                    input=[
-                        SimpleNamespace(
-                            type=SimpleNamespace(
-                                tensor_type=SimpleNamespace(
-                                    shape=SimpleNamespace(
-                                        dim=[
-                                            SimpleNamespace(dim_value=1, dim_param=""),
-                                            SimpleNamespace(
-                                                dim_value=0, dim_param="height"
-                                            ),
-                                            SimpleNamespace(
-                                                dim_value=0, dim_param="width"
-                                            ),
-                                        ]
-                                    )
-                                )
-                            )
-                        )
-                    ]
-                )
-            )
-        )
-        monkeypatch.setitem(sys.modules, "onnx", dynamic_onnx)
+        monkeypatch.setitem(sys.modules, "onnx", _make_dynamic_onnx_module())
 
         args = argparse.Namespace(
             debug=False,
@@ -361,10 +451,8 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        assert len(FakeConverter.instances) == 0
-        error_messages = [
-            str(call.args[0]) for call in logger.error.call_args_list if call.args
-        ]
+        assert FakeConverter.latest_instance is None
+        error_messages = _collect_error_messages(logger)
         assert any("動的シェイプ" in message for message in error_messages)
 
     def test_returns_when_tensorrt_unavailable(
@@ -407,10 +495,8 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        assert len(FakeConverter.instances) == 0
-        error_messages = [
-            str(call.args[0]) for call in logger.error.call_args_list if call.args
-        ]
+        assert FakeConverter.latest_instance is None
+        error_messages = _collect_error_messages(logger)
         assert any("TensorRTが利用できません" in message for message in error_messages)
 
     def test_returns_when_onnx_path_does_not_exist(
@@ -452,10 +538,8 @@ class TestConvertCommand:
 
         pochi_cli.convert_command(args)
 
-        assert len(FakeConverter.instances) == 0
-        error_messages = [
-            str(call.args[0]) for call in logger.error.call_args_list if call.args
-        ]
+        assert FakeConverter.latest_instance is None
+        error_messages = _collect_error_messages(logger)
         assert any(
             "ONNXモデルが見つかりません" in message for message in error_messages
         )

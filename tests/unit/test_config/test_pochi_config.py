@@ -130,78 +130,32 @@ class TestPochiConfigFromDict:
 
 
 class TestPochiConfigFieldValidation:
-    """PochiConfig のフィールドバリデーションテスト.
+    """PochiConfig のフィールドバリデーションテスト."""
 
-    旧 validation/ のテスト観点を移植.
-    """
-
-    def test_unsupported_model_name_raises_error(self) -> None:
-        """サポート外のモデル名で ValidationError になることを確認する."""
+    @pytest.mark.parametrize(
+        "field, value, match",
+        [
+            ("model_name", "vgg16", None),
+            ("num_classes", 0, None),
+            ("num_classes", True, "bool は整数設定として使用できません"),
+            ("epochs", 0, None),
+            ("epochs", True, "bool は整数設定として使用できません"),
+            ("batch_size", -1, None),
+            ("batch_size", True, "bool は整数設定として使用できません"),
+            ("learning_rate", 0, None),
+            ("learning_rate", 1.5, None),
+            ("optimizer", "RMSprop", None),
+            ("device", "tpu", None),
+            ("train_data_root", "", None),
+            ("train_transform", None, None),
+            ("val_transform", None, None),
+        ],
+    )
+    def test_invalid_field_values_raise_error(self, field, value, match) -> None:
+        """不正なフィールド値で ValidationError になることを確認する."""
         payload = _build_minimum_config()
-        payload["model_name"] = "vgg16"
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_zero_num_classes_raises_error(self) -> None:
-        """num_classes が 0 の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["num_classes"] = 0
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_bool_num_classes_raises_error(self) -> None:
-        """num_classes に bool を指定すると ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["num_classes"] = True
-        with pytest.raises(
-            ValidationError, match="bool は整数設定として使用できません"
-        ):
-            PochiConfig.from_dict(payload)
-
-    def test_zero_epochs_raises_error(self) -> None:
-        """epochs が 0 の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["epochs"] = 0
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_bool_epochs_raises_error(self) -> None:
-        """epochs に bool を指定すると ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["epochs"] = True
-        with pytest.raises(
-            ValidationError, match="bool は整数設定として使用できません"
-        ):
-            PochiConfig.from_dict(payload)
-
-    def test_negative_batch_size_raises_error(self) -> None:
-        """batch_size が負の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["batch_size"] = -1
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_bool_batch_size_raises_error(self) -> None:
-        """batch_size に bool を指定すると ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["batch_size"] = True
-        with pytest.raises(
-            ValidationError, match="bool は整数設定として使用できません"
-        ):
-            PochiConfig.from_dict(payload)
-
-    def test_zero_learning_rate_raises_error(self) -> None:
-        """learning_rate が 0 の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["learning_rate"] = 0
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_learning_rate_exceeds_upper_bound_raises_error(self) -> None:
-        """learning_rate が 1.0 を超える場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["learning_rate"] = 1.5
-        with pytest.raises(ValidationError):
+        payload[field] = value
+        with pytest.raises(ValidationError, match=match):
             PochiConfig.from_dict(payload)
 
     def test_learning_rate_boundary_1_0_is_valid(self) -> None:
@@ -211,47 +165,9 @@ class TestPochiConfigFieldValidation:
         config = PochiConfig.from_dict(payload)
         assert config.learning_rate == 1.0
 
-    def test_unsupported_optimizer_raises_error(self) -> None:
-        """サポート外のオプティマイザで ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["optimizer"] = "RMSprop"
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_invalid_device_raises_error(self) -> None:
-        """不正なデバイス指定で ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["device"] = "tpu"
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_empty_train_data_root_raises_error(self) -> None:
-        """train_data_root が空文字の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["train_data_root"] = ""
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_none_train_transform_raises_error(self) -> None:
-        """train_transform が None の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["train_transform"] = None
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
-    def test_none_val_transform_raises_error(self) -> None:
-        """val_transform が None の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["val_transform"] = None
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
-
 
 class TestPochiConfigSchedulerValidation:
-    """scheduler と scheduler_params の整合性テスト.
-
-    旧 SchedulerValidator のテスト観点を移植.
-    """
+    """scheduler と scheduler_params の整合性テスト."""
 
     def test_scheduler_none_is_valid(self) -> None:
         """scheduler が None の場合に成功することを確認する."""
@@ -260,27 +176,30 @@ class TestPochiConfigSchedulerValidation:
         config = PochiConfig.from_dict(payload)
         assert config.scheduler is None
 
-    def test_unsupported_scheduler_raises_error(self) -> None:
-        """サポート外のスケジューラで ValidationError になることを確認する."""
+    @pytest.mark.parametrize(
+        "scheduler, params, match",
+        [
+            ("UnsupportedLR", {}, None),
+            ("StepLR", None, "scheduler_params は必須"),
+            ("StepLR", {"gamma": 0.1}, "step_size"),
+            ("MultiStepLR", {"gamma": 0.1}, "milestones"),
+            ("CosineAnnealingLR", {}, "T_max"),
+            ("ExponentialLR", {}, "gamma"),
+            ("LinearLR", {"start_factor": 1.0}, "total_iters"),
+        ],
+    )
+    def test_invalid_scheduler_configs_raise_error(
+        self, scheduler, params, match
+    ) -> None:
+        """不正なスケジューラ設定で ValidationError になることを確認する."""
         payload = _build_minimum_config()
-        payload["scheduler"] = "UnsupportedLR"
-        payload["scheduler_params"] = {}
-        with pytest.raises(ValidationError):
-            PochiConfig.from_dict(payload)
+        payload["scheduler"] = scheduler
+        if params is not None:
+            payload["scheduler_params"] = params
+        else:
+            payload.pop("scheduler_params", None)
 
-    def test_scheduler_without_params_raises_error(self) -> None:
-        """scheduler_params なしでスケジューラ指定すると ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "StepLR"
-        with pytest.raises(ValidationError, match="scheduler_params は必須"):
-            PochiConfig.from_dict(payload)
-
-    def test_step_lr_missing_step_size_raises_error(self) -> None:
-        """StepLR で step_size 未指定の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "StepLR"
-        payload["scheduler_params"] = {"gamma": 0.1}
-        with pytest.raises(ValidationError, match="step_size"):
+        with pytest.raises(ValidationError, match=match):
             PochiConfig.from_dict(payload)
 
     def test_step_lr_valid(self) -> None:
@@ -291,44 +210,9 @@ class TestPochiConfigSchedulerValidation:
         config = PochiConfig.from_dict(payload)
         assert config.scheduler == "StepLR"
 
-    def test_multi_step_lr_missing_milestones_raises_error(self) -> None:
-        """MultiStepLR で milestones 未指定の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "MultiStepLR"
-        payload["scheduler_params"] = {"gamma": 0.1}
-        with pytest.raises(ValidationError, match="milestones"):
-            PochiConfig.from_dict(payload)
-
-    def test_cosine_annealing_lr_missing_t_max_raises_error(self) -> None:
-        """CosineAnnealingLR で T_max 未指定の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "CosineAnnealingLR"
-        payload["scheduler_params"] = {}
-        with pytest.raises(ValidationError, match="T_max"):
-            PochiConfig.from_dict(payload)
-
-    def test_exponential_lr_missing_gamma_raises_error(self) -> None:
-        """ExponentialLR で gamma 未指定の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "ExponentialLR"
-        payload["scheduler_params"] = {}
-        with pytest.raises(ValidationError, match="gamma"):
-            PochiConfig.from_dict(payload)
-
-    def test_linear_lr_missing_total_iters_raises_error(self) -> None:
-        """LinearLR で total_iters 未指定の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["scheduler"] = "LinearLR"
-        payload["scheduler_params"] = {"start_factor": 1.0}
-        with pytest.raises(ValidationError, match="total_iters"):
-            PochiConfig.from_dict(payload)
-
 
 class TestPochiConfigClassWeightsValidation:
-    """class_weights のバリデーションテスト.
-
-    旧 ClassWeightsValidator のテスト観点を移植.
-    """
+    """class_weights のバリデーションテスト."""
 
     def test_class_weights_none_is_valid(self) -> None:
         """class_weights が None の場合に成功することを確認する."""
@@ -337,28 +221,22 @@ class TestPochiConfigClassWeightsValidation:
         config = PochiConfig.from_dict(payload)
         assert config.class_weights is None
 
-    def test_class_weights_length_mismatch_raises_error(self) -> None:
-        """class_weights の要素数が num_classes と一致しない場合に ValidationError になることを確認する."""
+    @pytest.mark.parametrize(
+        "num_classes, weights, match",
+        [
+            (4, [1.0, 2.0], "要素数"),
+            (3, [1.0, -2.0, 3.0], "正の値"),
+            (3, [1.0, 0.0, 3.0], "正の値"),
+        ],
+    )
+    def test_invalid_class_weights_raise_error(
+        self, num_classes, weights, match
+    ) -> None:
+        """不正な class_weights で ValidationError になることを確認する."""
         payload = _build_minimum_config()
-        payload["num_classes"] = 4
-        payload["class_weights"] = [1.0, 2.0]
-        with pytest.raises(ValidationError, match="要素数"):
-            PochiConfig.from_dict(payload)
-
-    def test_class_weights_negative_value_raises_error(self) -> None:
-        """class_weights に負の値がある場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["num_classes"] = 3
-        payload["class_weights"] = [1.0, -2.0, 3.0]
-        with pytest.raises(ValidationError, match="正の値"):
-            PochiConfig.from_dict(payload)
-
-    def test_class_weights_zero_value_raises_error(self) -> None:
-        """class_weights に 0 がある場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["num_classes"] = 3
-        payload["class_weights"] = [1.0, 0.0, 3.0]
-        with pytest.raises(ValidationError, match="正の値"):
+        payload["num_classes"] = num_classes
+        payload["class_weights"] = weights
+        with pytest.raises(ValidationError, match=match):
             PochiConfig.from_dict(payload)
 
     def test_valid_class_weights(self) -> None:
@@ -371,10 +249,7 @@ class TestPochiConfigClassWeightsValidation:
 
 
 class TestPochiConfigLayerWiseLRValidation:
-    """layer_wise_lr のバリデーションテスト.
-
-    旧 LayerWiseLRValidator のテスト観点を移植.
-    """
+    """layer_wise_lr のバリデーションテスト."""
 
     def test_disabled_with_no_config_is_valid(self) -> None:
         """enable_layer_wise_lr が False の場合に成功することを確認する."""
@@ -383,35 +258,25 @@ class TestPochiConfigLayerWiseLRValidation:
         config = PochiConfig.from_dict(payload)
         assert config.enable_layer_wise_lr is False
 
-    def test_enabled_with_empty_layer_rates_raises_error(self) -> None:
-        """有効時に layer_rates が空の場合に ValidationError になることを確認する."""
+    @pytest.mark.parametrize(
+        "config_payload, match",
+        [
+            ({"layer_rates": {}}, "layer_rates は空にできません"),
+            (None, "layer_rates は空にできません"),
+            ({"layer_rates": {"conv1": -0.001}}, "正の値"),
+            ({"layer_rates": {"conv1": 0.0}}, "正の値"),
+        ],
+    )
+    def test_invalid_layer_wise_lr_configs_raise_error(
+        self, config_payload, match
+    ) -> None:
+        """不正な layer_wise_lr 設定で ValidationError になることを確認する."""
         payload = _build_minimum_config()
         payload["enable_layer_wise_lr"] = True
-        payload["layer_wise_lr_config"] = {"layer_rates": {}}
-        with pytest.raises(ValidationError, match="layer_rates は空にできません"):
-            PochiConfig.from_dict(payload)
+        if config_payload is not None:
+            payload["layer_wise_lr_config"] = config_payload
 
-    def test_enabled_with_no_config_raises_error(self) -> None:
-        """有効時に layer_wise_lr_config がデフォルト(空)の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["enable_layer_wise_lr"] = True
-        with pytest.raises(ValidationError, match="layer_rates は空にできません"):
-            PochiConfig.from_dict(payload)
-
-    def test_enabled_with_negative_rate_raises_error(self) -> None:
-        """有効時に学習率が負の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["enable_layer_wise_lr"] = True
-        payload["layer_wise_lr_config"] = {"layer_rates": {"conv1": -0.001}}
-        with pytest.raises(ValidationError, match="正の値"):
-            PochiConfig.from_dict(payload)
-
-    def test_enabled_with_zero_rate_raises_error(self) -> None:
-        """有効時に学習率が 0 の場合に ValidationError になることを確認する."""
-        payload = _build_minimum_config()
-        payload["enable_layer_wise_lr"] = True
-        payload["layer_wise_lr_config"] = {"layer_rates": {"conv1": 0.0}}
-        with pytest.raises(ValidationError, match="正の値"):
+        with pytest.raises(ValidationError, match=match):
             PochiConfig.from_dict(payload)
 
     def test_enabled_with_valid_config(self) -> None:

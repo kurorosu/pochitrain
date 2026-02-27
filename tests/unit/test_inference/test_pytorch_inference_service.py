@@ -2,23 +2,18 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
-import pytest
 import torch
-from torchvision.transforms import CenterCrop, Compose, Resize, ToTensor
+from torchvision.transforms import Compose, Resize, ToTensor
 
 from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
     PyTorchInferenceService,
 )
-from pochitrain.inference.types.execution_types import ExecutionRequest, ExecutionResult
 from pochitrain.inference.types.orchestration_types import (
-    InferenceCliRequest,
-    InferenceRunResult,
     InferenceRuntimeOptions,
-    RuntimeExecutionRequest,
 )
 
 
@@ -53,133 +48,21 @@ def _build_config(**overrides: Any) -> PochiConfig:
     return PochiConfig.from_dict(defaults)
 
 
-class TestResolvePipeline:
-    """resolve_pipeline のテスト."""
-
-    @pytest.mark.parametrize(
-        ("requested", "use_gpu", "expected"),
-        [
-            ("auto", True, "gpu"),
-            ("auto", False, "fast"),
-            ("gpu", False, "fast"),
-        ],
-    )
-    def test_resolve_pipeline_cases(
-        self,
-        requested: str,
-        use_gpu: bool,
-        expected: str,
-    ) -> None:
-        """代表ケースで pipeline 解決結果が期待どおりであること."""
-        service = PyTorchInferenceService(_build_logger())
-        assert service.resolve_pipeline(requested, use_gpu=use_gpu) == expected
+# Why:
+# 共通ロジックは test_base_inference_service.py で検証済みのため、
+# ここでは PyTorch 固有差分のみを検証する.
 
 
-class TestResolvePaths:
-    """resolve_paths のテスト."""
-
-    def test_resolve_paths_with_explicit_data_and_output(self, tmp_path: Path) -> None:
-        """--data, --output 指定時にその値を使うこと."""
-        data_path = tmp_path / "data"
-        data_path.mkdir()
-        output_dir = tmp_path / "out"
-
-        request = InferenceCliRequest(
-            model_path=tmp_path / "model.pth",
-            data_path=data_path,
-            output_dir=output_dir,
-            requested_pipeline="auto",
-        )
-        resolved = PyTorchInferenceService(_build_logger()).resolve_paths(
-            request, config={}
-        )
-
-        assert resolved.data_path == data_path
-        assert resolved.output_dir == output_dir
-        assert output_dir.exists()
-
-    def test_resolve_paths_raises_when_data_is_unresolved(self, tmp_path: Path) -> None:
-        """データパスを解決できない場合は ValueError を送出すること."""
-        request = InferenceCliRequest(
-            model_path=tmp_path / "model.pth",
-            data_path=None,
-            output_dir=tmp_path / "out",
-            requested_pipeline="auto",
-        )
-
-        with pytest.raises(ValueError):
-            PyTorchInferenceService(_build_logger()).resolve_paths(request, config={})
-
-
-class TestResolveRuntimeOptions:
-    """resolve_runtime_options のテスト."""
-
-    def test_runtime_options_from_config(self) -> None:
-        """設定値から実行オプションを解決できること."""
-        service = PyTorchInferenceService(_build_logger())
-        options = service.resolve_runtime_options(
-            config={"batch_size": 8, "num_workers": 4, "infer_pin_memory": False},
-            pipeline="current",
-            use_gpu=False,
-        )
-
-        assert options.pipeline == "current"
-        assert options.batch_size == 8
-        assert options.num_workers == 4
-        assert options.pin_memory is False
-        assert options.use_gpu is False
-        assert options.use_gpu_pipeline is False
-
-
-class TestBuildRuntimeExecutionRequest:
-    """build_runtime_execution_request のテスト."""
-
-    def test_sets_gpu_pipeline_and_non_blocking(self) -> None:
-        service = PyTorchInferenceService(_build_logger())
-        predictor = MagicMock()
-        predictor.device = torch.device("cpu")
-        predictor.model = MagicMock()
-        runtime_adapter = service.create_runtime_adapter(predictor)
-
-        runtime_request = service.build_runtime_execution_request(
-            data_loader=MagicMock(),
-            runtime_adapter=runtime_adapter,
-            use_gpu_pipeline=True,
-            norm_mean=[0.485, 0.456, 0.406],
-            norm_std=[0.229, 0.224, 0.225],
-            use_cuda_timing=runtime_adapter.use_cuda_timing,
-            gpu_non_blocking=False,
-        )
-
-        execution_request = runtime_request.execution_request
-        assert execution_request.use_gpu_pipeline is True
-        assert execution_request.gpu_non_blocking is False
-        assert execution_request.mean_255 is not None
-        assert execution_request.std_255 is not None
-
-    def test_raises_when_gpu_pipeline_has_no_normalize_params(self) -> None:
-        service = PyTorchInferenceService(_build_logger())
-        predictor = MagicMock()
-        predictor.device = torch.device("cpu")
-        predictor.model = MagicMock()
-        runtime_adapter = service.create_runtime_adapter(predictor)
-
-        with pytest.raises(ValueError):
-            service.build_runtime_execution_request(
-                data_loader=MagicMock(),
-                runtime_adapter=runtime_adapter,
-                use_gpu_pipeline=True,
-            )
-
-
-class TestCreateDataloader:
-    """create_dataloader のテスト."""
+class TestPyTorchSpecificBehavior:
+    """PyTorch 固有差分のテスト."""
 
     @patch(
         "pochitrain.inference.services.pytorch_inference_service.create_dataset_and_params"
     )
-    def test_returns_loader_and_dataset(self, mock_create_dataset: MagicMock) -> None:
-        """DataLoader とデータセットが返されること."""
+    def test_create_dataloader_delegates_pipeline_strategy(
+        self, mock_create_dataset: MagicMock
+    ) -> None:
+        """データセット戦略の戻り値を保持して DataLoader を構築する."""
         mock_dataset = MagicMock()
         mock_create_dataset.return_value = (
             mock_dataset,
@@ -193,17 +76,18 @@ class TestCreateDataloader:
         data_path = Path("data/val")
         runtime_options = InferenceRuntimeOptions(
             pipeline="gpu",
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-            pin_memory=True,
+            batch_size=8,
+            num_workers=2,
+            pin_memory=False,
             use_gpu=False,
             use_gpu_pipeline=True,
         )
+        val_transform = config.val_transform
 
         loader, dataset, pipeline, norm_mean, norm_std = service.create_dataloader(
             {},
             data_path,
-            config.val_transform,
+            val_transform,
             "gpu",
             runtime_options,
         )
@@ -211,172 +95,30 @@ class TestCreateDataloader:
         mock_create_dataset.assert_called_once_with(
             "gpu",
             data_path,
-            config.val_transform,
+            val_transform,
         )
         assert dataset is mock_dataset
-        assert loader.batch_size == config.batch_size
+        assert loader.batch_size == 8
+        assert loader.num_workers == 2
+        assert loader.pin_memory is False
         assert pipeline == "fast"
         assert norm_mean == [0.485, 0.456, 0.406]
         assert norm_std == [0.229, 0.224, 0.225]
 
+    def test_detect_input_size_uses_transform_then_dataset_fallback(self) -> None:
+        """Resize が無い場合はデータセットサンプルへフォールバックする."""
+        service = PyTorchInferenceService(_build_logger())
 
-class TestDetectInputSize:
-    """detect_input_size のテスト."""
-
-    def test_from_resize_transform(self) -> None:
-        """Resize Transform からサイズを取得できること."""
         config = _build_config(val_transform=Compose([Resize(224), ToTensor()]))
-        dataset = MagicMock()
-        service = PyTorchInferenceService(_build_logger())
+        dataset_with_resize = MagicMock()
 
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 224, 224)
-
-    def test_from_center_crop_transform(self) -> None:
-        """CenterCrop Transform からサイズを取得できること."""
-        config = _build_config(
-            val_transform=Compose([CenterCrop((128, 256)), ToTensor()])
-        )
-        dataset = MagicMock()
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 128, 256)
-
-    def test_fallback_to_dataset_sample(self) -> None:
-        """Transform にサイズ情報がない場合, データセットからフォールバックすること."""
-        config = _build_config(val_transform=Compose([ToTensor()]))
-        dataset = MagicMock()
-        dataset.__len__ = MagicMock(return_value=1)
+        config_without_resize = _build_config(val_transform=Compose([ToTensor()]))
+        dataset_from_sample = MagicMock()
+        dataset_from_sample.__len__ = MagicMock(return_value=1)
         sample_tensor = torch.zeros(3, 100, 100)
-        dataset.__getitem__ = MagicMock(return_value=(sample_tensor, 0))
+        dataset_from_sample.__getitem__ = MagicMock(return_value=(sample_tensor, 0))
 
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 100, 100)
-
-    def test_returns_none_when_unavailable(self) -> None:
-        """サイズ情報が一切取得できない場合に None を返すこと."""
-        config = _build_config(val_transform=Compose([ToTensor()]))
-        dataset = MagicMock()
-        dataset.__len__ = MagicMock(return_value=0)
-
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result is None
-
-
-class TestRun:
-    """run のテスト."""
-
-    def test_run_returns_inference_run_result(self) -> None:
-        """ExecutionService の結果を共通結果型へ変換することを検証する."""
-        service = PyTorchInferenceService(_build_logger())
-        data_loader = MagicMock()
-
-        class _DummyRuntimeAdapter:
-            @property
-            def use_cuda_timing(self) -> bool:
-                return False
-
-            def get_timing_stream(self) -> torch.cuda.Stream | None:
-                return None
-
-            def warmup(self, image: torch.Tensor, request: ExecutionRequest) -> None:
-                return None
-
-            def set_input(
-                self, images: torch.Tensor, request: ExecutionRequest
-            ) -> None:
-                return None
-
-            def run_inference(self) -> None:
-                return None
-
-            def get_output(self):
-                return None
-
-        class _FakeExecutionService:
-            def run(self, data_loader, runtime, request):  # noqa: ANN001
-                return ExecutionResult(
-                    predictions=[1, 0],
-                    confidences=[0.9, 0.8],
-                    true_labels=[1, 1],
-                    total_inference_time_ms=6.0,
-                    total_samples=2,
-                    warmup_samples=1,
-                    e2e_total_time_ms=12.0,
-                )
-
-        result = service.run(
-            RuntimeExecutionRequest(
-                data_loader=data_loader,
-                runtime_adapter=_DummyRuntimeAdapter(),
-                execution_request=ExecutionRequest(use_gpu_pipeline=False),
-            ),
-            execution_service=_FakeExecutionService(),
-        )
-
-        assert result.correct == 1
-        assert result.num_samples == 2
-        assert result.avg_time_per_image == 3.0
-        assert result.avg_total_time_per_image == 6.0
-
-
-class TestAggregateAndExport:
-    """aggregate_and_export のテスト."""
-
-    @patch("pochitrain.inference.services.interfaces.ResultExportService")
-    @patch("pochitrain.inference.services.interfaces.log_inference_result")
-    def test_calls_log_and_export(
-        self,
-        mock_log_result: MagicMock,
-        mock_export_cls: MagicMock,
-        tmp_path: Path,
-    ) -> None:
-        """log_inference_result と ResultExportService.export が呼ばれること."""
-        service = PyTorchInferenceService(_build_logger())
-
-        mock_dataset = MagicMock()
-        mock_dataset.get_file_paths.return_value = ["a.jpg", "b.jpg"]
-        mock_dataset.labels = [0, 1]
-        mock_dataset.get_classes.return_value = ["cat", "dog"]
-
-        service.aggregate_and_export(
-            workspace_dir=tmp_path,
-            model_path=Path("model.pth"),
-            data_path=Path("data/val"),
-            dataset=mock_dataset,
-            run_result=InferenceRunResult(
-                predictions=[0, 1],
-                confidences=[0.9, 0.8],
-                true_labels=[0, 1],
-                num_samples=2,
-                correct=2,
-                avg_time_per_image=5.0,
-                total_samples=2,
-                warmup_samples=1,
-                avg_total_time_per_image=50.0,
-            ),
-            input_size=(3, 224, 224),
-            model_info={"model_name": "resnet18"},
-            cm_config=None,
-            results_filename="pytorch_inference_results.csv",
-            summary_filename="pytorch_inference_summary.txt",
-        )
-
-        mock_log_result.assert_called_once()
-        mock_export_cls.return_value.export.assert_called_once()
-
-        call_args = mock_export_cls.return_value.export.call_args
-        request = call_args[0][0]
-        assert request.num_samples == 2
-        assert request.correct == 2  # [0,1] vs [0,1] -> 2 correct
-        assert request.results_filename == "pytorch_inference_results.csv"
-        assert request.summary_filename == "pytorch_inference_summary.txt"
+        assert service.detect_input_size(config, dataset_with_resize) == (3, 224, 224)
+        assert service.detect_input_size(
+            config_without_resize, dataset_from_sample
+        ) == (3, 100, 100)

@@ -1,7 +1,6 @@
 """inference_utils モジュールのテスト."""
 
 import csv
-import tempfile
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -22,6 +21,18 @@ from pochitrain.utils.inference_utils import (
     write_inference_csv,
     write_inference_summary,
 )
+
+
+def _read_csv_rows(csv_path: Path) -> list[list[str]]:
+    """CSVファイルを読み込み, 行配列として返す."""
+    with open(csv_path, encoding="utf-8") as csv_file:
+        reader = csv.reader(csv_file)
+        return list(reader)
+
+
+def _collect_info_messages(mock_logger: Mock) -> list[str]:
+    """logger.info の呼び出しメッセージを配列で返す."""
+    return [str(call.args[0]) for call in mock_logger.info.call_args_list if call.args]
 
 
 class TestAutoDetectConfigPath:
@@ -61,16 +72,20 @@ class TestGetDefaultOutputBaseDir:
 class TestValidateModelPath:
     """validate_model_path関数のテスト."""
 
-    def test_existing_model_path(self, tmp_path):
-        """存在するモデルパスではSystemExitが発生しない."""
+    @pytest.mark.parametrize(
+        "exists",
+        [True, False],
+        ids=["existing-model-path", "missing-model-path"],
+    )
+    def test_validate_model_path(self, tmp_path, exists):
+        """モデルパスの存在有無で分岐することを確認."""
         model_file = tmp_path / "model.pth"
-        model_file.touch()
-        result = validate_model_path(model_file)
-        assert result is None
+        if exists:
+            model_file.touch()
+            result = validate_model_path(model_file)
+            assert result is None
+            return
 
-    def test_non_existing_model_path(self, tmp_path):
-        """存在しないモデルパスでSystemExitが発生する."""
-        model_file = tmp_path / "non_existent.pth"
         with pytest.raises(SystemExit):
             validate_model_path(model_file)
 
@@ -78,16 +93,20 @@ class TestValidateModelPath:
 class TestValidateDataPath:
     """validate_data_path関数のテスト."""
 
-    def test_existing_data_path(self, tmp_path):
-        """存在するデータパスではSystemExitが発生しない."""
+    @pytest.mark.parametrize(
+        "exists",
+        [True, False],
+        ids=["existing-data-path", "missing-data-path"],
+    )
+    def test_validate_data_path(self, tmp_path, exists):
+        """データパスの存在有無で分岐することを確認."""
         data_dir = tmp_path / "data"
-        data_dir.mkdir()
-        result = validate_data_path(data_dir)
-        assert result is None
+        if exists:
+            data_dir.mkdir()
+            result = validate_data_path(data_dir)
+            assert result is None
+            return
 
-    def test_non_existing_data_path(self, tmp_path):
-        """存在しないデータパスでSystemExitが発生する."""
-        data_dir = tmp_path / "non_existent"
         with pytest.raises(SystemExit):
             validate_data_path(data_dir)
 
@@ -116,9 +135,7 @@ class TestWriteInferenceCsv:
         assert csv_path.exists()
         assert csv_path.name == "inference_results.csv"
 
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            rows = list(reader)
+        rows = _read_csv_rows(csv_path)
 
         assert rows[0] == [
             "image_path",
@@ -143,9 +160,7 @@ class TestWriteInferenceCsv:
             class_names=["cat", "dog"],
         )
 
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            rows = list(reader)
+        rows = _read_csv_rows(csv_path)
 
         assert rows[1][6] == "True"
         assert rows[2][6] == "False"
@@ -202,9 +217,7 @@ class TestWriteInferenceCsv:
             class_names=["cat"],
         )
 
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            rows = list(reader)
+        rows = _read_csv_rows(csv_path)
 
         assert rows[1][5] == "0.1235"
 
@@ -333,9 +346,7 @@ class TestLogInferenceResult:
             warmup_samples=10,
         )
 
-        logged_messages = [
-            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
-        ]
+        logged_messages = _collect_info_messages(mock_logger)
         assert mock_logger.info.call_count == 5
         assert any("推論画像枚数: 100枚" in message for message in logged_messages)
         assert any("精度: 95.00%" in message for message in logged_messages)
@@ -365,9 +376,7 @@ class TestLogInferenceResult:
             input_size=(3, 224, 224),
         )
 
-        logged_messages = [
-            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
-        ]
+        logged_messages = _collect_info_messages(mock_logger)
         assert mock_logger.info.call_count == 8
         assert any(
             "入力解像度: 224x224 (WxH), チャンネル数: 3" in message
@@ -381,39 +390,41 @@ class TestLogInferenceResult:
             for message in logged_messages
         )
 
-    def test_zero_samples(self, monkeypatch):
+    @pytest.mark.parametrize(
+        "kwargs, expected_message",
+        [
+            (
+                {
+                    "num_samples": 0,
+                    "correct": 0,
+                    "avg_time_per_image": 0.0,
+                    "total_samples": 0,
+                    "warmup_samples": 0,
+                },
+                "0.00%",
+            ),
+            (
+                {
+                    "num_samples": 10,
+                    "correct": 5,
+                    "avg_time_per_image": 0.0,
+                    "total_samples": 10,
+                    "warmup_samples": 0,
+                },
+                "0.0 images/sec",
+            ),
+        ],
+        ids=["zero-samples", "zero-avg-time"],
+    )
+    def test_logs_zero_edge_cases(self, monkeypatch, kwargs, expected_message):
+        """ゼロ系の境界ケースで期待メッセージが出ることを確認."""
         mock_logger = Mock()
         monkeypatch.setattr(inference_utils, "logger", mock_logger)
 
-        log_inference_result(
-            num_samples=0,
-            correct=0,
-            avg_time_per_image=0.0,
-            total_samples=0,
-            warmup_samples=0,
-        )
+        log_inference_result(**kwargs)
 
-        logged_messages = [
-            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
-        ]
-        assert any("0.00%" in message for message in logged_messages)
-
-    def test_zero_avg_time(self, monkeypatch):
-        mock_logger = Mock()
-        monkeypatch.setattr(inference_utils, "logger", mock_logger)
-
-        log_inference_result(
-            num_samples=10,
-            correct=5,
-            avg_time_per_image=0.0,
-            total_samples=10,
-            warmup_samples=0,
-        )
-
-        logged_messages = [
-            str(call.args[0]) for call in mock_logger.info.call_args_list if call.args
-        ]
-        assert any("0.0 images/sec" in message for message in logged_messages)
+        logged_messages = _collect_info_messages(mock_logger)
+        assert any(expected_message in message for message in logged_messages)
 
 
 class TestComputeConfusionMatrix:
@@ -581,8 +592,7 @@ class TestSaveClassificationReport:
         assert csv_path.exists()
         assert csv_path.name == "classification_report.csv"
 
-        with open(csv_path, encoding="utf-8") as f:
-            reader = list(csv.reader(f))
+        reader = _read_csv_rows(csv_path)
 
         assert len(reader) == 5
         assert reader[0] == ["class", "precision", "recall", "f1-score", "support"]
@@ -600,8 +610,7 @@ class TestSaveClassificationReport:
             output_dir=tmp_path,
         )
 
-        with open(csv_path, encoding="utf-8") as f:
-            reader = list(csv.reader(f))
+        reader = _read_csv_rows(csv_path)
 
         for row in reader[1:4]:  # 各クラス行
             assert row[1] == "1.0000"  # precision
@@ -617,8 +626,7 @@ class TestSaveClassificationReport:
             output_dir=tmp_path,
         )
 
-        with open(csv_path, encoding="utf-8") as f:
-            reader = list(csv.reader(f))
+        reader = _read_csv_rows(csv_path)
 
         for row in reader[1:3]:  # 各クラス行
             assert row[1] == "0.0000"  # precision
@@ -634,8 +642,7 @@ class TestSaveClassificationReport:
             output_dir=tmp_path,
         )
 
-        with open(csv_path, encoding="utf-8") as f:
-            reader = list(csv.reader(f))
+        reader = _read_csv_rows(csv_path)
 
         assert reader[1][4] == "3"  # cat: 3サンプル
         assert reader[2][4] == "2"  # dog: 2サンプル
@@ -682,44 +689,44 @@ class TestSaveClassificationReport:
 class TestPostProcessLogits:
     """post_process_logits関数のテスト."""
 
-    def test_basic_case(self):
-        """基本的なケース: 正しいshapeと値の範囲."""
-        logits = np.array([[2.0, 1.0, 0.1], [0.5, 3.0, 0.2]])
+    @pytest.mark.parametrize(
+        "logits, expected_indices",
+        [
+            (np.array([[2.0, 1.0, 0.1], [0.5, 3.0, 0.2]]), [0, 1]),
+            (np.array([[-1.0, -2.0, -0.5]]), [2]),
+            (np.array([[5.0]]), [0]),
+        ],
+        ids=["basic-batch", "negative-logits", "single-class"],
+    )
+    def test_predicted_indices(self, logits, expected_indices):
+        """logitの最大値に対応する予測インデックスを返す."""
         predicted, confidence = post_process_logits(logits)
 
-        assert predicted.shape == (2,)
-        assert confidence.shape == (2,)
-        assert predicted[0] == 0  # 最大値はindex 0
-        assert predicted[1] == 1  # 最大値はindex 1
+        assert predicted.tolist() == expected_indices
+        assert predicted.shape[0] == len(expected_indices)
+        assert confidence.shape[0] == len(expected_indices)
 
-    def test_confidence_range(self):
-        """信頼度が0-1の範囲内."""
-        logits = np.array([[1.0, 2.0, 3.0]])
-        predicted, confidence = post_process_logits(logits)
+    @pytest.mark.parametrize(
+        "logits, expected",
+        [
+            (np.array([[1.0, 2.0, 3.0]]), "greater-than-uniform"),
+            (np.array([[1.0, 1.0, 1.0]]), "uniform"),
+            (np.array([[5.0]]), "single-class"),
+        ],
+        ids=["softmax-rank", "equal-logits", "single-class-confidence"],
+    )
+    def test_confidence_behavior(self, logits, expected):
+        """softmax後の信頼度が入力条件ごとの期待を満たす."""
+        _, confidence = post_process_logits(logits)
+        value = confidence[0]
 
-        assert 0.0 <= confidence[0] <= 1.0
-
-    def test_softmax_probabilities_sum_to_one(self):
-        """softmax適用後の確率の合計が1になることを間接的に確認."""
-        logits = np.array([[1.0, 2.0, 3.0]])
-        predicted, confidence = post_process_logits(logits)
-
-        assert confidence[0] > 1.0 / 3.0
-
-    def test_single_class(self):
-        """1クラスの場合, confidenceが1.0."""
-        logits = np.array([[5.0]])
-        predicted, confidence = post_process_logits(logits)
-
-        assert predicted[0] == 0
-        assert np.isclose(confidence[0], 1.0)
-
-    def test_equal_logits(self):
-        """全て同じlogitの場合, confidenceが均等."""
-        logits = np.array([[1.0, 1.0, 1.0]])
-        predicted, confidence = post_process_logits(logits)
-
-        assert np.isclose(confidence[0], 1.0 / 3.0)
+        assert 0.0 <= value <= 1.0
+        if expected == "greater-than-uniform":
+            assert value > (1.0 / 3.0)
+        elif expected == "uniform":
+            assert np.isclose(value, 1.0 / 3.0)
+        else:
+            assert np.isclose(value, 1.0)
 
     def test_large_logits_numerical_stability(self):
         """大きなlogit値でも数値的に安定."""
@@ -730,14 +737,6 @@ class TestPostProcessLogits:
         assert 0.0 <= confidence[0] <= 1.0
         assert not np.isnan(confidence[0])
         assert not np.isinf(confidence[0])
-
-    def test_negative_logits(self):
-        """負のlogitでも正しく動作."""
-        logits = np.array([[-1.0, -2.0, -0.5]])
-        predicted, confidence = post_process_logits(logits)
-
-        assert predicted[0] == 2  # -0.5が最大
-        assert 0.0 <= confidence[0] <= 1.0
 
     def test_batch_processing(self):
         """バッチ処理が正しく動作."""
