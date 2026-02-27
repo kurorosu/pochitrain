@@ -20,7 +20,10 @@
   - ONNX/TRT/PyTorch の service テストを runtime 固有差分のみの最小維持セットへ再編した.
 
 ### Fixed
-- なし.
+- ONNX `pipeline=gpu` で `gpu_non_blocking=True` 時に精度低下が再現する問題を修正した ([#284](https://github.com/kurorosu/pochitrain/pull/284)).
+  - `OnnxInference.set_input_gpu` で入力テンソル参照を保持し, 推論完了まで入力バッファ寿命を保証するようにした.
+  - `EngineRuntimeAdapter` から `gpu_non_blocking=True` 時のみ ONNX 入力同期フックを呼ぶ経路を追加し, 転送完了を保証した.
+  - ONNX 関連テストを追加し, 入力バッファ寿命管理と同期フック呼び出しを検証可能にした.
 
 ### Removed
 - なし.
