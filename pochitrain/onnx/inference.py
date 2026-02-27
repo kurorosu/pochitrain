@@ -117,6 +117,17 @@ class OnnxInference:
         )
         self.io_binding.bind_output(self.output_name, "cuda")
 
+    def synchronize_input_if_needed(self) -> None:
+        """GPU入力バッファの転送完了を保証する.
+
+        ONNX Runtime は内部で別ストリームを使う場合があるため,
+        非同期転送した入力をバインドした直後に明示同期して整合性を担保する.
+        """
+        if self._bound_input_tensor is None:
+            return
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+
     def run_pure(self) -> None:
         """純粋な推論実行（計測対象）.
 

@@ -26,6 +26,12 @@ class EngineRuntimeAdapter(ABC):
 
     inference: Any
 
+    def _synchronize_input_if_needed(self) -> None:
+        """入力バッファ同期フックを必要時のみ呼び出す."""
+        synchronize = getattr(self.inference, "synchronize_input_if_needed", None)
+        if callable(synchronize):
+            synchronize()
+
     def warmup(self, image: Tensor, request: ExecutionRequest) -> None:
         """単一画像でウォームアップを行う.
 
@@ -43,6 +49,8 @@ class EngineRuntimeAdapter(ABC):
                     non_blocking=request.gpu_non_blocking,
                 )
                 self.inference.set_input_gpu(gpu_tensor)
+                if request.gpu_non_blocking:
+                    self._synchronize_input_if_needed()
             else:
                 image_np = image.numpy()[np.newaxis, ...]
                 self.inference.set_input(image_np)
@@ -66,6 +74,8 @@ class EngineRuntimeAdapter(ABC):
                 non_blocking=request.gpu_non_blocking,
             )
             self.inference.set_input_gpu(gpu_tensor)
+            if request.gpu_non_blocking:
+                self._synchronize_input_if_needed()
             return
 
         self.inference.set_input(images.numpy())
