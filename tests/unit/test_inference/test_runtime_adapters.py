@@ -39,6 +39,7 @@ class _StubOnnxInference:
     def __init__(self) -> None:
         self.use_gpu = True
         self.last_gpu_input: torch.Tensor | None = None
+        self.sync_called = 0
 
     def set_input_gpu(self, tensor: torch.Tensor) -> None:
         self.last_gpu_input = tensor
@@ -51,6 +52,9 @@ class _StubOnnxInference:
 
     def get_output(self) -> Any:
         return None
+
+    def synchronize_input_if_needed(self) -> None:
+        self.sync_called += 1
 
 
 def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> None:
@@ -104,6 +108,7 @@ def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> N
     )
 
     adapter = OnnxRuntimeAdapter(cast(Any, _StubOnnxInference()))
+    inference = _StubOnnxInference()
     request = ExecutionRequest(
         use_gpu_pipeline=True,
         mean_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
@@ -112,9 +117,45 @@ def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> N
     )
     images = torch.randint(0, 256, (1, 3, 4, 4), dtype=torch.uint8)
 
+    adapter = OnnxRuntimeAdapter(cast(Any, inference))
     adapter.set_input(images, request)
 
     assert captured["non_blocking"] is False
+    assert inference.sync_called == 0
+
+
+def test_onnx_adapter_syncs_when_gpu_non_blocking_true(monkeypatch) -> None:
+    """ONNX adapter が non_blocking=True の時に同期フックを呼ぶことを確認."""
+    captured: dict[str, Any] = {}
+
+    def _fake_gpu_normalize(
+        images: torch.Tensor,
+        mean_255: torch.Tensor,
+        std_255: torch.Tensor,
+        non_blocking: bool = True,
+    ) -> torch.Tensor:
+        captured["non_blocking"] = non_blocking
+        return images.to(dtype=torch.float32)
+
+    monkeypatch.setattr(
+        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
+        _fake_gpu_normalize,
+    )
+
+    inference = _StubOnnxInference()
+    adapter = OnnxRuntimeAdapter(cast(Any, inference))
+    request = ExecutionRequest(
+        use_gpu_pipeline=True,
+        mean_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
+        std_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
+        gpu_non_blocking=True,
+    )
+    images = torch.randint(0, 256, (1, 3, 4, 4), dtype=torch.uint8)
+
+    adapter.set_input(images, request)
+
+    assert captured["non_blocking"] is True
+    assert inference.sync_called == 1
 
 
 def test_pytorch_adapter_runs_model_and_returns_numpy() -> None:
