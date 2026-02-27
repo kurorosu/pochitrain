@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
-import pytest
 import torch
-from torchvision.transforms import CenterCrop, Compose, Resize, ToTensor
+from torchvision.transforms import Compose, Resize, ToTensor
 
 from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
@@ -54,14 +53,16 @@ def _build_config(**overrides: Any) -> PochiConfig:
 # ここでは PyTorch 固有差分のみを検証する.
 
 
-class TestCreateDataloader:
-    """create_dataloader のテスト."""
+class TestPyTorchSpecificBehavior:
+    """PyTorch 固有差分のテスト."""
 
     @patch(
         "pochitrain.inference.services.pytorch_inference_service.create_dataset_and_params"
     )
-    def test_returns_loader_and_dataset(self, mock_create_dataset: MagicMock) -> None:
-        """DataLoader とデータセットが返されること."""
+    def test_create_dataloader_delegates_pipeline_strategy(
+        self, mock_create_dataset: MagicMock
+    ) -> None:
+        """データセット戦略の戻り値を保持して DataLoader を構築する."""
         mock_dataset = MagicMock()
         mock_create_dataset.return_value = (
             mock_dataset,
@@ -75,17 +76,18 @@ class TestCreateDataloader:
         data_path = Path("data/val")
         runtime_options = InferenceRuntimeOptions(
             pipeline="gpu",
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-            pin_memory=True,
+            batch_size=8,
+            num_workers=2,
+            pin_memory=False,
             use_gpu=False,
             use_gpu_pipeline=True,
         )
+        val_transform = config.val_transform
 
         loader, dataset, pipeline, norm_mean, norm_std = service.create_dataloader(
             {},
             data_path,
-            config.val_transform,
+            val_transform,
             "gpu",
             runtime_options,
         )
@@ -93,62 +95,30 @@ class TestCreateDataloader:
         mock_create_dataset.assert_called_once_with(
             "gpu",
             data_path,
-            config.val_transform,
+            val_transform,
         )
         assert dataset is mock_dataset
-        assert loader.batch_size == config.batch_size
+        assert loader.batch_size == 8
+        assert loader.num_workers == 2
+        assert loader.pin_memory is False
         assert pipeline == "fast"
         assert norm_mean == [0.485, 0.456, 0.406]
         assert norm_std == [0.229, 0.224, 0.225]
 
+    def test_detect_input_size_uses_transform_then_dataset_fallback(self) -> None:
+        """Resize が無い場合はデータセットサンプルへフォールバックする."""
+        service = PyTorchInferenceService(_build_logger())
 
-class TestDetectInputSize:
-    """detect_input_size のテスト."""
-
-    def test_from_resize_transform(self) -> None:
-        """Resize Transform からサイズを取得できること."""
         config = _build_config(val_transform=Compose([Resize(224), ToTensor()]))
-        dataset = MagicMock()
-        service = PyTorchInferenceService(_build_logger())
+        dataset_with_resize = MagicMock()
 
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 224, 224)
-
-    def test_from_center_crop_transform(self) -> None:
-        """CenterCrop Transform からサイズを取得できること."""
-        config = _build_config(
-            val_transform=Compose([CenterCrop((128, 256)), ToTensor()])
-        )
-        dataset = MagicMock()
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 128, 256)
-
-    def test_fallback_to_dataset_sample(self) -> None:
-        """Transform にサイズ情報がない場合, データセットからフォールバックすること."""
-        config = _build_config(val_transform=Compose([ToTensor()]))
-        dataset = MagicMock()
-        dataset.__len__ = MagicMock(return_value=1)
+        config_without_resize = _build_config(val_transform=Compose([ToTensor()]))
+        dataset_from_sample = MagicMock()
+        dataset_from_sample.__len__ = MagicMock(return_value=1)
         sample_tensor = torch.zeros(3, 100, 100)
-        dataset.__getitem__ = MagicMock(return_value=(sample_tensor, 0))
+        dataset_from_sample.__getitem__ = MagicMock(return_value=(sample_tensor, 0))
 
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result == (3, 100, 100)
-
-    def test_returns_none_when_unavailable(self) -> None:
-        """サイズ情報が一切取得できない場合に None を返すこと."""
-        config = _build_config(val_transform=Compose([ToTensor()]))
-        dataset = MagicMock()
-        dataset.__len__ = MagicMock(return_value=0)
-
-        service = PyTorchInferenceService(_build_logger())
-
-        result = service.detect_input_size(config, dataset)
-
-        assert result is None
+        assert service.detect_input_size(config, dataset_with_resize) == (3, 224, 224)
+        assert service.detect_input_size(
+            config_without_resize, dataset_from_sample
+        ) == (3, 100, 100)
