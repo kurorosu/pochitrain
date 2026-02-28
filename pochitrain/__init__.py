@@ -22,7 +22,7 @@ from .pochi_predictor import PochiPredictor
 from .pochi_trainer import PochiTrainer
 from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 

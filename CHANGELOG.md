@@ -9,6 +9,23 @@
 - なし.
 
 ### Changed
+- なし.
+
+### Fixed
+- なし.
+
+### Removed
+- なし.
+
+## v1.7.2 (2026-02-28)
+
+### 概要
+- テストコードのリファクタリングと本番コードの重複排除を行ったパッチリリースです.
+
+### Added
+- なし.
+
+### Changed
 - `test_objective.py` の白箱テストを古典派テストへ移行した ([#293](https://github.com/kurorosu/pochitrain/pull/293)).
   - `FakeTrainer` から `last_init_kwargs` / `last_setup_kwargs` による内部呼び出し検証を削除し, 観測可能な出力 (戻り値, trial.reported) を基準とするテストへ再構成した.
 - `test_pochi_cli_infer.py` の `_ServiceStub` を簡素化し, 設定ヘルパーの重複を解消した ([#294](https://github.com/kurorosu/pochitrain/pull/294)).
@@ -30,7 +47,6 @@
 - `test_tensorrt/` のスタブ密結合と `test_infer_onnx.py` の内部メソッド patch を改善した ([#298](https://github.com/kurorosu/pochitrain/pull/298)).
   - `TestResolveIoBindings` の6テストと `TestResolveDynamicShape` の7テストを `@pytest.mark.parametrize` で集約した.
   - `test_infer_onnx.py` の `set_input_gpu` 内部メソッド patch テストを削除した.
-
 - `pochi_dataset.py` の Transform 検証ロジックと Dataset `__getitem__` の重複を排除した ([#299](https://github.com/kurorosu/pochitrain/pull/299)).
   - `_PIL_ONLY_TRANSFORMS` をモジュールレベル定数に集約した.
   - PIL専用 transform の検出ロジックを `_check_pil_transform` に抽出した.
@@ -38,34 +54,6 @@
 
 ### Fixed
 - なし.
-
-### Removed
-- なし.
-
-## v1.7.1 (2026-02-28)
-
-### 概要
-- ONNX GPU 推論の精度劣化バグ修正と, テストコードのリファクタリングを行ったパッチリリースです.
-
-### Added
-- なし.
-
-### Changed
-- 推論テストの重複ケースを共通基底テストへ集約し, runtime 固有差分の検証へ整理した ([#280](https://github.com/kurorosu/pochitrain/pull/280)).
-  - `test_base_inference_service.py` を追加し, `IInferenceService` の共通ロジック検証を一元化した.
-  - `test_infer_trt.py` を実運用に近いワークスペース構造で再構成し, 状態ベースの導線検証へ整理した.
-  - `test_pochi_config.py`, `test_sub_configs.py`, `test_pochi_trainer.py` の同種検証を `parametrize` 化し, 重複ケースを削減した.
-- 古典派テストへの再シフトを進め, CLI分割と重複ケース集約を実施した ([#282](https://github.com/kurorosu/pochitrain/pull/282)).
-  - `test_pochi_cli.py` を共通責務へ縮小し, `test_pochi_cli_infer.py` / `test_pochi_cli_train.py` へ物理分割した.
-  - `test_convert_cli.py` に成功系の引数伝播検証を追加し, セットアップをヘルパー化した.
-  - `test_inference_utils.py` を `parametrize` ベースへ集約し, 同型重複を削減した.
-  - ONNX/TRT/PyTorch の service テストを runtime 固有差分のみの最小維持セットへ再編した.
-
-### Fixed
-- ONNX `pipeline=gpu` で `gpu_non_blocking=True` 時に精度低下が再現する問題を修正した ([#284](https://github.com/kurorosu/pochitrain/pull/284)).
-  - `OnnxInference.set_input_gpu` で入力テンソル参照を保持し, 推論完了まで入力バッファ寿命を保証するようにした.
-  - `EngineRuntimeAdapter` から `gpu_non_blocking=True` 時のみ ONNX 入力同期フックを呼ぶ経路を追加し, 転送完了を保証した.
-  - ONNX 関連テストを追加し, 入力バッファ寿命管理と同期フック呼び出しを検証可能にした.
 
 ### Removed
 - なし.
