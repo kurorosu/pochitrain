@@ -31,6 +31,11 @@
   - `TestResolveIoBindings` の6テストと `TestResolveDynamicShape` の7テストを `@pytest.mark.parametrize` で集約した.
   - `test_infer_onnx.py` の `set_input_gpu` 内部メソッド patch テストを削除した.
 
+- `pochi_dataset.py` の Transform 検証ロジックと Dataset `__getitem__` の重複を排除した ([#299](https://github.com/kurorosu/pochitrain/pull/299)).
+  - `_PIL_ONLY_TRANSFORMS` をモジュールレベル定数に集約した.
+  - PIL専用 transform の検出ロジックを `_check_pil_transform` に抽出した.
+  - `GpuInferenceDataset.__getitem__` を削除し, `FastInferenceDataset.__getitem__` の実装を再利用するようにエラーハンドリング処理を統一した.
+
 ### Fixed
 - なし.
 
