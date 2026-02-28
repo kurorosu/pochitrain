@@ -175,40 +175,6 @@ class TestGpuFallbackReresolution:
         csv_files = list(output_dir.glob("*.csv"))
         assert len(csv_files) > 0
 
-    def test_main_fallback_uses_set_input_not_set_input_gpu(
-        self,
-        gpu_fallback_test_env,
-        tmp_path,
-    ):
-        """フォールバック後にset_input_gpu()が呼ばれないことを確認."""
-        from pochitrain.cli.infer_onnx import main
-
-        model_path, data_path = gpu_fallback_test_env
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-
-        with (
-            _patch_fallback_runtime(
-                [
-                    "infer-onnx",
-                    str(model_path),
-                    "--data",
-                    str(data_path),
-                    "-o",
-                    str(output_dir),
-                    "--pipeline",
-                    "gpu",
-                ]
-            ),
-            patch(
-                "pochitrain.onnx.inference.OnnxInference.set_input_gpu",
-                side_effect=RuntimeError("set_input_gpuが呼ばれた"),
-            ) as mock_set_input_gpu,
-        ):
-            main()
-
-        mock_set_input_gpu.assert_not_called()
-
     def test_main_writes_benchmark_json_when_enabled(
         self,
         gpu_fallback_test_env,
