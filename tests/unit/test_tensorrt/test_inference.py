@@ -233,96 +233,80 @@ class TestResolveIoBindings:
         self,
         tensor_specs: list[tuple[str, _MockTensorIOMode]],
     ) -> TensorRTInference:
-        """スタブエンジン付きの TensorRTInference インスタンスを作る.
-
-        Args:
-            tensor_specs: (tensor_name, tensor_mode) の組を並べた I/O 定義.
-
-        Returns:
-            最小構成で生成した TensorRTInference インスタンス.
-        """
+        """スタブエンジン付きの TensorRTInference インスタンスを作る."""
         instance = object.__new__(TensorRTInference)
         instance.engine = _StubEngine(tensor_specs)
         return instance
 
-    def test_single_input_output(self) -> None:
-        """入力1つ, 出力1つで正しく解決できることを確認する."""
+    @pytest.mark.parametrize(
+        "tensor_specs, expected",
+        [
+            pytest.param(
+                [
+                    ("input", _MockTensorIOMode.INPUT),
+                    ("output", _MockTensorIOMode.OUTPUT),
+                ],
+                {"input": "input", "output": "output"},
+                id="standard-order",
+            ),
+            pytest.param(
+                [
+                    ("output", _MockTensorIOMode.OUTPUT),
+                    ("input", _MockTensorIOMode.INPUT),
+                ],
+                {"input": "input", "output": "output"},
+                id="reversed-order",
+            ),
+        ],
+    )
+    def test_resolves_single_io(self, tensor_specs, expected) -> None:
+        """入出力が各1つなら順序によらず正しく解決できることを確認する."""
         trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("input", _MockTensorIOMode.INPUT),
-                ("output", _MockTensorIOMode.OUTPUT),
-            ]
-        )
+        instance = self._create_inference_with_engine(tensor_specs)
 
         result = instance._resolve_io_bindings(trt_mock)
 
-        assert result == {"input": "input", "output": "output"}
+        assert result == expected
 
-    def test_reversed_order(self) -> None:
-        """出力が先, 入力が後ろでも正しく解決できることを確認する."""
+    @pytest.mark.parametrize(
+        "tensor_specs, match",
+        [
+            pytest.param(
+                [
+                    ("input_0", _MockTensorIOMode.INPUT),
+                    ("input_1", _MockTensorIOMode.INPUT),
+                    ("output", _MockTensorIOMode.OUTPUT),
+                ],
+                "入力",
+                id="multiple-inputs",
+            ),
+            pytest.param(
+                [
+                    ("input", _MockTensorIOMode.INPUT),
+                    ("boxes", _MockTensorIOMode.OUTPUT),
+                    ("scores", _MockTensorIOMode.OUTPUT),
+                ],
+                "出力",
+                id="multiple-outputs",
+            ),
+            pytest.param(
+                [("output", _MockTensorIOMode.OUTPUT)],
+                "入力",
+                id="no-input",
+            ),
+            pytest.param(
+                [("input", _MockTensorIOMode.INPUT)],
+                "出力",
+                id="no-output",
+            ),
+        ],
+    )
+    def test_raises_on_invalid_io_count(self, tensor_specs, match) -> None:
+        """入力または出力が1つでない場合は RuntimeError になることを確認する."""
         trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("output", _MockTensorIOMode.OUTPUT),
-                ("input", _MockTensorIOMode.INPUT),
-            ]
-        )
+        instance = self._create_inference_with_engine(tensor_specs)
 
-        result = instance._resolve_io_bindings(trt_mock)
-
-        assert result == {"input": "input", "output": "output"}
-
-    def test_multiple_inputs_raises(self) -> None:
-        """入力が複数ある場合は RuntimeError になることを確認する."""
-        trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("input_0", _MockTensorIOMode.INPUT),
-                ("input_1", _MockTensorIOMode.INPUT),
-                ("output", _MockTensorIOMode.OUTPUT),
-            ]
-        )
-
-        with pytest.raises(RuntimeError, match="入力"):
-            instance._resolve_io_bindings(trt_mock)
-
-    def test_multiple_outputs_raises(self) -> None:
-        """出力が複数ある場合は RuntimeError になることを確認する."""
-        trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("input", _MockTensorIOMode.INPUT),
-                ("boxes", _MockTensorIOMode.OUTPUT),
-                ("scores", _MockTensorIOMode.OUTPUT),
-            ]
-        )
-
-        with pytest.raises(RuntimeError, match="出力"):
-            instance._resolve_io_bindings(trt_mock)
-
-    def test_no_input_raises(self) -> None:
-        """入力が0件の場合は RuntimeError になることを確認する."""
-        trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("output", _MockTensorIOMode.OUTPUT),
-            ]
-        )
-
-        with pytest.raises(RuntimeError, match="入力"):
-            instance._resolve_io_bindings(trt_mock)
-
-    def test_no_output_raises(self) -> None:
-        """出力が0件の場合は RuntimeError になることを確認する."""
-        trt_mock = SimpleNamespace(TensorIOMode=_MockTensorIOMode)
-        instance = self._create_inference_with_engine(
-            [
-                ("input", _MockTensorIOMode.INPUT),
-            ]
-        )
-
-        with pytest.raises(RuntimeError, match="出力"):
+        with pytest.raises(RuntimeError, match=match):
             instance._resolve_io_bindings(trt_mock)
 
 

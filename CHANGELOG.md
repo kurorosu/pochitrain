@@ -21,12 +21,15 @@
   - TRT/ONNX `gpu_non_blocking` 重複テストを `@pytest.mark.parametrize` で統合した.
   - `test_base_inference_service.py` の `MagicMock` を `_DummyAdapter` スタブと実 `DataLoader` に置換した.
   - `test_pytorch_inference_service.py` の `create_dataset_and_params` 完全モックを実データテストに移行した.
-- テスト間で重複するフィクスチャ・ヘルパーを共通化した (N/A.).
+- テスト間で重複するフィクスチャ・ヘルパーを共通化した ([#297](https://github.com/kurorosu/pochitrain/pull/297)).
   - `logger` フィクスチャを `test_core/conftest.py` に集約した.
   - `SimpleModel` クラスを `test_onnx/conftest.py` に集約した.
   - `test_pipeline_consistency.py` と `test_calibrator.py` のデータ生成ヘルパーを `create_dummy_dataset` フィクスチャに統合した.
   - `test_convert_cli.py` の重複 `monkeypatch.setattr` を `_patch_convert_deps` ヘルパーに集約した.
   - `test_export_onnx_cli.py` の `FakeOnnxExporterVerifyFail` テストを `run_export` フィクスチャ経由に統合した.
+- `test_tensorrt/` のスタブ密結合と `test_infer_onnx.py` の内部メソッド patch を改善した ([#298](https://github.com/kurorosu/pochitrain/pull/298)).
+  - `TestResolveIoBindings` の6テストと `TestResolveDynamicShape` の7テストを `@pytest.mark.parametrize` で集約した.
+  - `test_infer_onnx.py` の `set_input_gpu` 内部メソッド patch テストを削除した.
 
 ### Fixed
 - なし.
