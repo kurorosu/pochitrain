@@ -11,12 +11,6 @@ from pochitrain.training.metrics_tracker import MetricsTracker
 
 
 @pytest.fixture
-def logger() -> logging.Logger:
-    """テスト用ロガー."""
-    return logging.getLogger("test_metrics_tracker")
-
-
-@pytest.fixture
 def visualization_dir(tmp_path: Path) -> Path:
     """テスト用の可視化出力ディレクトリ."""
     return tmp_path

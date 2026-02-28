@@ -266,30 +266,21 @@ class TestExportOnnxCli:
     def test_verify_failure_exits_with_error(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
+        run_export: RunExport,
     ) -> None:
         """verify が False の場合は終了する."""
         model_path = tmp_path / "model.pth"
         model_path.write_text("dummy", encoding="utf-8")
 
-        FakeOnnxExporter.instances.clear()
-        monkeypatch.setattr(
-            export_onnx_cli,
-            "OnnxExporter",
-            FakeOnnxExporterVerifyFail,
-        )
-        monkeypatch.setattr(
-            "sys.argv",
-            [
-                "export-onnx",
-                str(model_path),
-                "--num-classes",
-                "2",
-                "--input-size",
-                "224",
-                "224",
-            ],
-        )
-
         with pytest.raises(SystemExit):
-            export_onnx_cli.main()
+            run_export(
+                [
+                    str(model_path),
+                    "--num-classes",
+                    "2",
+                    "--input-size",
+                    "224",
+                    "224",
+                ],
+                exporter_cls=FakeOnnxExporterVerifyFail,
+            )
