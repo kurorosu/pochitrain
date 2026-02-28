@@ -67,44 +67,39 @@ class DummyTrial:
 
 
 class FakeTrainer:
-    """Objective テスト用の簡易 Trainer."""
+    """Objective テスト用の簡易 Trainer.
 
-    last_init_kwargs: dict[str, Any] = {}
-    last_setup_kwargs: dict[str, Any] = {}
+    観測可能な出力 (validate の戻り値) のみを制御し,
+    内部呼び出しの引数検証は行わない.
+    """
+
     validate_values: list[dict[str, float]] = []
 
     @classmethod
     def reset(cls) -> None:
         """テスト間の状態を初期化する."""
-        cls.last_init_kwargs = {}
-        cls.last_setup_kwargs = {}
         cls.validate_values = []
 
-    def __init__(self, **kwargs: Any) -> None:
-        """初期化時引数を保存する.
+    def __init__(self, **_kwargs: Any) -> None:
+        """初期化する.
 
         Args:
-            **kwargs: 初期化引数.
+            **_kwargs: 未使用 (PochiTrainer 互換シグネチャ).
         """
-        type(self).last_init_kwargs = dict(kwargs)
 
-    def setup_training(self, **kwargs: Any) -> None:
-        """学習設定引数を保存する.
+    def setup_training(self, **_kwargs: Any) -> None:
+        """学習を設定する.
 
         Args:
-            **kwargs: 学習設定引数.
+            **_kwargs: 未使用 (PochiTrainer 互換シグネチャ).
         """
-        type(self).last_setup_kwargs = dict(kwargs)
 
-    def train_one_epoch(self, epoch: int, train_loader: Any) -> None:
+    def train_one_epoch(self, **_kwargs: Any) -> None:
         """1 エポック学習を模擬する.
 
         Args:
-            epoch: エポック番号.
-            train_loader: 未使用.
+            **_kwargs: 未使用.
         """
-        _ = epoch
-        _ = train_loader
 
     def validate(self, _val_loader: Any) -> dict[str, float]:
         """事前に設定した検証値を返す.
@@ -171,87 +166,23 @@ class TestClassificationObjective:
         """各テスト前に FakeTrainer 状態を初期化する."""
         FakeTrainer.reset()
 
-    def test_call_creates_trainer_with_config_attributes(
+    def test_call_returns_accuracy_from_single_epoch(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """PochiConfig 由来の属性で Trainer が生成されることを検証する."""
+        """1 エポック実行時に検証精度がそのまま返ることを検証する."""
         monkeypatch.setattr(pochitrain, "PochiTrainer", FakeTrainer)
         FakeTrainer.validate_values = [{"val_accuracy": 0.85}]
 
         objective = _build_objective(StaticParamSuggestor({"learning_rate": 0.01}))
         trial = DummyTrial()
 
-        objective(trial)
+        result = objective(trial)
 
-        assert FakeTrainer.last_init_kwargs == {
-            "model_name": "resnet18",
-            "num_classes": 5,
-            "device": "cpu",
-            "pretrained": True,
-            "create_workspace": False,
-        }
+        assert result == pytest.approx(0.85)
+        assert trial.reported == [(0.85, 1)]
 
-    def test_call_uses_suggested_params_over_config(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """提案パラメータが優先されることを検証する."""
-        monkeypatch.setattr(pochitrain, "PochiTrainer", FakeTrainer)
-        FakeTrainer.validate_values = [{"val_accuracy": 0.90}]
-
-        objective = _build_objective(
-            StaticParamSuggestor(
-                {
-                    "learning_rate": 0.05,
-                    "optimizer": "SGD",
-                }
-            )
-        )
-
-        objective(DummyTrial())
-
-        assert FakeTrainer.last_setup_kwargs == {
-            "learning_rate": 0.05,
-            "optimizer_name": "SGD",
-            "scheduler_name": None,
-            "scheduler_params": None,
-            "enable_layer_wise_lr": False,
-            "layer_wise_lr_config": None,
-        }
-
-    def test_call_falls_back_to_config_when_not_suggested(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """未提案パラメータはベース設定を使うことを検証する."""
-        monkeypatch.setattr(pochitrain, "PochiTrainer", FakeTrainer)
-        FakeTrainer.validate_values = [{"val_accuracy": 0.80}]
-
-        base_config = _create_base_config()
-        base_config.scheduler = "StepLR"
-        base_config.scheduler_params = {"step_size": 10}
-        objective = ClassificationObjective(
-            base_config=base_config,
-            param_suggestor=StaticParamSuggestor({}),
-            train_loader=[],
-            val_loader=[],
-            optuna_epochs=1,
-            device="cpu",
-        )
-
-        objective(DummyTrial())
-
-        assert FakeTrainer.last_setup_kwargs == {
-            "learning_rate": 0.001,
-            "optimizer_name": "Adam",
-            "scheduler_name": "StepLR",
-            "scheduler_params": {"step_size": 10},
-            "enable_layer_wise_lr": False,
-            "layer_wise_lr_config": None,
-        }
-
-    def test_call_returns_best_accuracy(
+    def test_call_returns_best_accuracy_across_epochs(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -268,6 +199,24 @@ class TestClassificationObjective:
         result = objective(DummyTrial())
 
         assert result == pytest.approx(0.85)
+
+    def test_call_reports_each_epoch_accuracy_to_trial(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """各エポックの精度が trial に報告されることを検証する."""
+        monkeypatch.setattr(pochitrain, "PochiTrainer", FakeTrainer)
+        FakeTrainer.validate_values = [
+            {"val_accuracy": 0.60},
+            {"val_accuracy": 0.75},
+        ]
+
+        objective = _build_objective(StaticParamSuggestor({}), optuna_epochs=2)
+        trial = DummyTrial()
+
+        objective(trial)
+
+        assert trial.reported == [(0.60, 1), (0.75, 2)]
 
     def test_call_raises_trial_pruned_when_should_prune(
         self,
@@ -287,3 +236,17 @@ class TestClassificationObjective:
             objective(trial)
 
         assert trial.reported == [(0.71, 1), (0.72, 2)]
+
+    def test_call_returns_zero_when_no_accuracy_in_metrics(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """validate が val_accuracy を含まない場合に 0.0 が返ることを検証する."""
+        monkeypatch.setattr(pochitrain, "PochiTrainer", FakeTrainer)
+        FakeTrainer.validate_values = [{"val_loss": 1.5}]
+
+        objective = _build_objective(StaticParamSuggestor({}))
+
+        result = objective(DummyTrial())
+
+        assert result == pytest.approx(0.0)
