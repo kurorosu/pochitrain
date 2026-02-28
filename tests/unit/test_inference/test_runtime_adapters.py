@@ -2,6 +2,7 @@
 
 from typing import Any, cast
 
+import pytest
 import torch
 
 from pochitrain.inference.adapters.onnx_runtime_adapter import OnnxRuntimeAdapter
@@ -57,8 +58,18 @@ class _StubOnnxInference:
         self.sync_called += 1
 
 
-def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> None:
-    """TRT adapter が gpu_non_blocking を gpu_normalize へ渡すことを確認."""
+@pytest.mark.parametrize(
+    "adapter_cls, stub_factory",
+    [
+        (TensorRTRuntimeAdapter, _StubTrtInference),
+        (OnnxRuntimeAdapter, _StubOnnxInference),
+    ],
+    ids=["trt", "onnx"],
+)
+def test_adapter_passes_gpu_non_blocking_to_gpu_normalize(
+    monkeypatch, adapter_cls, stub_factory
+) -> None:
+    """TRT/ONNX adapter が gpu_non_blocking を gpu_normalize へ渡すことを確認."""
     captured: dict[str, Any] = {}
 
     def _fake_gpu_normalize(
@@ -75,7 +86,8 @@ def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> No
         _fake_gpu_normalize,
     )
 
-    adapter = TensorRTRuntimeAdapter(cast(Any, _StubTrtInference()))
+    stub = stub_factory()
+    adapter = adapter_cls(cast(Any, stub))
     request = ExecutionRequest(
         use_gpu_pipeline=True,
         mean_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
@@ -87,41 +99,6 @@ def test_trt_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> No
     adapter.set_input(images, request)
 
     assert captured["non_blocking"] is False
-
-
-def test_onnx_adapter_passes_gpu_non_blocking_to_gpu_normalize(monkeypatch) -> None:
-    """ONNX adapter が gpu_non_blocking を gpu_normalize へ渡すことを確認."""
-    captured: dict[str, Any] = {}
-
-    def _fake_gpu_normalize(
-        images: torch.Tensor,
-        mean_255: torch.Tensor,
-        std_255: torch.Tensor,
-        non_blocking: bool = True,
-    ) -> torch.Tensor:
-        captured["non_blocking"] = non_blocking
-        return images.to(dtype=torch.float32)
-
-    monkeypatch.setattr(
-        "pochitrain.inference.adapters.engine_runtime_adapter.gpu_normalize",
-        _fake_gpu_normalize,
-    )
-
-    adapter = OnnxRuntimeAdapter(cast(Any, _StubOnnxInference()))
-    inference = _StubOnnxInference()
-    request = ExecutionRequest(
-        use_gpu_pipeline=True,
-        mean_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
-        std_255=torch.ones((1, 3, 1, 1), dtype=torch.float32),
-        gpu_non_blocking=False,
-    )
-    images = torch.randint(0, 256, (1, 3, 4, 4), dtype=torch.uint8)
-
-    adapter = OnnxRuntimeAdapter(cast(Any, inference))
-    adapter.set_input(images, request)
-
-    assert captured["non_blocking"] is False
-    assert inference.sync_called == 0
 
 
 def test_onnx_adapter_syncs_when_gpu_non_blocking_true(monkeypatch) -> None:

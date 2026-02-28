@@ -19,6 +19,32 @@ from pochitrain.logging import LoggerManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
+_PIL_ONLY_TRANSFORMS: Tuple[type, ...] = (transforms.ToPILImage,)
+
+
+def _check_pil_transform(t: Any, dataset_name: str) -> bool:
+    """PIL専用transformが含まれているかチェックし, 警告をログ出力する.
+
+    Args:
+        t: チェックするtransform
+        dataset_name: フォールバック元となるデータセット名
+
+    Returns:
+        PIL専用transformであれば True, そうでなければ False
+    """
+    if isinstance(t, _PIL_ONLY_TRANSFORMS):
+        action = (
+            "PochiImageDatasetにフォールバックします."
+            if dataset_name == "FastInferenceDataset"
+            else "フォールバックします."
+        )
+        logger.warning(
+            f"PIL専用transform {type(t).__name__} が含まれています. "
+            f"{dataset_name}は使用できないため, {action}"
+        )
+        return True
+    return False
+
 
 class PochiImageDataset(Dataset):
     """
@@ -149,13 +175,15 @@ class FastInferenceDataset(PochiImageDataset):
             try:
                 image = self.transform(image)
             except Exception as e:
-                if not FastInferenceDataset._transform_error_logged:
+                cls = type(self)
+                if not cls._transform_error_logged:
+                    dataset_name = cls.__name__
                     logger.error(
-                        f"FastInferenceDataset で transform 実行に失敗しました: {e}. "
+                        f"{dataset_name} で transform 実行に失敗しました: {e}. "
                         "PIL前提の transform が含まれている可能性があります. "
                         "PochiImageDataset への切替を検討してください."
                     )
-                    FastInferenceDataset._transform_error_logged = True
+                    cls._transform_error_logged = True
                 raise
 
         return image, label
@@ -174,26 +202,7 @@ class GpuInferenceDataset(FastInferenceDataset):
         extensions: 許可する拡張子
     """
 
-    def __getitem__(self, index: int) -> Tuple[Tensor, int]:
-        """指定されたインデックスのデータを返す."""
-        image_path = self.image_paths[index]
-        label = self.labels[index]
-
-        image = decode_image(str(image_path), mode=ImageReadMode.RGB)
-
-        if self.transform:
-            try:
-                image = self.transform(image)
-            except Exception as e:
-                if not FastInferenceDataset._transform_error_logged:
-                    logger.error(
-                        f"GpuInferenceDataset で transform 実行に失敗しました: {e}. "
-                        "PochiImageDataset への切替を検討してください."
-                    )
-                    FastInferenceDataset._transform_error_logged = True
-                raise
-
-        return image, label
+    pass
 
 
 def extract_normalize_params(
@@ -235,7 +244,6 @@ def build_gpu_preprocess_transform(
         GpuInferenceDataset向けのtransform. PIL専用transform時はNone.
         残すtransformが無い場合は空のCompose (transforms=[]) を返す.
     """
-    _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
     _SKIP_TRANSFORMS = (
         transforms.ToTensor,
         transforms.Normalize,
@@ -245,18 +253,14 @@ def build_gpu_preprocess_transform(
     new_transforms: List[Any] = []
     if hasattr(transform, "transforms"):
         for t in transform.transforms:
-            if isinstance(t, _PIL_ONLY_TRANSFORMS):
-                logger.warning(
-                    f"PIL専用transform {type(t).__name__} が含まれています. "
-                    "GpuInferenceDatasetは使用できないため, フォールバックします."
-                )
+            if _check_pil_transform(t, "GpuInferenceDataset"):
                 return None
             elif isinstance(t, _SKIP_TRANSFORMS):
                 continue
             else:
                 new_transforms.append(t)
     else:
-        if isinstance(transform, _PIL_ONLY_TRANSFORMS):
+        if _check_pil_transform(transform, "GpuInferenceDataset"):
             return None
         elif not isinstance(transform, _SKIP_TRANSFORMS):
             new_transforms.append(transform)
@@ -338,31 +342,19 @@ def convert_transform_for_fast_inference(
     Returns:
         FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    _PIL_ONLY_TRANSFORMS = (transforms.ToPILImage,)
-
     new_transforms: List[Any] = []
     if hasattr(transform, "transforms"):
         for t in transform.transforms:
             if isinstance(t, transforms.ToTensor):
                 new_transforms.append(transforms.ConvertImageDtype(torch.float32))
-            elif isinstance(t, _PIL_ONLY_TRANSFORMS):
-                logger.warning(
-                    f"PIL専用transform {type(t).__name__} が含まれています. "
-                    "FastInferenceDatasetは使用できないため, "
-                    "PochiImageDatasetにフォールバックします."
-                )
+            elif _check_pil_transform(t, "FastInferenceDataset"):
                 return None
             else:
                 new_transforms.append(t)
     else:
         if isinstance(transform, transforms.ToTensor):
             new_transforms.append(transforms.ConvertImageDtype(torch.float32))
-        elif isinstance(transform, _PIL_ONLY_TRANSFORMS):
-            logger.warning(
-                f"PIL専用transform {type(transform).__name__} が含まれています. "
-                "FastInferenceDatasetは使用できないため, "
-                "PochiImageDatasetにフォールバックします."
-            )
+        elif _check_pil_transform(transform, "FastInferenceDataset"):
             return None
         else:
             new_transforms.append(transform)

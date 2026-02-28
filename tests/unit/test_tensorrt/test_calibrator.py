@@ -4,7 +4,6 @@ TensorRT がない環境でも検証できる経路を中心に,
 データセット生成とキャリブレータ生成の振る舞いを確認する.
 """
 
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -18,33 +17,12 @@ from pochitrain.tensorrt.calibrator import (
 )
 
 
-def _create_data_dir(
-    tmp_path: Path, num_classes: int = 2, images_per_class: int = 5
-) -> str:
-    """テスト用のフォルダ形式データセットを作成する."""
-    from PIL import Image
-
-    for class_index in range(num_classes):
-        class_dir = tmp_path / f"class_{class_index}"
-        class_dir.mkdir()
-        for image_index in range(images_per_class):
-            image_path = class_dir / f"img_{image_index}.jpg"
-            image = Image.new(
-                "RGB",
-                (32, 32),
-                color=(class_index * 50, image_index * 10, 0),
-            )
-            image.save(image_path)
-
-    return str(tmp_path)
-
-
 class TestCreateCalibrationDataset:
     """create_calibration_dataset 関数のテスト."""
 
-    def test_returns_full_dataset_when_under_max(self, tmp_path: Path) -> None:
+    def test_returns_full_dataset_when_under_max(self, create_dummy_dataset) -> None:
         """総サンプル数が max_samples 以下なら全件を返すことを確認する."""
-        data_root = _create_data_dir(tmp_path, num_classes=2, images_per_class=3)
+        data_root = str(create_dummy_dataset({"class_0": 3, "class_1": 3}))
         transform = transforms.Compose([transforms.ToTensor()])
 
         result = create_calibration_dataset(
@@ -55,9 +33,13 @@ class TestCreateCalibrationDataset:
 
         assert len(result) == 6
 
-    def test_returns_subset_when_over_max(self, tmp_path: Path) -> None:
+    def test_returns_subset_when_over_max(self, create_dummy_dataset) -> None:
         """総サンプル数が max_samples を超えると Subset を返すことを確認する."""
-        data_root = _create_data_dir(tmp_path, num_classes=4, images_per_class=10)
+        data_root = str(
+            create_dummy_dataset(
+                {f"class_{i}": 10 for i in range(4)},
+            )
+        )
         transform = transforms.Compose([transforms.ToTensor()])
 
         result = create_calibration_dataset(
@@ -69,9 +51,13 @@ class TestCreateCalibrationDataset:
         assert isinstance(result, Subset)
         assert len(result) == 10
 
-    def test_reproducible_with_same_seed(self, tmp_path: Path) -> None:
+    def test_reproducible_with_same_seed(self, create_dummy_dataset) -> None:
         """同じ seed なら同じサブセットになることを確認する."""
-        data_root = _create_data_dir(tmp_path, num_classes=4, images_per_class=10)
+        data_root = str(
+            create_dummy_dataset(
+                {f"class_{i}": 10 for i in range(4)},
+            )
+        )
         transform = transforms.Compose([transforms.ToTensor()])
 
         result1 = create_calibration_dataset(
@@ -91,9 +77,13 @@ class TestCreateCalibrationDataset:
         assert isinstance(result2, Subset)
         assert result1.indices == result2.indices
 
-    def test_different_seed_gives_different_subset(self, tmp_path: Path) -> None:
+    def test_different_seed_gives_different_subset(self, create_dummy_dataset) -> None:
         """異なる seed なら異なるサブセットになることを確認する."""
-        data_root = _create_data_dir(tmp_path, num_classes=4, images_per_class=10)
+        data_root = str(
+            create_dummy_dataset(
+                {f"class_{i}": 10 for i in range(4)},
+            )
+        )
         transform = transforms.Compose([transforms.ToTensor()])
 
         result1 = create_calibration_dataset(

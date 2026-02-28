@@ -1,12 +1,11 @@
 """PyTorchInferenceService のテスト."""
 
 import logging
-from pathlib import Path
 from typing import Any, Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import torch
-from torchvision.transforms import Compose, Resize, ToTensor
+from torchvision.transforms import Compose, Normalize, Resize, ToTensor
 
 from pochitrain.config import PochiConfig
 from pochitrain.inference.services.pytorch_inference_service import (
@@ -49,31 +48,25 @@ def _build_config(**overrides: Any) -> PochiConfig:
 
 
 # Why:
-# 共通ロジックは test_base_inference_service.py で検証済みのため、
+# 共通ロジックは test_base_inference_service.py で検証済みのため,
 # ここでは PyTorch 固有差分のみを検証する.
 
 
 class TestPyTorchSpecificBehavior:
     """PyTorch 固有差分のテスト."""
 
-    @patch(
-        "pochitrain.inference.services.pytorch_inference_service.create_dataset_and_params"
-    )
-    def test_create_dataloader_delegates_pipeline_strategy(
-        self, mock_create_dataset: MagicMock
+    def test_create_dataloader_builds_loader_with_runtime_options(
+        self, create_dummy_dataset
     ) -> None:
-        """データセット戦略の戻り値を保持して DataLoader を構築する."""
-        mock_dataset = MagicMock()
-        mock_create_dataset.return_value = (
-            mock_dataset,
-            "fast",
-            [0.485, 0.456, 0.406],
-            [0.229, 0.224, 0.225],
+        """実データで create_dataloader を呼び, DataLoader の設定を検証する."""
+        data_path = create_dummy_dataset({"cat": 2, "dog": 2})
+        val_transform = Compose(
+            [
+                Resize(224),
+                ToTensor(),
+                Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
         )
-
-        service = PyTorchInferenceService(_build_logger())
-        config = _build_config()
-        data_path = Path("data/val")
         runtime_options = InferenceRuntimeOptions(
             pipeline="gpu",
             batch_size=8,
@@ -82,8 +75,8 @@ class TestPyTorchSpecificBehavior:
             use_gpu=False,
             use_gpu_pipeline=True,
         )
-        val_transform = config.val_transform
 
+        service = PyTorchInferenceService(_build_logger())
         loader, dataset, pipeline, norm_mean, norm_std = service.create_dataloader(
             {},
             data_path,
@@ -92,16 +85,11 @@ class TestPyTorchSpecificBehavior:
             runtime_options,
         )
 
-        mock_create_dataset.assert_called_once_with(
-            "gpu",
-            data_path,
-            val_transform,
-        )
-        assert dataset is mock_dataset
+        assert len(dataset) == 4
         assert loader.batch_size == 8
         assert loader.num_workers == 2
         assert loader.pin_memory is False
-        assert pipeline == "fast"
+        assert pipeline == "gpu"
         assert norm_mean == [0.485, 0.456, 0.406]
         assert norm_std == [0.229, 0.224, 0.225]
 

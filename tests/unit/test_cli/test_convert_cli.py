@@ -155,6 +155,28 @@ class FakeConverter:
         return output_path
 
 
+def _patch_convert_deps(
+    monkeypatch: pytest.MonkeyPatch,
+    logger: SimpleNamespace,
+    *,
+    trt_available: bool = True,
+) -> None:
+    """convert_command の共通依存を patch する."""
+    import pochitrain.tensorrt.converter as converter_module
+    import pochitrain.tensorrt.inference as inference_module
+
+    monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
+    monkeypatch.setattr(
+        inference_module, "check_tensorrt_availability", lambda: trt_available
+    )
+    monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+
+
+def _make_mock_logger() -> SimpleNamespace:
+    """error 呼び出し記録付きのロガーを返す."""
+    return SimpleNamespace(debug=Mock(), info=Mock(), error=Mock())
+
+
 class TestConvertCommand:
     """`convert_command` の実行時分岐と引数伝播を検証."""
 
@@ -177,15 +199,7 @@ class TestConvertCommand:
             info=lambda *_a, **_k: None,
             error=lambda *_a, **_k: None,
         )
-
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
-
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+        _patch_convert_deps(monkeypatch, logger)
 
         args = argparse.Namespace(
             debug=False,
@@ -227,15 +241,7 @@ class TestConvertCommand:
             info=lambda *_a, **_k: None,
             error=lambda *_a, **_k: None,
         )
-
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
-
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+        _patch_convert_deps(monkeypatch, logger)
 
         args = argparse.Namespace(
             debug=False,
@@ -273,11 +279,7 @@ class TestConvertCommand:
         calib_dir = tmp_path / "calib"
         calib_dir.mkdir()
 
-        logger = SimpleNamespace(
-            debug=Mock(),
-            info=Mock(),
-            error=Mock(),
-        )
+        logger = _make_mock_logger()
         fake_calibrator = object()
         calibrator_args: dict[str, object] = {}
 
@@ -286,13 +288,8 @@ class TestConvertCommand:
             return fake_calibrator
 
         import pochitrain.tensorrt.calibrator as calibrator_module
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
 
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
+        _patch_convert_deps(monkeypatch, logger)
         monkeypatch.setattr(
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
@@ -301,7 +298,6 @@ class TestConvertCommand:
             "load_config",
             lambda _path: {"val_transform": "dummy_transform"},
         )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
 
         args = argparse.Namespace(
             debug=False,
@@ -347,11 +343,7 @@ class TestConvertCommand:
         calib_dir = tmp_path / "auto_calib"
         calib_dir.mkdir()
 
-        logger = SimpleNamespace(
-            debug=Mock(),
-            info=Mock(),
-            error=Mock(),
-        )
+        logger = _make_mock_logger()
         fake_calibrator = object()
         calibrator_args: dict[str, object] = {}
 
@@ -360,13 +352,8 @@ class TestConvertCommand:
             return fake_calibrator
 
         import pochitrain.tensorrt.calibrator as calibrator_module
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
 
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
+        _patch_convert_deps(monkeypatch, logger)
         monkeypatch.setattr(
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
@@ -378,7 +365,6 @@ class TestConvertCommand:
                 "val_transform": "dummy_transform",
             },
         )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
 
         args = argparse.Namespace(
             debug=False,
@@ -419,20 +405,8 @@ class TestConvertCommand:
         onnx_path = tmp_path / "dynamic.onnx"
         onnx_path.write_text("dummy", encoding="utf-8")
 
-        logger = SimpleNamespace(
-            debug=Mock(),
-            info=Mock(),
-            error=Mock(),
-        )
-
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
-
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+        logger = _make_mock_logger()
+        _patch_convert_deps(monkeypatch, logger)
         monkeypatch.setitem(sys.modules, "onnx", _make_dynamic_onnx_module())
 
         args = argparse.Namespace(
@@ -464,20 +438,8 @@ class TestConvertCommand:
         onnx_path = tmp_path / "model.onnx"
         onnx_path.write_text("dummy", encoding="utf-8")
 
-        logger = SimpleNamespace(
-            debug=Mock(),
-            info=Mock(),
-            error=Mock(),
-        )
-
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
-
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: False
-        )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+        logger = _make_mock_logger()
+        _patch_convert_deps(monkeypatch, logger, trt_available=False)
 
         args = argparse.Namespace(
             debug=False,
@@ -507,20 +469,8 @@ class TestConvertCommand:
         """ONNXファイル未存在時に変換処理へ進まないことを確認."""
         onnx_path = tmp_path / "missing.onnx"
 
-        logger = SimpleNamespace(
-            debug=Mock(),
-            info=Mock(),
-            error=Mock(),
-        )
-
-        import pochitrain.tensorrt.converter as converter_module
-        import pochitrain.tensorrt.inference as inference_module
-
-        monkeypatch.setattr(converter_module, "TensorRTConverter", FakeConverter)
-        monkeypatch.setattr(
-            inference_module, "check_tensorrt_availability", lambda: True
-        )
-        monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+        logger = _make_mock_logger()
+        _patch_convert_deps(monkeypatch, logger)
 
         args = argparse.Namespace(
             debug=False,

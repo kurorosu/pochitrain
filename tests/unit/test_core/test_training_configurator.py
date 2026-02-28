@@ -194,43 +194,42 @@ class TestTrainingConfiguratorConfigure:
             )
 
 
-class TestTrainingConfiguratorLayerGroup:
-    """TrainingConfigurator._get_layer_group() のテスト."""
+class TestTrainingConfiguratorLayerWiseLrDetails:
+    """層別学習率の configure() 経由での詳細検証テスト."""
 
-    def test_get_layer_group(self, configurator):
-        """層グループ名の取得テスト."""
-        assert configurator._get_layer_group("conv1.weight") == "conv1"
-        assert configurator._get_layer_group("bn1.weight") == "bn1"
-        assert configurator._get_layer_group("layer1.0.conv1.weight") == "layer1"
-        assert configurator._get_layer_group("layer2.1.bn2.bias") == "layer2"
-        assert configurator._get_layer_group("layer3.0.downsample.0.weight") == "layer3"
-        assert configurator._get_layer_group("layer4.1.conv2.weight") == "layer4"
-        assert configurator._get_layer_group("fc.weight") == "fc"
-        assert configurator._get_layer_group("unknown.weight") == "other"
-
-
-class TestTrainingConfiguratorBuildParamGroups:
-    """TrainingConfigurator._build_layer_wise_param_groups() のテスト."""
-
-    def test_build_layer_wise_param_groups(self, configurator, model):
-        """パラメータグループ構築のテスト."""
-        lr_config = {
-            "layer_rates": {
-                "conv1": 0.0001,
-                "layer1": 0.0002,
-                "fc": 0.01,
-            }
+    def test_configure_layer_wise_lr_assigns_specified_rates(self, configurator, model):
+        """configure() で指定した層別学習率が optimizer の各グループに反映されることを検証."""
+        layer_rates = {
+            "conv1": 0.0001,
+            "layer1": 0.0002,
+            "fc": 0.01,
         }
-
-        param_groups = configurator._build_layer_wise_param_groups(
-            model, 0.001, lr_config
+        components = configurator.configure(
+            model=model,
+            learning_rate=0.001,
+            optimizer_name="SGD",
+            enable_layer_wise_lr=True,
+            layer_wise_lr_config={"layer_rates": layer_rates},
         )
 
-        assert len(param_groups) > 0
-        for group in param_groups:
-            assert "params" in group
-            assert "lr" in group
-            assert "layer_name" in group
-            assert isinstance(group["params"], list)
-            assert isinstance(group["lr"], float)
-            assert group["lr"] > 0
+        group_lrs = {
+            g["layer_name"]: g["lr"] for g in components.optimizer.param_groups
+        }
+        for layer_name, expected_lr in layer_rates.items():
+            assert group_lrs[layer_name] == pytest.approx(expected_lr)
+
+    def test_configure_layer_wise_lr_uses_base_lr_for_unspecified_layers(
+        self, configurator, model
+    ):
+        """configure() で未指定の層にはベース学習率が適用されることを検証."""
+        components = configurator.configure(
+            model=model,
+            learning_rate=0.005,
+            optimizer_name="SGD",
+            enable_layer_wise_lr=True,
+            layer_wise_lr_config={"layer_rates": {"fc": 0.01}},
+        )
+
+        for group in components.optimizer.param_groups:
+            if group["layer_name"] != "fc":
+                assert group["lr"] == pytest.approx(0.005)

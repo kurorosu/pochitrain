@@ -17,12 +17,6 @@ def work_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def logger() -> logging.Logger:
-    """テスト用ロガー."""
-    return logging.getLogger("test_checkpoint_store")
-
-
-@pytest.fixture
 def store(work_dir: Path, logger: logging.Logger) -> CheckpointStore:
     """CheckpointStoreインスタンス."""
     return CheckpointStore(work_dir, logger)
