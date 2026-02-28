@@ -140,35 +140,27 @@ class TestIInferenceServiceResolveRuntimeOptions:
         assert options.use_gpu_pipeline == (pipeline == "gpu")
 
 
+class _DummyAdapter:
+    """build_runtime_execution_request 用の最小アダプタスタブ."""
+
+    device = "cpu"
+
+
 class TestIInferenceServiceBuildRequest:
     """build_runtime_execution_request のテスト."""
 
     def test_build_runtime_execution_request_basic(self, service):
-        from unittest.mock import MagicMock
-
-        import torch
-
-        adapter = MagicMock()
-        adapter.device = "cpu"
-
         request = service.build_runtime_execution_request(
-            data_loader=MagicMock(),
-            runtime_adapter=adapter,
+            data_loader=DataLoader([]),
+            runtime_adapter=_DummyAdapter(),
             use_gpu_pipeline=False,
         )
         assert request.execution_request.use_gpu_pipeline is False
 
     def test_build_runtime_execution_request_with_gpu_pipeline(self, service):
-        from unittest.mock import MagicMock
-
-        import torch
-
-        adapter = MagicMock()
-        adapter.device = "cpu"
-
         request = service.build_runtime_execution_request(
-            data_loader=MagicMock(),
-            runtime_adapter=adapter,
+            data_loader=DataLoader([]),
+            runtime_adapter=_DummyAdapter(),
             use_gpu_pipeline=True,
             norm_mean=[0.5, 0.5, 0.5],
             norm_std=[0.5, 0.5, 0.5],
@@ -177,12 +169,10 @@ class TestIInferenceServiceBuildRequest:
         assert request.execution_request.mean_255 is not None
 
     def test_build_runtime_execution_request_raises_if_missing_norm(self, service):
-        from unittest.mock import MagicMock
-
         with pytest.raises(ValueError, match="normalize パラメータが必要"):
             service.build_runtime_execution_request(
-                data_loader=MagicMock(),
-                runtime_adapter=MagicMock(),
+                data_loader=DataLoader([]),
+                runtime_adapter=_DummyAdapter(),
                 use_gpu_pipeline=True,
             )
 
@@ -213,8 +203,8 @@ class TestIInferenceServiceRun:
         )
 
         request = RuntimeExecutionRequest(
-            data_loader=MagicMock(),
-            runtime_adapter=MagicMock(),
+            data_loader=DataLoader([]),
+            runtime_adapter=_DummyAdapter(),
             execution_request=ExecutionRequest(use_gpu_pipeline=False),
         )
 
