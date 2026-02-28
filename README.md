@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.7.2-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
 [![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
@@ -238,7 +238,7 @@ predictions, confidences, metrics = predictor.predict(test_loader)
 ## 📋 要件
 
 - Python 3.10+
-- PyTorch 2.9+ (CUDA 13.0)
+- PyTorch 2.9+ (CUDA 12.x)
 - torchvision 0.21+
 - pandas 2.0+ (勾配トレース可視化用)
 - Optuna 3.5+ (ハイパーパラメータ最適化用)
