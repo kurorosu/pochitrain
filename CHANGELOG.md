@@ -17,10 +17,16 @@
 - `test_training_loop.py` / `test_training_configurator.py` のプライベートメソッド直接テストを公開 API 経由に移行した ([#295](https://github.com/kurorosu/pochitrain/pull/295)).
   - `_update_best_and_check_early_stop()` の直接テストを `run()` 経由の古典派テストに置き換えた.
   - `_get_layer_group()` / `_build_layer_wise_param_groups()` の直接テストを `configure()` 経由の検証に移行した.
-- `test_runtime_adapters.py` の TRT/ONNX 重複テストを統合し, inference 系テストのモックを削減した (N/A.).
+- `test_runtime_adapters.py` の TRT/ONNX 重複テストを統合し, inference 系テストのモックを削減した ([#296](https://github.com/kurorosu/pochitrain/pull/296)).
   - TRT/ONNX `gpu_non_blocking` 重複テストを `@pytest.mark.parametrize` で統合した.
   - `test_base_inference_service.py` の `MagicMock` を `_DummyAdapter` スタブと実 `DataLoader` に置換した.
   - `test_pytorch_inference_service.py` の `create_dataset_and_params` 完全モックを実データテストに移行した.
+- テスト間で重複するフィクスチャ・ヘルパーを共通化した (N/A.).
+  - `logger` フィクスチャを `test_core/conftest.py` に集約した.
+  - `SimpleModel` クラスを `test_onnx/conftest.py` に集約した.
+  - `test_pipeline_consistency.py` と `test_calibrator.py` のデータ生成ヘルパーを `create_dummy_dataset` フィクスチャに統合した.
+  - `test_convert_cli.py` の重複 `monkeypatch.setattr` を `_patch_convert_deps` ヘルパーに集約した.
+  - `test_export_onnx_cli.py` の `FakeOnnxExporterVerifyFail` テストを `run_export` フィクスチャ経由に統合した.
 
 ### Fixed
 - なし.

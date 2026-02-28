@@ -18,9 +18,8 @@ from pochitrain.training.evaluator import Evaluator
 
 
 @pytest.fixture
-def evaluator():
+def evaluator(logger: logging.Logger):
     """CPU上のEvaluatorインスタンスを返す."""
-    logger = logging.getLogger("test_evaluator")
     return Evaluator(device=torch.device("cpu"), logger=logger)
 
 

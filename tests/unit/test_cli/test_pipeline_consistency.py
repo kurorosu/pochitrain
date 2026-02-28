@@ -1,10 +1,7 @@
 """推論パイプライン整合性テスト."""
 
-from pathlib import Path
-
 import pytest
 import torchvision.transforms as transforms
-from PIL import Image
 
 pytest.importorskip("onnx")
 pytest.importorskip("onnxruntime")
@@ -17,17 +14,6 @@ from pochitrain.pochi_dataset import (
     GpuInferenceDataset,
     PochiImageDataset,
 )
-
-
-def _make_data_root(tmp_path: Path) -> Path:
-    """最小構成のクラスフォルダデータセットを作成する."""
-    root = tmp_path / "data"
-    for class_name, color in [("class_a", "red"), ("class_b", "blue")]:
-        class_dir = root / class_name
-        class_dir.mkdir(parents=True, exist_ok=True)
-        img = Image.new("RGB", (32, 32), color=color)
-        img.save(class_dir / "dummy.jpg")
-    return root
 
 
 def _valid_transform() -> transforms.Compose:
@@ -60,9 +46,9 @@ def _no_normalize_transform() -> transforms.Compose:
 class TestPipelineConsistency:
     """データセット生成とパイプライン解決の整合性テスト."""
 
-    def test_current_pipeline_same_result(self, tmp_path: Path) -> None:
+    def test_current_pipeline_same_result(self, create_dummy_dataset) -> None:
         """current は ONNX/TRT で同一結果になる."""
-        data_root = _make_data_root(tmp_path)
+        data_root = create_dummy_dataset({"class_a": 1, "class_b": 1}, subdir="data")
         transform = _valid_transform()
 
         onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
@@ -78,9 +64,9 @@ class TestPipelineConsistency:
         assert onnx_mean is trt_mean is None
         assert onnx_std is trt_std is None
 
-    def test_fast_pipeline_same_result(self, tmp_path: Path) -> None:
+    def test_fast_pipeline_same_result(self, create_dummy_dataset) -> None:
         """fast は ONNX/TRT で同一結果になる."""
-        data_root = _make_data_root(tmp_path)
+        data_root = create_dummy_dataset({"class_a": 1, "class_b": 1}, subdir="data")
         transform = _valid_transform()
 
         onnx_ds, onnx_pipe, _, _ = create_dataset_and_params(
@@ -92,9 +78,9 @@ class TestPipelineConsistency:
         assert isinstance(trt_ds, FastInferenceDataset)
         assert onnx_pipe == trt_pipe == "fast"
 
-    def test_fast_with_pil_only_fallback_is_same(self, tmp_path: Path) -> None:
+    def test_fast_with_pil_only_fallback_is_same(self, create_dummy_dataset) -> None:
         """fast + PIL専用 transform は両CLIで current へフォールバックする."""
-        data_root = _make_data_root(tmp_path)
+        data_root = create_dummy_dataset({"class_a": 1, "class_b": 1}, subdir="data")
         transform = _pil_only_transform()
 
         onnx_ds, onnx_pipe, _, _ = create_dataset_and_params(
@@ -106,9 +92,9 @@ class TestPipelineConsistency:
         assert isinstance(trt_ds, PochiImageDataset)
         assert onnx_pipe == trt_pipe == "current"
 
-    def test_gpu_without_normalize_fallback_is_same(self, tmp_path: Path) -> None:
+    def test_gpu_without_normalize_fallback_is_same(self, create_dummy_dataset) -> None:
         """gpu + Normalizeなし は両CLIで fast へフォールバックする."""
-        data_root = _make_data_root(tmp_path)
+        data_root = create_dummy_dataset({"class_a": 1, "class_b": 1}, subdir="data")
         transform = _no_normalize_transform()
 
         onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
@@ -124,9 +110,9 @@ class TestPipelineConsistency:
         assert onnx_mean is trt_mean is None
         assert onnx_std is trt_std is None
 
-    def test_gpu_with_valid_transform_is_same(self, tmp_path: Path) -> None:
+    def test_gpu_with_valid_transform_is_same(self, create_dummy_dataset) -> None:
         """gpu + 正常 transform は両CLIで GpuInferenceDataset を使う."""
-        data_root = _make_data_root(tmp_path)
+        data_root = create_dummy_dataset({"class_a": 1, "class_b": 1}, subdir="data")
         transform = _valid_transform()
 
         onnx_ds, onnx_pipe, onnx_mean, onnx_std = create_dataset_and_params(
