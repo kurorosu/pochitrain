@@ -9,7 +9,11 @@
 - なし.
 
 ### Changed
-- なし.
+- `test_objective.py` の白箱テストを古典派テストへ移行した ([#293](https://github.com/kurorosu/pochitrain/pull/293)).
+  - `FakeTrainer` から `last_init_kwargs` / `last_setup_kwargs` による内部呼び出し検証を削除し, 観測可能な出力 (戻り値, trial.reported) を基準とするテストへ再構成した.
+- `test_pochi_cli_infer.py` の `_ServiceStub` を簡素化し, 設定ヘルパーの重複を解消した (N/A.).
+  - `_ServiceStub` から `captured` dict による内部引数検証を削除し, 観測可能な副作用 (ファイル作成, 集計実行有無) のみで検証するテストへ移行した.
+  - `_build_config_dict` / `_build_minimal_config` を `test_cli/conftest.py` の `build_cli_config()` に集約した.
 
 ### Fixed
 - なし.
