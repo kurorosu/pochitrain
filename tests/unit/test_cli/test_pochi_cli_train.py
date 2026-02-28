@@ -5,9 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import torchvision.transforms as transforms
 
 from pochitrain.cli.pochi import main, train_command
+
+from .conftest import build_cli_config
 
 
 class TestMainDispatchTrain:
@@ -32,26 +33,6 @@ class TestMainDispatchTrain:
 
 class TestTrainCommandValidationHandling:
     """train_command の ValidationError ハンドリングのテスト."""
-
-    @staticmethod
-    def _build_minimal_config(**overrides: object) -> dict[str, object]:
-        """train_command 用の最小設定辞書を返す."""
-        config: dict[str, object] = {
-            "model_name": "resnet18",
-            "num_classes": 2,
-            "device": "cpu",
-            "epochs": 1,
-            "batch_size": 4,
-            "learning_rate": 0.001,
-            "optimizer": "Adam",
-            "train_data_root": "data/train",
-            "val_data_root": "data/val",
-            "train_transform": transforms.Compose([transforms.ToTensor()]),
-            "val_transform": transforms.Compose([transforms.ToTensor()]),
-            "enable_layer_wise_lr": False,
-        }
-        config.update(overrides)
-        return config
 
     @staticmethod
     def _make_train_args(tmp_path: Path) -> argparse.Namespace:
@@ -84,7 +65,7 @@ class TestTrainCommandValidationHandling:
         import pochitrain.cli.pochi as pochi_module
 
         logger = MagicMock()
-        config = self._build_minimal_config(
+        config = build_cli_config(
             # ここだけ意図的に不正値を入れて ValidationError を発生させる.
             early_stopping={
                 "enabled": False,
@@ -115,7 +96,7 @@ class TestTrainCommandValidationHandling:
         missing_train = tmp_path / "missing_train"
         existing_val = tmp_path / "val"
         existing_val.mkdir()
-        config = self._build_minimal_config(
+        config = build_cli_config(
             # train_data_root を存在しないパスへ差し替える.
             train_data_root=str(missing_train),
             val_data_root=str(existing_val),
@@ -144,7 +125,7 @@ class TestTrainCommandValidationHandling:
         existing_train = tmp_path / "train"
         existing_train.mkdir()
         missing_val = tmp_path / "missing_val"
-        config = self._build_minimal_config(
+        config = build_cli_config(
             # val_data_root を存在しないパスへ差し替える.
             train_data_root=str(existing_train),
             val_data_root=str(missing_val),
