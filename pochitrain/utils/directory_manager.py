@@ -6,7 +6,7 @@ pochitrain.utils.directory_manager: ワークスペース管理クラス.
 
 import shutil
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from .timestamp_utils import (
     find_next_index,
@@ -152,7 +152,7 @@ class PochiWorkspaceManager:
 
     def save_dataset_paths(
         self, train_paths: list, val_paths: Optional[list] = None
-    ) -> Tuple[Path, Optional[Path]]:
+    ) -> tuple[Path, Optional[Path]]:
         """
         訓練・検証データのパスリストを保存.
 

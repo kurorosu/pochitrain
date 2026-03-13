@@ -6,7 +6,7 @@ from .epoch_runner import EpochRunner
 from .evaluator import Evaluator
 from .metrics_tracker import MetricsTracker
 from .training_configurator import TrainingComponents, TrainingConfigurator
-from .training_loop import TrainingLoop
+from .training_loop import TrainingContext, TrainingLoop
 
 __all__ = [
     "CheckpointStore",
@@ -16,5 +16,6 @@ __all__ = [
     "MetricsTracker",
     "TrainingComponents",
     "TrainingConfigurator",
+    "TrainingContext",
     "TrainingLoop",
 ]

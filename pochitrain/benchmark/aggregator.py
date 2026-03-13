@@ -7,12 +7,12 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean, pstdev
-from typing import Any, DefaultDict, Dict, List, Tuple
+from typing import Any, DefaultDict
 
 from pochitrain.benchmark.utils import now_jst_timestamp, to_float, write_json
 
 
-def _collect_benchmark_paths(input_dir: Path) -> List[Path]:
+def _collect_benchmark_paths(input_dir: Path) -> list[Path]:
     """集計対象の benchmark_result.json 一覧を返す.
 
     Args:
@@ -42,7 +42,7 @@ def _extract_case_name(path: Path) -> str:
     return ""
 
 
-def aggregate_results(input_dir: Path) -> Tuple[Path, Path]:
+def aggregate_results(input_dir: Path) -> tuple[Path, Path]:
     """ベンチ結果を集計する.
 
     Args:
@@ -55,8 +55,8 @@ def aggregate_results(input_dir: Path) -> Tuple[Path, Path]:
     if len(benchmark_paths) == 0:
         raise ValueError(f"benchmark_result.json が見つかりません: {input_dir}")
 
-    groups: DefaultDict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
-    invalid_files: List[Dict[str, str]] = []
+    groups: DefaultDict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+    invalid_files: list[dict[str, str]] = []
 
     for path in benchmark_paths:
         try:
@@ -79,7 +79,7 @@ def aggregate_results(input_dir: Path) -> Tuple[Path, Path]:
         )
         groups[key].append({"metrics": metrics, "path": path})
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for key in sorted(groups.keys(), key=lambda item: tuple(str(v) for v in item)):
         entries = groups[key]
         inference_values = [

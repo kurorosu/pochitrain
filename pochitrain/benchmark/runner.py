@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
 
 from pochitrain.benchmark.models import CaseConfig, SuiteConfig
 from pochitrain.benchmark.utils import now_local_timestamp
@@ -50,7 +49,7 @@ def _copy_case_config(case: CaseConfig, run_dir: Path) -> None:
     LOGGER.debug("config.py をコピーしました: %s", destination)
 
 
-def _build_command(case: CaseConfig, run_output_dir: Path) -> List[str]:
+def _build_command(case: CaseConfig, run_output_dir: Path) -> list[str]:
     """ケース実行用コマンドを構築する.
 
     Args:

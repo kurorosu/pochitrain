@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from torch.utils.data import DataLoader
 
@@ -78,17 +78,17 @@ class PyTorchInferenceService(IInferenceService):
 
     def create_dataloader(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         data_path: Path,
         val_transform: Any,
         pipeline: str,
         runtime_options: InferenceRuntimeOptions,
-    ) -> Tuple[
+    ) -> tuple[
         DataLoader[Any],
         PochiImageDataset,
         str,
-        Optional[List[float]],
-        Optional[List[float]],
+        Optional[list[float]],
+        Optional[list[float]],
     ]:
         """推論用 DataLoader とデータセットを生成する.
 
@@ -125,7 +125,7 @@ class PyTorchInferenceService(IInferenceService):
 
     def detect_input_size(
         self, config: PochiConfig, dataset: PochiImageDataset
-    ) -> Optional[Tuple[int, int, int]]:
+    ) -> Optional[tuple[int, int, int]]:
         """Transform またはデータセットから入力サイズを推定する.
 
         Args:

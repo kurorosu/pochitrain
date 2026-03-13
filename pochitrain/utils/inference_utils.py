@@ -8,7 +8,7 @@ import importlib
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support
@@ -41,7 +41,7 @@ def _import_matplotlib_fontja_if_available() -> None:
 
 def post_process_logits(
     logits: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """ロジットからsoftmax + argmax + confidence抽出を行う共通後処理.
 
     NumPy配列のロジットを受け取り, softmaxで確率に変換後,
@@ -65,8 +65,8 @@ def post_process_logits(
 
 
 def compute_confusion_matrix(
-    predicted_labels: List[int],
-    true_labels: List[int],
+    predicted_labels: list[int],
+    true_labels: list[int],
     num_classes: int,
 ) -> np.ndarray:
     """NumPyベースの混同行列計算.
@@ -94,12 +94,12 @@ def compute_confusion_matrix(
 
 
 def save_confusion_matrix_image(
-    predicted_labels: List[int],
-    true_labels: List[int],
-    class_names: List[str],
+    predicted_labels: list[int],
+    true_labels: list[int],
+    class_names: list[str],
     output_dir: Path,
     filename: str = "confusion_matrix.png",
-    cm_config: Optional[Dict[str, Any]] = None,
+    cm_config: Optional[dict[str, Any]] = None,
 ) -> Path:
     """混同行列の画像を保存.
 
@@ -121,7 +121,7 @@ def save_confusion_matrix_image(
 
     _import_matplotlib_fontja_if_available()
 
-    default_config: Dict[str, Any] = {
+    default_config: dict[str, Any] = {
         "title": "Confusion Matrix",
         "xlabel": "Predicted Label",
         "ylabel": "True Label",
@@ -238,7 +238,7 @@ def validate_data_path(data_path: Path) -> None:
         sys.exit(1)
 
 
-def load_config_auto(model_path: Path) -> Dict[str, Any]:
+def load_config_auto(model_path: Path) -> dict[str, Any]:
     """モデルパスからconfigを自動検出して読み込む.
 
     Args:
@@ -269,11 +269,11 @@ def load_config_auto(model_path: Path) -> Dict[str, Any]:
 
 def write_inference_csv(
     output_dir: Path,
-    image_paths: List[str],
-    predictions: List[int],
-    true_labels: List[int],
-    confidences: List[float],
-    class_names: List[str],
+    image_paths: list[str],
+    predictions: list[int],
+    true_labels: list[int],
+    confidences: list[float],
+    class_names: list[str],
     filename: str = "inference_results.csv",
 ) -> Path:
     """推論結果をCSVに出力する.
@@ -335,9 +335,9 @@ def write_inference_summary(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
-    input_size: Optional[Tuple[int, int, int]] = None,
+    input_size: Optional[tuple[int, int, int]] = None,
     filename: str = "inference_summary.txt",
-    extra_info: Optional[Dict[str, Any]] = None,
+    extra_info: Optional[dict[str, Any]] = None,
 ) -> Path:
     """推論サマリーをファイルに出力する.
 
@@ -398,9 +398,9 @@ def write_inference_summary(
 
 
 def save_classification_report(
-    predicted_labels: List[int],
-    true_labels: List[int],
-    class_names: List[str],
+    predicted_labels: list[int],
+    true_labels: list[int],
+    class_names: list[str],
     output_dir: Path,
     filename: str = "classification_report.csv",
 ) -> Path:
@@ -484,7 +484,7 @@ def log_inference_result(
     total_samples: int,
     warmup_samples: int,
     avg_total_time_per_image: Optional[float] = None,
-    input_size: Optional[Tuple[int, int, int]] = None,
+    input_size: Optional[tuple[int, int, int]] = None,
 ) -> None:
     """推論結果をログに出力する.
 

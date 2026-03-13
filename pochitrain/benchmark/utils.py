@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
@@ -49,7 +49,7 @@ def now_local_timestamp() -> str:
     return datetime.now(JST).strftime("%Y%m%d_%H%M%S")
 
 
-def write_json(path: Path, payload: Dict[str, Any]) -> None:
+def write_json(path: Path, payload: dict[str, Any]) -> None:
     """JSON を UTF-8 で保存する.
 
     Args:

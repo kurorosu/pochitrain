@@ -34,7 +34,7 @@ class DefaultParamSuggestor(IParamSuggestor):
         """
         self._search_space = search_space
 
-    def suggest(self, trial: optuna.Trial) -> dict[str, Any]:
+    def suggest(self, trial: optuna.trial.BaseTrial) -> dict[str, Any]:
         """探索空間に基づいてパラメータを提案する.
 
         Args:
@@ -97,7 +97,7 @@ class LayerWiseLRSuggestor(IParamSuggestor):
         self._base_lr_range = base_lr_range
         self._layer_lr_scale_range = layer_lr_scale_range
 
-    def suggest(self, trial: optuna.Trial) -> dict[str, Any]:
+    def suggest(self, trial: optuna.trial.BaseTrial) -> dict[str, Any]:
         """層別学習率パラメータを提案する.
 
         Args:

@@ -8,7 +8,7 @@ CSV形式で保存してグラフを自動生成します。
 import csv
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import matplotlib
 
@@ -34,7 +34,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         output_dir: Path,
         enable_visualization: bool = True,
         logger: Optional[logging.Logger] = None,
-        layer_wise_lr_graph_config: Optional[Dict[str, Any]] = None,
+        layer_wise_lr_graph_config: Optional[dict[str, Any]] = None,
     ):
         """TrainingMetricsExporterを初期化."""
         super().__init__(output_dir=output_dir, logger=logger)
@@ -45,7 +45,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         self.layer_wise_lr_graph_config = layer_wise_lr_graph_config
         self.use_log_scale = layer_wise_lr_graph_config.get("use_log_scale", True)
 
-        self.metrics_history: List[Dict[str, Any]] = []
+        self.metrics_history: list[dict[str, Any]] = []
 
         self.base_headers = [
             "epoch",
@@ -55,9 +55,9 @@ class TrainingMetricsExporter(BaseCSVExporter):
             "val_loss",
             "val_accuracy",
         ]
-        self.extended_headers: List[str] = []  # Issue 9用の拡張ヘッダー
+        self.extended_headers: list[str] = []  # Issue 9用の拡張ヘッダー
 
-    def add_extended_headers(self, headers: List[str]) -> None:
+    def add_extended_headers(self, headers: list[str]) -> None:
         """
         拡張ヘッダーを追加（Issue 9でのパラメータ追跡用）.
 
@@ -154,7 +154,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
     def generate_graphs(
         self, base_filename: Optional[str] = None
-    ) -> Optional[List[Path]]:
+    ) -> Optional[list[Path]]:
         """
         学習率推移、損失推移、精度推移のグラフを個別ファイルとして生成.
 
@@ -178,8 +178,8 @@ class TrainingMetricsExporter(BaseCSVExporter):
         train_accuracies = [m["train_accuracy"] for m in self.metrics_history]
 
         has_val_data = any(m["val_loss"] != "" for m in self.metrics_history)
-        val_losses: List[float] = []
-        val_accuracies: List[float] = []
+        val_losses: list[float] = []
+        val_accuracies: list[float] = []
         if has_val_data:
             val_losses = [
                 float(m["val_loss"])
@@ -366,7 +366,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         self,
         csv_filename: Optional[str] = None,
         graph_base_filename: Optional[str] = None,
-    ) -> tuple[Optional[Path], Optional[List[Path]]]:
+    ) -> tuple[Optional[Path], Optional[list[Path]]]:
         """
         CSVとグラフの両方をエクスポート.
 
@@ -382,7 +382,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         return csv_path, graph_paths
 
-    def get_best_epoch(self, metric: str = "val_accuracy") -> Optional[Dict[str, Any]]:
+    def get_best_epoch(self, metric: str = "val_accuracy") -> Optional[dict[str, Any]]:
         """
         指定されたメトリクスで最良のエポックを取得.
 
@@ -407,7 +407,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         return best
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         訓練メトリクスのサマリーを取得.
 

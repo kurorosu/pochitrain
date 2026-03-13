@@ -2,7 +2,8 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from functools import partial
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -18,8 +19,8 @@ class TrainingComponents:
     criterion: nn.Module
     enable_layer_wise_lr: bool
     base_learning_rate: float
-    layer_wise_lr_config: Dict[str, Any] = field(default_factory=dict)
-    layer_wise_lr_graph_config: Dict[str, Any] = field(default_factory=dict)
+    layer_wise_lr_config: dict[str, Any] = field(default_factory=dict)
+    layer_wise_lr_graph_config: dict[str, Any] = field(default_factory=dict)
 
 
 class TrainingConfigurator:
@@ -42,10 +43,10 @@ class TrainingConfigurator:
         optimizer_name: str = "Adam",
         scheduler_name: Optional[str] = None,
         scheduler_params: Optional[dict] = None,
-        class_weights: Optional[List[float]] = None,
+        class_weights: Optional[list[float]] = None,
         num_classes: Optional[int] = None,
         enable_layer_wise_lr: bool = False,
-        layer_wise_lr_config: Optional[Dict[str, Any]] = None,
+        layer_wise_lr_config: Optional[dict[str, Any]] = None,
     ) -> TrainingComponents:
         """optimizer, scheduler, criterion を構築.
 
@@ -95,7 +96,7 @@ class TrainingConfigurator:
 
     def _build_criterion(
         self,
-        class_weights: Optional[List[float]],
+        class_weights: Optional[list[float]],
         num_classes: Optional[int],
     ) -> nn.Module:
         """損失関数を構築.
@@ -123,7 +124,7 @@ class TrainingConfigurator:
     def _build_optimizer(
         self,
         optimizer_name: str,
-        param_groups: List[Dict[str, Any]],
+        param_groups: list[dict[str, Any]],
     ) -> optim.Optimizer:
         """最適化器を構築.
 
@@ -134,14 +135,17 @@ class TrainingConfigurator:
         Returns:
             optim.Optimizer: 最適化器.
         """
-        if optimizer_name == "Adam":
-            return optim.Adam(param_groups)
-        elif optimizer_name == "AdamW":
-            return optim.AdamW(param_groups, weight_decay=1e-2)
-        elif optimizer_name == "SGD":
-            return optim.SGD(param_groups, momentum=0.9, weight_decay=1e-4)
-        else:
+        optimizers: dict[str, Any] = {
+            "Adam": optim.Adam,
+            "AdamW": partial(optim.AdamW, weight_decay=1e-2),
+            "SGD": partial(optim.SGD, momentum=0.9, weight_decay=1e-4),
+        }
+
+        optimizer_cls = optimizers.get(optimizer_name)
+        if optimizer_cls is None:
             raise ValueError(f"サポートされていない最適化器: {optimizer_name}")
+        optimizer: optim.Optimizer = optimizer_cls(param_groups)
+        return optimizer
 
     def _build_scheduler(
         self,
@@ -168,7 +172,7 @@ class TrainingConfigurator:
                 f"scheduler_paramsが必須です。configs/pochi_config.pyで設定してください。"
             )
 
-        schedulers: Dict[str, type] = {
+        schedulers: dict[str, type] = {
             "StepLR": optim.lr_scheduler.StepLR,
             "MultiStepLR": optim.lr_scheduler.MultiStepLR,
             "CosineAnnealingLR": optim.lr_scheduler.CosineAnnealingLR,
@@ -188,8 +192,8 @@ class TrainingConfigurator:
         self,
         model: nn.Module,
         base_lr: float,
-        layer_wise_lr_config: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        layer_wise_lr_config: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """層別学習率のパラメータグループを構築.
 
         Args:
@@ -198,11 +202,11 @@ class TrainingConfigurator:
             layer_wise_lr_config: 層別学習率の設定.
 
         Returns:
-            List[Dict[str, Any]]: パラメータグループのリスト.
+            list[dict[str, Any]]: パラメータグループのリスト.
         """
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
 
-        layer_params: Dict[str, List] = {}
+        layer_params: dict[str, list] = {}
         for name, param in model.named_parameters():
             if param.requires_grad:
                 layer_group = self._get_layer_group(name)
@@ -250,7 +254,7 @@ class TrainingConfigurator:
         else:
             return "other"
 
-    def _log_layer_wise_lr(self, param_groups: List[Dict[str, Any]]) -> None:
+    def _log_layer_wise_lr(self, param_groups: list[dict[str, Any]]) -> None:
         """層別学習率の設定をログ出力.
 
         Args:

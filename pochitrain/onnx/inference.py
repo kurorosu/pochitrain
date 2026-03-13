@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import cast
 
 import numpy as np
 import onnxruntime as ort
@@ -58,7 +58,7 @@ class OnnxInference:
         Returns:
             ONNXランタイムセッション
         """
-        providers: List[str] = []
+        providers: list[str] = []
         if self.use_gpu:
             if check_gpu_availability():
                 providers.append("CUDAExecutionProvider")
@@ -153,7 +153,7 @@ class OnnxInference:
         else:
             return cast(np.ndarray, self._temp_cpu_outputs[0])
 
-    def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def run(self, images: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """推論を一括実行（互換性および簡易用）.
 
         Args:
@@ -168,11 +168,11 @@ class OnnxInference:
 
         return post_process_logits(logits)
 
-    def get_providers(self) -> List[str]:
+    def get_providers(self) -> list[str]:
         """使用中のプロバイダーを取得.
 
         Returns:
             プロバイダー名のリスト
         """
-        providers: List[str] = self.session.get_providers()
+        providers: list[str] = self.session.get_providers()
         return providers

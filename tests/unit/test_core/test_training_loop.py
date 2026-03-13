@@ -7,7 +7,31 @@ from unittest.mock import Mock
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from pochitrain.training.training_loop import TrainingLoop
+from pochitrain.training.training_loop import TrainingContext, TrainingLoop
+
+
+def _make_ctx(
+    model: nn.Module,
+    train_loader: DataLoader[Any],
+    val_loader: DataLoader[Any] | None = None,
+    tracker: Any = None,
+    train_epoch_fn: Any = None,
+    validate_fn: Any = None,
+) -> TrainingContext:
+    """テスト用のTrainingContextを生成するヘルパー."""
+    return TrainingContext(
+        model=model,
+        optimizer=None,
+        scheduler=None,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        tracker=tracker,
+        train_epoch_fn=train_epoch_fn or (lambda _: {"loss": 1.0, "accuracy": 10.0}),
+        validate_fn=validate_fn or (lambda _: {"val_loss": 1.0, "val_accuracy": 80.0}),
+        get_learning_rate_fn=lambda: 0.001,
+        get_layer_wise_rates_fn=lambda: {},
+        is_layer_wise_lr_fn=lambda: False,
+    )
 
 
 def test_create_metrics_tracker_returns_none_without_workspace():
@@ -38,19 +62,11 @@ def test_run_uses_initial_best_accuracy():
     train_loader = cast(DataLoader[Any], Mock())
     val_loader = cast(DataLoader[Any], Mock())
 
+    ctx = _make_ctx(model=model, train_loader=train_loader, val_loader=val_loader)
+
     _, best_accuracy = training_loop.run(
         epochs=1,
-        train_epoch_fn=lambda _: {"loss": 1.0, "accuracy": 10.0},
-        validate_fn=lambda _: {"val_loss": 1.0, "val_accuracy": 80.0},
-        train_loader=train_loader,
-        val_loader=val_loader,
-        model=model,
-        optimizer=None,
-        scheduler=None,
-        tracker=None,
-        get_learning_rate_fn=lambda: 0.001,
-        get_layer_wise_rates_fn=lambda: {},
-        is_layer_wise_lr_fn=lambda: False,
+        ctx=ctx,
         initial_best_accuracy=90.0,
     )
 
@@ -75,19 +91,16 @@ def test_early_stopping_saves_last_checkpoint_only_once():
     train_loader = cast(DataLoader[Any], Mock())
     val_loader = cast(DataLoader[Any], Mock())
 
-    _, best_accuracy = training_loop.run(
-        epochs=3,
-        train_epoch_fn=lambda _: {"loss": 1.0, "accuracy": 10.0},
-        validate_fn=lambda _: {"val_loss": 1.0, "val_accuracy": 85.0},
+    ctx = _make_ctx(
+        model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        model=model,
-        optimizer=None,
-        scheduler=None,
-        tracker=None,
-        get_learning_rate_fn=lambda: 0.001,
-        get_layer_wise_rates_fn=lambda: {},
-        is_layer_wise_lr_fn=lambda: False,
+        validate_fn=lambda _: {"val_loss": 1.0, "val_accuracy": 85.0},
+    )
+
+    _, best_accuracy = training_loop.run(
+        epochs=3,
+        ctx=ctx,
     )
 
     assert best_accuracy == 85.0
@@ -108,19 +121,11 @@ def test_run_calls_set_epoch_fn_each_epoch():
     val_loader = cast(DataLoader[Any], Mock())
     epochs: list[int] = []
 
+    ctx = _make_ctx(model=model, train_loader=train_loader, val_loader=val_loader)
+
     training_loop.run(
         epochs=2,
-        train_epoch_fn=lambda _: {"loss": 1.0, "accuracy": 10.0},
-        validate_fn=lambda _: {"val_loss": 1.0, "val_accuracy": 80.0},
-        train_loader=train_loader,
-        val_loader=val_loader,
-        model=model,
-        optimizer=None,
-        scheduler=None,
-        tracker=None,
-        get_learning_rate_fn=lambda: 0.001,
-        get_layer_wise_rates_fn=lambda: {},
-        is_layer_wise_lr_fn=lambda: False,
+        ctx=ctx,
         set_epoch_fn=epochs.append,
     )
 

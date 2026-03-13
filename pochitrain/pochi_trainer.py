@@ -6,7 +6,7 @@ pochitrain.pochi_trainer: Pochiトレーナー.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -21,7 +21,7 @@ from .training.early_stopping import EarlyStopping
 from .training.epoch_runner import EpochRunner
 from .training.evaluator import Evaluator
 from .training.training_configurator import TrainingConfigurator
-from .training.training_loop import TrainingLoop
+from .training.training_loop import TrainingContext, TrainingLoop
 from .utils.directory_manager import PochiWorkspaceManager
 
 
@@ -105,7 +105,7 @@ class PochiTrainer:
 
         self.enable_metrics_export = True
         self.enable_gradient_tracking = False
-        self.gradient_tracking_config: Dict[str, Any] = {
+        self.gradient_tracking_config: dict[str, Any] = {
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
 
@@ -157,11 +157,11 @@ class PochiTrainer:
         optimizer_name: str = "Adam",
         scheduler_name: Optional[str] = None,
         scheduler_params: Optional[dict] = None,
-        class_weights: Optional[List[float]] = None,
+        class_weights: Optional[list[float]] = None,
         num_classes: Optional[int] = None,
         enable_layer_wise_lr: bool = False,
-        layer_wise_lr_config: Optional[Dict[str, Any]] = None,
-        early_stopping_config: Optional[Dict[str, Any]] = None,
+        layer_wise_lr_config: Optional[dict[str, Any]] = None,
+        early_stopping_config: Optional[dict[str, Any]] = None,
     ) -> None:
         """
         訓練の設定.
@@ -266,7 +266,7 @@ class PochiTrainer:
         """現在エポックを更新."""
         self.epoch = epoch
 
-    def _run_train_epoch(self, train_loader: DataLoader[Any]) -> Dict[str, float]:
+    def _run_train_epoch(self, train_loader: DataLoader[Any]) -> dict[str, float]:
         """1エポック訓練を実行."""
         optimizer, criterion = self._require_training_components()
         return self.epoch_runner.run(
@@ -281,7 +281,7 @@ class PochiTrainer:
         self,
         epoch: int,
         train_loader: DataLoader[Any],
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """指定エポックで1エポック訓練を実行.
 
         Args:
@@ -289,12 +289,12 @@ class PochiTrainer:
             train_loader: 訓練データローダー.
 
         Returns:
-            Dict[str, float]: 訓練メトリクス.
+            dict[str, float]: 訓練メトリクス.
         """
         self._set_epoch(epoch)
         return self._run_train_epoch(train_loader)
 
-    def validate(self, val_loader: DataLoader[Any]) -> Dict[str, float]:
+    def validate(self, val_loader: DataLoader[Any]) -> dict[str, float]:
         """検証 (Evaluator に委譲)."""
         criterion = self._require_criterion()
         return self.evaluator.validate(
@@ -346,19 +346,23 @@ class PochiTrainer:
             layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
         )
 
-        last_epoch, best_accuracy = training_loop.run(
-            epochs=epochs,
-            train_epoch_fn=self._run_train_epoch,
-            validate_fn=self.validate,
-            train_loader=train_loader,
-            val_loader=val_loader,
+        ctx = TrainingContext(
             model=self.model,
             optimizer=self.optimizer,
             scheduler=self.scheduler,
+            train_loader=train_loader,
+            val_loader=val_loader,
             tracker=tracker,
+            train_epoch_fn=self._run_train_epoch,
+            validate_fn=self.validate,
             get_learning_rate_fn=self._get_base_learning_rate,
             get_layer_wise_rates_fn=self.get_layer_wise_learning_rates,
             is_layer_wise_lr_fn=self.is_layer_wise_lr_enabled,
+        )
+
+        last_epoch, best_accuracy = training_loop.run(
+            epochs=epochs,
+            ctx=ctx,
             initial_best_accuracy=self.best_accuracy,
             set_epoch_fn=self._set_epoch,
             stop_flag_callback=stop_flag_callback,
@@ -389,11 +393,11 @@ class PochiTrainer:
         """
         return self.enable_layer_wise_lr
 
-    def get_layer_wise_learning_rates(self) -> Dict[str, float]:
+    def get_layer_wise_learning_rates(self) -> dict[str, float]:
         """各層の現在の学習率を取得.
 
         Returns:
-            Dict[str, float]: 層名をキー, 学習率を値とする辞書.
+            dict[str, float]: 層名をキー, 学習率を値とする辞書.
         """
         layer_rates = {}
         if self.enable_layer_wise_lr and self.optimizer:

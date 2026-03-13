@@ -1,7 +1,7 @@
 """ONNX/TRT共通の推論実行ループを提供するサービス."""
 
 import time
-from typing import Any, List
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader
@@ -35,9 +35,9 @@ class ExecutionService(IExecutionService):
 
         e2e_start_time = time.perf_counter()
 
-        all_predictions: List[int] = []
-        all_confidences: List[float] = []
-        all_true_labels: List[int] = []
+        all_predictions: list[int] = []
+        all_confidences: list[float] = []
+        all_true_labels: list[int] = []
         total_inference_time_ms = 0.0
         total_samples = 0
         warmup_samples = 0

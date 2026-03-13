@@ -7,7 +7,7 @@ pochitrain.pochi_predictor: 推論機能のメインモジュール.
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader
@@ -101,7 +101,7 @@ class PochiPredictor:
     def predict(
         self,
         data_loader: DataLoader[Any],
-    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
         """
         予測の実行.
 
@@ -117,8 +117,8 @@ class PochiPredictor:
                 - warmup_samples: ウォームアップ除外サンプル数
         """
         self.model.eval()
-        predictions: List[Any] = []
-        confidences: List[Any] = []
+        predictions: list[Any] = []
+        confidences: list[Any] = []
         total_samples = 0
         warmup_samples = 0
         inference_time_ms = 0.0
@@ -189,7 +189,7 @@ class PochiPredictor:
 
         return torch.tensor(predictions), torch.tensor(confidences), metrics
 
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self) -> dict[str, Any]:
         """
         モデル情報を取得.
 
