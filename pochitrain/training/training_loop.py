@@ -3,7 +3,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import torch.nn as nn
 import torch.optim as optim
@@ -38,10 +38,10 @@ class TrainingContext:
     train_loader: DataLoader[Any]
     val_loader: Optional[DataLoader[Any]]
     tracker: Optional[MetricsTracker]
-    train_epoch_fn: Callable[[DataLoader[Any]], Dict[str, float]]
-    validate_fn: Callable[[DataLoader[Any]], Dict[str, float]]
+    train_epoch_fn: Callable[[DataLoader[Any]], dict[str, float]]
+    validate_fn: Callable[[DataLoader[Any]], dict[str, float]]
     get_learning_rate_fn: Callable[[], float]
-    get_layer_wise_rates_fn: Callable[[], Dict[str, float]]
+    get_layer_wise_rates_fn: Callable[[], dict[str, float]]
     is_layer_wise_lr_fn: Callable[[], bool]
 
 
@@ -144,7 +144,7 @@ class TrainingLoop:
         """
         train_metrics = ctx.train_epoch_fn(ctx.train_loader)
 
-        val_metrics: Dict[str, float] = {}
+        val_metrics: dict[str, float] = {}
         if ctx.val_loader:
             val_metrics = ctx.validate_fn(ctx.val_loader)
 
@@ -191,7 +191,7 @@ class TrainingLoop:
     def _update_best_and_check_early_stop(
         self,
         epoch: int,
-        val_metrics: Dict[str, float],
+        val_metrics: dict[str, float],
         model: nn.Module,
         optimizer: Optional[optim.Optimizer],
         scheduler: Optional[optim.lr_scheduler.LRScheduler],
@@ -250,11 +250,11 @@ class TrainingLoop:
         self,
         tracker: Optional[MetricsTracker],
         epoch: int,
-        train_metrics: Dict[str, float],
-        val_metrics: Dict[str, float],
+        train_metrics: dict[str, float],
+        val_metrics: dict[str, float],
         model: nn.Module,
         get_learning_rate_fn: Callable[[], float],
-        get_layer_wise_rates_fn: Callable[[], Dict[str, float]],
+        get_layer_wise_rates_fn: Callable[[], dict[str, float]],
         is_layer_wise_lr_fn: Callable[[], bool],
     ) -> None:
         """メトリクスと勾配をトラッカーに記録.
@@ -272,7 +272,7 @@ class TrainingLoop:
         if tracker is None:
             return
 
-        layer_wise_rates: Dict[str, float] = {}
+        layer_wise_rates: dict[str, float] = {}
         if is_layer_wise_lr_fn():
             layer_rates = get_layer_wise_rates_fn()
             for layer_name, lr in layer_rates.items():
@@ -349,8 +349,8 @@ class TrainingLoop:
         visualization_dir: Optional[Path],
         enable_metrics_export: bool,
         enable_gradient_tracking: bool,
-        gradient_tracking_config: Dict[str, Any],
-        layer_wise_lr_graph_config: Dict[str, Any],
+        gradient_tracking_config: dict[str, Any],
+        layer_wise_lr_graph_config: dict[str, Any],
     ) -> Optional[MetricsTracker]:
         """MetricsTrackerを初期化.
 

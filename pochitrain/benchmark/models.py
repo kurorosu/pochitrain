@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -23,4 +23,4 @@ class SuiteConfig:
 
     name: str
     description: str
-    cases: List[CaseConfig]
+    cases: list[CaseConfig]

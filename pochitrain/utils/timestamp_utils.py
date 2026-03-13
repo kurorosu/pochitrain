@@ -7,7 +7,6 @@ yyyymmdd{index} 形式のディレクトリ名生成と管理機能
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 WORKSPACE_DATE_FORMAT = "%Y%m%d"
 WORKSPACE_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
@@ -47,7 +46,7 @@ def find_next_index(base_dir: Path, date_str: str) -> int:
     return max(indices) + 1
 
 
-def parse_timestamp_dir(dirname: str) -> Tuple[str, int]:
+def parse_timestamp_dir(dirname: str) -> tuple[str, int]:
     """
     ディレクトリ名から日付とインデックスを分離.
 

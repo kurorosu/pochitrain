@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Protocol, Tuple
+from typing import Any, Optional, Protocol
 
 from pochitrain.logging import LoggerManager
 from pochitrain.pochi_dataset import (
@@ -23,8 +23,8 @@ class DatasetBuildResult:
 
     dataset: PochiImageDataset
     pipeline: str
-    mean: Optional[List[float]]
-    std: Optional[List[float]]
+    mean: Optional[list[float]]
+    std: Optional[list[float]]
 
 
 class IPipelineStrategy(Protocol):
@@ -165,7 +165,7 @@ def create_dataset_and_params(
     pipeline: str,
     data_path: Path,
     val_transform: Any,
-) -> Tuple[PochiImageDataset, str, Optional[List[float]], Optional[List[float]]]:
+) -> tuple[PochiImageDataset, str, Optional[list[float]], Optional[list[float]]]:
     """パイプラインに応じたデータセットと正規化パラメータを返す.
 
     Args:

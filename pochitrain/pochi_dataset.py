@@ -7,7 +7,7 @@ pochitrain.pochi_dataset: Pochiデータセット.
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torchvision.transforms as transforms
@@ -20,7 +20,7 @@ from pochitrain.logging import LoggerManager
 
 logger: logging.Logger = LoggerManager().get_logger(__name__)
 
-_PIL_ONLY_TRANSFORMS: Tuple[type, ...] = (transforms.ToPILImage,)
+_PIL_ONLY_TRANSFORMS: tuple[type, ...] = (transforms.ToPILImage,)
 
 
 def _check_pil_transform(t: Any, dataset_name: str) -> bool:
@@ -70,16 +70,16 @@ class PochiImageDataset(Dataset):
         self,
         root: str,
         transform: Optional[Callable] = None,
-        extensions: Tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp"),
+        extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp"),
     ):
         """PochiImageDatasetを初期化."""
         self.root = Path(root)
         self.transform = transform
         self.extensions = extensions
 
-        self.image_paths: List[Path] = []
-        self.labels: List[int] = []
-        self.classes: List[str] = []
+        self.image_paths: list[Path] = []
+        self.labels: list[int] = []
+        self.classes: list[str] = []
 
         self._load_data()
 
@@ -112,7 +112,7 @@ class PochiImageDataset(Dataset):
         """データセットのサイズを返す."""
         return len(self.image_paths)
 
-    def __getitem__(self, index: int) -> Tuple[Union[Tensor, Image.Image], int]:
+    def __getitem__(self, index: int) -> tuple[Union[Tensor, Image.Image], int]:
         """指定されたインデックスのデータを返す."""
         image_path = self.image_paths[index]
         label = self.labels[index]
@@ -124,7 +124,7 @@ class PochiImageDataset(Dataset):
 
         return image, label
 
-    def get_classes(self) -> List[str]:
+    def get_classes(self) -> list[str]:
         """クラス名のリストを取得."""
         return self.classes
 
@@ -136,12 +136,12 @@ class PochiImageDataset(Dataset):
             for idx, class_name in enumerate(self.classes)
         }
 
-    def get_file_paths(self) -> List[str]:
+    def get_file_paths(self) -> list[str]:
         """
         データセット内のすべてのファイルパスを取得.
 
         Returns:
-            List[str]: ファイルパスのリスト
+            list[str]: ファイルパスのリスト
         """
         return [str(path) for path in self.image_paths]
 
@@ -166,7 +166,7 @@ class FastInferenceDataset(PochiImageDataset):
 
     _transform_error_logged: bool = False
 
-    def __getitem__(self, index: int) -> Tuple[Tensor, int]:
+    def __getitem__(self, index: int) -> tuple[Tensor, int]:
         """指定されたインデックスのデータを返す."""
         image_path = self.image_paths[index]
         label = self.labels[index]
@@ -209,7 +209,7 @@ class GpuInferenceDataset(FastInferenceDataset):
 
 def extract_normalize_params(
     transform: Callable[..., Any],
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     """Compose内のNormalizeからmean, stdを抽出する.
 
     Args:
@@ -252,7 +252,7 @@ def build_gpu_preprocess_transform(
         transforms.ConvertImageDtype,
     )
 
-    new_transforms: List[Any] = []
+    new_transforms: list[Any] = []
     if hasattr(transform, "transforms"):
         for t in transform.transforms:
             if _check_pil_transform(t, "GpuInferenceDataset"):
@@ -305,10 +305,10 @@ def gpu_normalize(
 
 
 def create_scaled_normalize_tensors(
-    mean: List[float],
-    std: List[float],
+    mean: list[float],
+    std: list[float],
     device: Union[str, torch.device] = "cuda",
-) -> Tuple[Tensor, Tensor]:
+) -> tuple[Tensor, Tensor]:
     """正規化用の 255 倍済みテンソルを作成する.
 
     Args:
@@ -344,7 +344,7 @@ def convert_transform_for_fast_inference(
     Returns:
         FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    new_transforms: List[Any] = []
+    new_transforms: list[Any] = []
     if hasattr(transform, "transforms"):
         for t in transform.transforms:
             if isinstance(t, transforms.ToTensor):
@@ -367,8 +367,8 @@ def convert_transform_for_fast_inference(
 def get_basic_transforms(
     image_size: int = 224,
     is_training: bool = True,
-    mean: List[float] = [0.485, 0.456, 0.406],
-    std: List[float] = [0.229, 0.224, 0.225],
+    mean: list[float] = [0.485, 0.456, 0.406],
+    std: list[float] = [0.229, 0.224, 0.225],
 ) -> transforms.Compose:
     """
     基本的なデータ変換を取得.
@@ -413,7 +413,7 @@ def create_data_loaders(
     pin_memory: bool = True,
     train_transform: Optional[Callable[..., Any]] = None,
     val_transform: Optional[Callable[..., Any]] = None,
-) -> Tuple[DataLoader[Any], DataLoader[Any], List[str]]:
+) -> tuple[DataLoader[Any], DataLoader[Any], list[str]]:
     """
     データローダーを作成.
 

@@ -7,7 +7,7 @@ Note:
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import torch
 from torch import nn
@@ -35,7 +35,7 @@ class Evaluator:
         num_classes_for_cm: Optional[int] = None,
         epoch: int = 0,
         workspace_path: Optional[Path] = None,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """検証.
 
         Args:
@@ -54,8 +54,8 @@ class Evaluator:
         correct = 0
         total = 0
 
-        all_predicted: List[torch.Tensor] = []
-        all_targets: List[torch.Tensor] = []
+        all_predicted: list[torch.Tensor] = []
+        all_targets: list[torch.Tensor] = []
 
         with torch.no_grad():
             for data, target in val_loader:
@@ -147,8 +147,8 @@ class Evaluator:
                 f.write(f" {row.tolist()}\n")
 
     def calculate_accuracy(
-        self, predicted_labels: List[int], true_labels: List[int]
-    ) -> Dict[str, Any]:
+        self, predicted_labels: list[int], true_labels: list[int]
+    ) -> dict[str, Any]:
         """推論結果の精度を計算.
 
         Args:
@@ -162,7 +162,7 @@ class Evaluator:
         correct = sum(p == t for p, t in zip(predicted_labels, true_labels))
         accuracy = (correct / total) * 100 if total > 0 else 0.0
 
-        accuracy_info: Dict[str, Any] = {
+        accuracy_info: dict[str, Any] = {
             "total_samples": total,
             "correct_predictions": correct,
             "accuracy_percentage": accuracy,

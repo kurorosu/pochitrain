@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import onnx
@@ -69,7 +69,7 @@ class OnnxExporter:
     def export(
         self,
         output_path: Path,
-        input_size: Tuple[int, int],
+        input_size: tuple[int, int],
         opset_version: int = 17,
     ) -> Path:
         """モデルをONNX形式でエクスポート.
@@ -122,7 +122,7 @@ class OnnxExporter:
     def verify(
         self,
         onnx_path: Path,
-        input_size: Tuple[int, int],
+        input_size: tuple[int, int],
         rtol: float = 1e-3,
         atol: float = 1e-5,
     ) -> bool:

@@ -10,7 +10,7 @@ import argparse
 import importlib.util
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,7 +65,7 @@ def load_config_dict(config_path: Path) -> dict:
     return config
 
 
-def get_method_labels(aggregation_method: str) -> Tuple[str, str]:
+def get_method_labels(aggregation_method: str) -> tuple[str, str]:
     """集約方法に対応する表示名と層内ラベルを返す."""
     method_label = METHOD_LABELS.get(aggregation_method, aggregation_method)
     inner_label = f"層内{method_label}"
@@ -74,7 +74,7 @@ def get_method_labels(aggregation_method: str) -> Tuple[str, str]:
 
 def load_gradient_trace(
     csv_path: Path,
-) -> Tuple[np.ndarray, List[str], np.ndarray, str]:
+) -> tuple[np.ndarray, list[str], np.ndarray, str]:
     """勾配トレースCSVを読み込み.
 
     Args:
@@ -112,7 +112,7 @@ def load_gradient_trace(
 
 def plot_timeline(
     epochs: np.ndarray,
-    layer_names: List[str],
+    layer_names: list[str],
     grad_matrix: np.ndarray,
     output_dir: Path,
     aggregation_method: str = "median",
@@ -198,7 +198,7 @@ def plot_timeline(
 
 def plot_heatmap(
     epochs: np.ndarray,
-    layer_names: List[str],
+    layer_names: list[str],
     grad_matrix: np.ndarray,
     output_dir: Path,
     aggregation_method: str = "median",
@@ -245,7 +245,7 @@ def plot_heatmap(
 
 def plot_statistics(
     epochs: np.ndarray,
-    layer_names: List[str],
+    layer_names: list[str],
     grad_matrix: np.ndarray,
     output_dir: Path,
     aggregation_method: str = "median",
@@ -385,7 +385,7 @@ def plot_statistics(
 
 def plot_snapshots(
     epochs: np.ndarray,
-    layer_names: List[str],
+    layer_names: list[str],
     grad_matrix: np.ndarray,
     output_dir: Path,
     aggregation_method: str = "median",

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pochitrain.inference.adapters.trt_runtime_adapter import TensorRTRuntimeAdapter
 from pochitrain.inference.services.interfaces import IInferenceService
@@ -38,7 +38,7 @@ class TensorRTInferenceService(IInferenceService):
 
         return TensorRTInference(engine_path)
 
-    def resolve_val_transform(self, config: Dict[str, Any], inference: Any) -> Any:
+    def resolve_val_transform(self, config: dict[str, Any], inference: Any) -> Any:
         """Config またはエンジン入力形状から val_transform を解決する.
 
         Args:
@@ -83,7 +83,7 @@ class TensorRTInferenceService(IInferenceService):
             return "gpu"
         return requested
 
-    def _resolve_batch_size(self, config: Dict[str, Any]) -> int:
+    def _resolve_batch_size(self, config: dict[str, Any]) -> int:
         """TensorRT推論時のバッチサイズを解決する."""
         return 1
 

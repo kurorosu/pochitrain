@@ -9,7 +9,12 @@
 - なし.
 
 ### Changed
-- なし.
+- コード品質・設計パターンを改善した (N/A.).
+  - `Evaluator.calculate_accuracy` の戻り値型を `Dict[str, float]` から `Dict[str, Any]` に修正した.
+  - `TrainingLoop.run()` の引数16個を `TrainingContext` dataclass に集約した.
+  - `PochiImageDataset.get_class_counts` を `Counter` ベースに書き換え, 計算量を O(n*m) から O(n) に改善した.
+  - `TrainingConfigurator._build_optimizer` を if-elif チェーンから辞書マッピング + `functools.partial` 方式に変更し, `_build_scheduler` とスタイルを統一した.
+  - `pochitrain/` 配下の全ファイルで typing の `Dict`, `List`, `Tuple` を built-in 型 (`dict`, `list`, `tuple`) に統一した.
 
 ### Fixed
 - なし.

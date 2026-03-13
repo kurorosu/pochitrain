@@ -2,14 +2,14 @@
 
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Union
 
 
 class ConfigLoader:
     """設定ファイルを読み込むクラス."""
 
     @staticmethod
-    def load_config(config_path: Union[str, Path]) -> Dict[str, Any]:
+    def load_config(config_path: Union[str, Path]) -> dict[str, Any]:
         """設定ファイル(Python形式)を読み込む.
 
         Args:
@@ -37,7 +37,7 @@ class ConfigLoader:
 
         spec.loader.exec_module(config_module)
 
-        config: Dict[str, Any] = {}
+        config: dict[str, Any] = {}
         for key in dir(config_module):
             if not key.startswith("_"):
                 value = getattr(config_module, key)

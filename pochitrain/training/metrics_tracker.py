@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from torch import nn
 
@@ -31,8 +31,8 @@ class MetricsTracker:
         visualization_dir: Path,
         enable_metrics_export: bool = True,
         enable_gradient_tracking: bool = False,
-        gradient_tracking_config: Optional[Dict[str, Any]] = None,
-        layer_wise_lr_graph_config: Optional[Dict[str, Any]] = None,
+        gradient_tracking_config: Optional[dict[str, Any]] = None,
+        layer_wise_lr_graph_config: Optional[dict[str, Any]] = None,
     ) -> None:
         """MetricsTrackerを初期化."""
         self.logger = logger
@@ -79,12 +79,12 @@ class MetricsTracker:
     def record_epoch(
         self,
         epoch: int,
-        train_metrics: Dict[str, float],
-        val_metrics: Dict[str, float],
+        train_metrics: dict[str, float],
+        val_metrics: dict[str, float],
         model: nn.Module,
         learning_rate: float,
         layer_wise_lr_enabled: bool = False,
-        layer_wise_rates: Optional[Dict[str, float]] = None,
+        layer_wise_rates: Optional[dict[str, float]] = None,
     ) -> None:
         """エポックのメトリクスと勾配を記録.
 
@@ -98,7 +98,7 @@ class MetricsTracker:
             layer_wise_rates: 層別学習率の辞書 (例: {"lr_layer1": 0.001})
         """
         if self._metrics_exporter is not None:
-            kwargs: Dict[str, float] = {}
+            kwargs: dict[str, float] = {}
             if layer_wise_rates is not None:
                 kwargs = layer_wise_rates
 
@@ -118,7 +118,7 @@ class MetricsTracker:
             if epoch % record_freq == 0:
                 self._gradient_tracer.record_gradients(model, epoch)
 
-    def finalize(self) -> Tuple[Optional[Path], List[Path]]:
+    def finalize(self) -> tuple[Optional[Path], list[Path]]:
         """訓練完了後のエクスポート処理. CSVとグラフを出力.
 
         Returns:
@@ -127,7 +127,7 @@ class MetricsTracker:
             graph_paths: グラフファイルパスのリスト (無効時は空リスト)
         """
         csv_path: Optional[Path] = None
-        graph_paths: List[Path] = []
+        graph_paths: list[Path] = []
 
         if self._metrics_exporter is not None:
             exported_csv, exported_graphs = self._metrics_exporter.export_all()
@@ -144,7 +144,7 @@ class MetricsTracker:
 
         return csv_path, graph_paths
 
-    def get_summary(self) -> Optional[Dict[str, Any]]:
+    def get_summary(self) -> Optional[dict[str, Any]]:
         """訓練サマリーを取得.
 
         Returns:

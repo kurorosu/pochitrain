@@ -12,7 +12,7 @@ import signal
 import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any, Dict, Optional, Sized, cast
+from typing import Any, Optional, Sized, cast
 
 from pydantic import ValidationError
 
@@ -178,7 +178,7 @@ def train_command(args: argparse.Namespace) -> None:
     if enable_layer_wise_lr:
         logger.debug("層別学習率: 有効")
         layer_wise_lr_config = cast(
-            Dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
+            dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
         )
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
         logger.debug(f"層別学習率設定: {layer_rates}")
@@ -232,10 +232,10 @@ def train_command(args: argparse.Namespace) -> None:
         num_classes=len(classes),
         enable_layer_wise_lr=pochi_config.enable_layer_wise_lr,
         layer_wise_lr_config=cast(
-            Dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
+            dict[str, Any], pochi_config.layer_wise_lr_config.model_dump()
         ),
         early_stopping_config=(
-            cast(Dict[str, Any], pochi_config.early_stopping.model_dump())
+            cast(dict[str, Any], pochi_config.early_stopping.model_dump())
             if pochi_config.early_stopping is not None
             else None
         ),
@@ -269,7 +269,7 @@ def train_command(args: argparse.Namespace) -> None:
         logger.debug("訓練メトリクスのCSV出力とグラフ生成が有効です")
 
     early_stopping_config = (
-        cast(Dict[str, Any], pochi_config.early_stopping.model_dump())
+        cast(dict[str, Any], pochi_config.early_stopping.model_dump())
         if pochi_config.early_stopping is not None
         else None
     )
@@ -280,7 +280,7 @@ def train_command(args: argparse.Namespace) -> None:
     if trainer.enable_gradient_tracking:
         logger.debug("勾配トレース機能が有効です")
         gradient_config = cast(
-            Dict[str, Any], pochi_config.gradient_tracking_config.model_dump()
+            dict[str, Any], pochi_config.gradient_tracking_config.model_dump()
         )
         trainer.gradient_tracking_config.update(gradient_config)
 
@@ -429,7 +429,7 @@ def infer_command(args: argparse.Namespace) -> None:
 
     try:
         cm_config = (
-            cast(Dict[str, Any], pochi_config.confusion_matrix_config.model_dump())
+            cast(dict[str, Any], pochi_config.confusion_matrix_config.model_dump())
             if pochi_config.confusion_matrix_config is not None
             else None
         )
