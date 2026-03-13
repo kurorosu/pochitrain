@@ -5,6 +5,7 @@ pochitrain.pochi_dataset: Pochiデータセット.
 """
 
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple, Union
 
@@ -129,10 +130,11 @@ class PochiImageDataset(Dataset):
 
     def get_class_counts(self) -> dict:
         """各クラスの画像数を取得."""
-        counts = {}
-        for class_name in self.classes:
-            counts[class_name] = self.labels.count(self.classes.index(class_name))
-        return counts
+        label_counts = Counter(self.labels)
+        return {
+            class_name: label_counts.get(idx, 0)
+            for idx, class_name in enumerate(self.classes)
+        }
 
     def get_file_paths(self) -> List[str]:
         """
