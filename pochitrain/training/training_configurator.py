@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -134,14 +135,16 @@ class TrainingConfigurator:
         Returns:
             optim.Optimizer: 最適化器.
         """
-        if optimizer_name == "Adam":
-            return optim.Adam(param_groups)
-        elif optimizer_name == "AdamW":
-            return optim.AdamW(param_groups, weight_decay=1e-2)
-        elif optimizer_name == "SGD":
-            return optim.SGD(param_groups, momentum=0.9, weight_decay=1e-4)
-        else:
+        optimizers: Dict[str, Any] = {
+            "Adam": optim.Adam,
+            "AdamW": partial(optim.AdamW, weight_decay=1e-2),
+            "SGD": partial(optim.SGD, momentum=0.9, weight_decay=1e-4),
+        }
+
+        optimizer_cls = optimizers.get(optimizer_name)
+        if optimizer_cls is None:
             raise ValueError(f"サポートされていない最適化器: {optimizer_name}")
+        return optimizer_cls(param_groups)
 
     def _build_scheduler(
         self,
