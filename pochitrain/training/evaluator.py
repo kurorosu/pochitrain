@@ -148,7 +148,7 @@ class Evaluator:
 
     def calculate_accuracy(
         self, predicted_labels: List[int], true_labels: List[int]
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """推論結果の精度を計算.
 
         Args:
