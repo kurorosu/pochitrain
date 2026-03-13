@@ -21,7 +21,7 @@ from .training.early_stopping import EarlyStopping
 from .training.epoch_runner import EpochRunner
 from .training.evaluator import Evaluator
 from .training.training_configurator import TrainingConfigurator
-from .training.training_loop import TrainingLoop
+from .training.training_loop import TrainingContext, TrainingLoop
 from .utils.directory_manager import PochiWorkspaceManager
 
 
@@ -346,19 +346,23 @@ class PochiTrainer:
             layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
         )
 
-        last_epoch, best_accuracy = training_loop.run(
-            epochs=epochs,
-            train_epoch_fn=self._run_train_epoch,
-            validate_fn=self.validate,
-            train_loader=train_loader,
-            val_loader=val_loader,
+        ctx = TrainingContext(
             model=self.model,
             optimizer=self.optimizer,
             scheduler=self.scheduler,
+            train_loader=train_loader,
+            val_loader=val_loader,
             tracker=tracker,
+            train_epoch_fn=self._run_train_epoch,
+            validate_fn=self.validate,
             get_learning_rate_fn=self._get_base_learning_rate,
             get_layer_wise_rates_fn=self.get_layer_wise_learning_rates,
             is_layer_wise_lr_fn=self.is_layer_wise_lr_enabled,
+        )
+
+        last_epoch, best_accuracy = training_loop.run(
+            epochs=epochs,
+            ctx=ctx,
             initial_best_accuracy=self.best_accuracy,
             set_epoch_fn=self._set_epoch,
             stop_flag_callback=stop_flag_callback,

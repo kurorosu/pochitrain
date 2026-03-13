@@ -1,6 +1,7 @@
 """pochitrain.training.training_loop: エポックサイクルの実行を管理するモジュール."""
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -11,6 +12,37 @@ from torch.utils.data import DataLoader
 from .checkpoint_store import CheckpointStore
 from .early_stopping import EarlyStopping
 from .metrics_tracker import MetricsTracker
+
+
+@dataclass
+class TrainingContext:
+    """訓練ループに必要なコンテキストをまとめるデータクラス.
+
+    Attributes:
+        model: モデル.
+        optimizer: オプティマイザ.
+        scheduler: スケジューラ.
+        train_loader: 訓練データローダー.
+        val_loader: 検証データローダー.
+        tracker: メトリクストラッカー.
+        train_epoch_fn: 1エポック訓練を実行する関数.
+        validate_fn: 検証を実行する関数.
+        get_learning_rate_fn: 現在の学習率を取得する関数.
+        get_layer_wise_rates_fn: 層別学習率を取得する関数.
+        is_layer_wise_lr_fn: 層別学習率が有効か判定する関数.
+    """
+
+    model: nn.Module
+    optimizer: Optional[optim.Optimizer]
+    scheduler: Optional[optim.lr_scheduler.LRScheduler]
+    train_loader: DataLoader[Any]
+    val_loader: Optional[DataLoader[Any]]
+    tracker: Optional[MetricsTracker]
+    train_epoch_fn: Callable[[DataLoader[Any]], Dict[str, float]]
+    validate_fn: Callable[[DataLoader[Any]], Dict[str, float]]
+    get_learning_rate_fn: Callable[[], float]
+    get_layer_wise_rates_fn: Callable[[], Dict[str, float]]
+    is_layer_wise_lr_fn: Callable[[], bool]
 
 
 class TrainingLoop:
@@ -39,17 +71,7 @@ class TrainingLoop:
     def run(
         self,
         epochs: int,
-        train_epoch_fn: Callable[[DataLoader[Any]], Dict[str, float]],
-        validate_fn: Callable[[DataLoader[Any]], Dict[str, float]],
-        train_loader: DataLoader[Any],
-        val_loader: Optional[DataLoader[Any]],
-        model: nn.Module,
-        optimizer: Optional[optim.Optimizer],
-        scheduler: Optional[optim.lr_scheduler.LRScheduler],
-        tracker: Optional[MetricsTracker],
-        get_learning_rate_fn: Callable[[], float],
-        get_layer_wise_rates_fn: Callable[[], Dict[str, float]],
-        is_layer_wise_lr_fn: Callable[[], bool],
+        ctx: TrainingContext,
         initial_best_accuracy: float = 0.0,
         set_epoch_fn: Optional[Callable[[int], None]] = None,
         stop_flag_callback: Optional[Any] = None,
@@ -58,17 +80,7 @@ class TrainingLoop:
 
         Args:
             epochs: 総エポック数.
-            train_epoch_fn: 1エポック訓練を実行する関数.
-            validate_fn: 検証を実行する関数.
-            train_loader: 訓練データローダー.
-            val_loader: 検証データローダー.
-            model: モデル.
-            optimizer: オプティマイザ.
-            scheduler: スケジューラ.
-            tracker: メトリクストラッカー.
-            get_learning_rate_fn: 現在の学習率を取得する関数.
-            get_layer_wise_rates_fn: 層別学習率を取得する関数.
-            is_layer_wise_lr_fn: 層別学習率が有効か判定する関数.
+            ctx: 訓練コンテキスト.
             initial_best_accuracy: 学習開始時点のベスト精度.
             set_epoch_fn: 現在エポックを更新する関数.
             stop_flag_callback: 停止フラグをチェックするコールバック関数.
@@ -89,7 +101,7 @@ class TrainingLoop:
                     f"安全停止が要求されました。エポック {epoch-1} で訓練を終了します。"
                 )
                 self._save_last_checkpoint(
-                    epoch, model, optimizer, scheduler, best_accuracy
+                    epoch, ctx.model, ctx.optimizer, ctx.scheduler, best_accuracy
                 )
                 break
 
@@ -97,18 +109,8 @@ class TrainingLoop:
 
             best_accuracy, should_stop = self._run_epoch_cycle(
                 epoch=epoch,
-                train_epoch_fn=train_epoch_fn,
-                validate_fn=validate_fn,
-                train_loader=train_loader,
-                val_loader=val_loader,
-                model=model,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                tracker=tracker,
+                ctx=ctx,
                 best_accuracy=best_accuracy,
-                get_learning_rate_fn=get_learning_rate_fn,
-                get_layer_wise_rates_fn=get_layer_wise_rates_fn,
-                is_layer_wise_lr_fn=is_layer_wise_lr_fn,
             )
             if should_stop:
                 break
@@ -119,55 +121,35 @@ class TrainingLoop:
                 )
                 break
 
-        self._log_training_result(val_loader, last_epoch, best_accuracy)
-        self._finalize_metrics(tracker)
+        self._log_training_result(ctx.val_loader, last_epoch, best_accuracy)
+        self._finalize_metrics(ctx.tracker)
 
         return last_epoch, best_accuracy
 
     def _run_epoch_cycle(
         self,
         epoch: int,
-        train_epoch_fn: Callable[[DataLoader[Any]], Dict[str, float]],
-        validate_fn: Callable[[DataLoader[Any]], Dict[str, float]],
-        train_loader: DataLoader[Any],
-        val_loader: Optional[DataLoader[Any]],
-        model: nn.Module,
-        optimizer: Optional[optim.Optimizer],
-        scheduler: Optional[optim.lr_scheduler.LRScheduler],
-        tracker: Optional[MetricsTracker],
+        ctx: TrainingContext,
         best_accuracy: float,
-        get_learning_rate_fn: Callable[[], float],
-        get_layer_wise_rates_fn: Callable[[], Dict[str, float]],
-        is_layer_wise_lr_fn: Callable[[], bool],
     ) -> tuple[float, bool]:
         """1エポックの訓練・検証・記録サイクルを実行.
 
         Args:
             epoch: 現在のエポック番号.
-            train_epoch_fn: 1エポック訓練を実行する関数.
-            validate_fn: 検証を実行する関数.
-            train_loader: 訓練データローダー.
-            val_loader: 検証データローダー.
-            model: モデル.
-            optimizer: オプティマイザ.
-            scheduler: スケジューラ.
-            tracker: メトリクストラッカー.
+            ctx: 訓練コンテキスト.
             best_accuracy: 現在のベスト精度.
-            get_learning_rate_fn: 現在の学習率を取得する関数.
-            get_layer_wise_rates_fn: 層別学習率を取得する関数.
-            is_layer_wise_lr_fn: 層別学習率が有効か判定する関数.
 
         Returns:
             tuple[float, bool]: (更新後のベスト精度, 訓練を停止すべきか).
         """
-        train_metrics = train_epoch_fn(train_loader)
+        train_metrics = ctx.train_epoch_fn(ctx.train_loader)
 
         val_metrics: Dict[str, float] = {}
-        if val_loader:
-            val_metrics = validate_fn(val_loader)
+        if ctx.val_loader:
+            val_metrics = ctx.validate_fn(ctx.val_loader)
 
-        if scheduler is not None:
-            scheduler.step()
+        if ctx.scheduler is not None:
+            ctx.scheduler.step()
 
         self.logger.info(
             f"エポック {epoch} 完了 - "
@@ -182,19 +164,26 @@ class TrainingLoop:
                 f"検証精度: {val_metrics['val_accuracy']:.2f}%"
             )
             best_accuracy, should_stop = self._update_best_and_check_early_stop(
-                epoch, val_metrics, model, optimizer, scheduler, best_accuracy
+                epoch,
+                val_metrics,
+                ctx.model,
+                ctx.optimizer,
+                ctx.scheduler,
+                best_accuracy,
             )
 
-        self._save_last_checkpoint(epoch, model, optimizer, scheduler, best_accuracy)
+        self._save_last_checkpoint(
+            epoch, ctx.model, ctx.optimizer, ctx.scheduler, best_accuracy
+        )
         self._record_metrics(
-            tracker,
+            ctx.tracker,
             epoch,
             train_metrics,
             val_metrics,
-            model,
-            get_learning_rate_fn,
-            get_layer_wise_rates_fn,
-            is_layer_wise_lr_fn,
+            ctx.model,
+            ctx.get_learning_rate_fn,
+            ctx.get_layer_wise_rates_fn,
+            ctx.is_layer_wise_lr_fn,
         )
 
         return best_accuracy, should_stop
