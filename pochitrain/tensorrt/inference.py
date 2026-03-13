@@ -6,7 +6,6 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -116,7 +115,7 @@ class TensorRTInference:
         """
         return self._stream
 
-    def _resolve_io_bindings(self, trt: object) -> Dict[str, str]:
+    def _resolve_io_bindings(self, trt: object) -> dict[str, str]:
         """名前ベースで入出力バインディングを解決する.
 
         インデックス順序に依存せず, TensorIOMode で入力・出力を判定する.
@@ -195,7 +194,7 @@ class TensorRTInference:
         self._stream.synchronize()
         return self._d_output.cpu().numpy()
 
-    def run(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def run(self, images: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """推論を実行.
 
         Args:
@@ -218,7 +217,7 @@ class TensorRTInference:
 
         return post_process_logits(logits)
 
-    def get_input_shape(self) -> Tuple[int, ...]:
+    def get_input_shape(self) -> tuple[int, ...]:
         """入力shapeを取得.
 
         Returns:
@@ -226,7 +225,7 @@ class TensorRTInference:
         """
         return self.input_shape
 
-    def get_output_shape(self) -> Tuple[int, ...]:
+    def get_output_shape(self) -> tuple[int, ...]:
         """出力shapeを取得.
 
         Returns:

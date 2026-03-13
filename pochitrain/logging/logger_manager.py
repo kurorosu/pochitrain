@@ -6,7 +6,7 @@ colorlogを使用したオブジェクト指向のログ管理システム
 
 import logging
 from enum import Enum
-from typing import Dict, Optional
+from typing import Optional
 
 try:
     import colorlog
@@ -39,7 +39,7 @@ class LoggerManager:
     """
 
     _instance: Optional["LoggerManager"] = None
-    _loggers: Dict[str, logging.Logger] = {}
+    _loggers: dict[str, logging.Logger] = {}
 
     def __new__(cls) -> "LoggerManager":
         """シングルトンパターンの実装."""

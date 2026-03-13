@@ -19,8 +19,8 @@ class ClassificationObjective(IObjectiveFunction):
         self,
         base_config: PochiConfig,
         param_suggestor: IParamSuggestor,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
         optuna_epochs: int = 10,
         device: str = "cuda",
     ) -> None:
@@ -41,7 +41,7 @@ class ClassificationObjective(IObjectiveFunction):
         self._optuna_epochs = optuna_epochs
         self._device = device
 
-    def __call__(self, trial: optuna.Trial) -> float:
+    def __call__(self, trial: Any) -> float:
         """目的関数を実行する.
 
         Args:
@@ -91,7 +91,7 @@ class ClassificationObjective(IObjectiveFunction):
     def _train_and_evaluate(
         self,
         trainer: Any,
-        trial: optuna.Trial,
+        trial: Any,
     ) -> float:
         """訓練を実行し、最良の精度を返す.
 

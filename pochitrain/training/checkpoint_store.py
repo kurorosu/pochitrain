@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import torch
 from torch import nn, optim
@@ -45,7 +45,7 @@ class CheckpointStore:
         Returns:
             保存先のパス
         """
-        checkpoint: Dict[str, Any] = {
+        checkpoint: dict[str, Any] = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": (

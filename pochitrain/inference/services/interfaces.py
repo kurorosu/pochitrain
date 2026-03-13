@@ -7,7 +7,7 @@ IInferenceService は共通実装を持たせるため `abc.ABC` を使う.
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Optional, Protocol
 
 from torch.utils.data import DataLoader
 
@@ -72,7 +72,7 @@ class IInferenceService(ABC):
     def resolve_paths(
         self,
         request: InferenceCliRequest,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> InferenceResolvedPaths:
         """データパスと出力先を解決する.
 
@@ -127,7 +127,7 @@ class IInferenceService(ABC):
             return requested
         return "gpu" if use_gpu else "fast"
 
-    def _resolve_batch_size(self, config: Dict[str, Any]) -> int:
+    def _resolve_batch_size(self, config: dict[str, Any]) -> int:
         """ランタイム既定のバッチサイズを解決する.
 
         Args:
@@ -140,7 +140,7 @@ class IInferenceService(ABC):
 
     def resolve_runtime_options(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         pipeline: str,
         use_gpu: bool = True,
     ) -> InferenceRuntimeOptions:
@@ -165,7 +165,7 @@ class IInferenceService(ABC):
 
     def create_dataloader(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         data_path: Path,
         val_transform: Any,
         pipeline: str,
@@ -174,8 +174,8 @@ class IInferenceService(ABC):
         DataLoader[Any],
         PochiImageDataset,
         str,
-        Optional[List[float]],
-        Optional[List[float]],
+        Optional[list[float]],
+        Optional[list[float]],
     ]:
         """推論用 DataLoader とデータセットを生成する.
 
@@ -210,8 +210,8 @@ class IInferenceService(ABC):
         runtime_adapter: IRuntimeAdapter,
         *,
         use_gpu_pipeline: bool,
-        norm_mean: Optional[List[float]] = None,
-        norm_std: Optional[List[float]] = None,
+        norm_mean: Optional[list[float]] = None,
+        norm_std: Optional[list[float]] = None,
         use_cuda_timing: bool = False,
         gpu_non_blocking: bool = True,
         warmup_repeats: int = 10,
@@ -297,11 +297,11 @@ class IInferenceService(ABC):
         dataset: PochiImageDataset,
         run_result: InferenceRunResult,
         input_size: Optional[tuple[int, int, int]],
-        model_info: Optional[Dict[str, Any]],
-        cm_config: Optional[Dict[str, Any]],
+        model_info: Optional[dict[str, Any]],
+        cm_config: Optional[dict[str, Any]],
         results_filename: str = "inference_results.csv",
         summary_filename: str = "inference_summary.txt",
-        extra_info: Optional[Dict[str, Any]] = None,
+        extra_info: Optional[dict[str, Any]] = None,
     ) -> None:
         """精度計算・ログ出力・結果エクスポートを実行する.
 

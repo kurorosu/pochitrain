@@ -1,7 +1,7 @@
 """推論実行サービスで共有するデータ型."""
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from torch import Tensor
 
@@ -23,9 +23,9 @@ class ExecutionRequest:
 class ExecutionResult:
     """推論実行サービスの集計結果."""
 
-    predictions: List[int]
-    confidences: List[float]
-    true_labels: List[int]
+    predictions: list[int]
+    confidences: list[float]
+    true_labels: list[int]
     total_inference_time_ms: float
     total_samples: int
     warmup_samples: int

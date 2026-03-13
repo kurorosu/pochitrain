@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -12,26 +12,26 @@ class ResultExportRequest:
     output_dir: Path
     model_path: Path
     data_path: Path
-    image_paths: List[str]
-    predictions: List[int]
-    true_labels: List[int]
-    confidences: List[float]
-    class_names: List[str]
+    image_paths: list[str]
+    predictions: list[int]
+    true_labels: list[int]
+    confidences: list[float]
+    class_names: list[str]
     num_samples: int
     correct: int
     avg_time_per_image: float
     total_samples: int
     warmup_samples: int
-    model_info: Optional[Dict[str, Any]] = None
+    model_info: Optional[dict[str, Any]] = None
     avg_total_time_per_image: Optional[float] = None
-    input_size: Optional[Tuple[int, int, int]] = None
+    input_size: Optional[tuple[int, int, int]] = None
     results_filename: str = "inference_results.csv"
     summary_filename: str = "inference_summary.txt"
     confusion_matrix_filename: str = "confusion_matrix.png"
     classification_report_filename: str = "classification_report.csv"
     model_info_filename: str = "model_info.json"
-    extra_info: Optional[Dict[str, Any]] = None
-    cm_config: Optional[Dict[str, Any]] = None
+    extra_info: Optional[dict[str, Any]] = None
+    cm_config: Optional[dict[str, Any]] = None
 
 
 @dataclass(frozen=True)

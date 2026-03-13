@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from pochitrain.inference.types.benchmark_types import (
     BenchmarkMetrics,
@@ -20,8 +20,8 @@ def _now_jst_timestamp() -> str:
 
 
 def _resolve_image_size(
-    input_size: Optional[Tuple[int, int, int]],
-) -> Optional[Tuple[int, int]]:
+    input_size: Optional[tuple[int, int, int]],
+) -> Optional[tuple[int, int]]:
     """入力サイズ (C, H, W) を画像サイズ (H, W) へ変換する."""
     return (input_size[1], input_size[2]) if input_size is not None else None
 
@@ -41,7 +41,7 @@ def _build_benchmark_result(
     batch_size: int,
     gpu_non_blocking: bool,
     pin_memory: bool,
-    input_size: Optional[Tuple[int, int, int]],
+    input_size: Optional[tuple[int, int, int]],
     avg_time_per_image: float,
     avg_total_time_per_image: float,
     num_samples: int,
@@ -88,7 +88,7 @@ def build_onnx_benchmark_result(
     batch_size: int,
     gpu_non_blocking: bool,
     pin_memory: bool,
-    input_size: Optional[Tuple[int, int, int]],
+    input_size: Optional[tuple[int, int, int]],
     avg_time_per_image: float,
     avg_total_time_per_image: float,
     num_samples: int,
@@ -165,7 +165,7 @@ def build_trt_benchmark_result(
     batch_size: int,
     gpu_non_blocking: bool,
     pin_memory: bool,
-    input_size: Optional[Tuple[int, int, int]],
+    input_size: Optional[tuple[int, int, int]],
     avg_time_per_image: float,
     avg_total_time_per_image: float,
     num_samples: int,
@@ -223,7 +223,7 @@ def build_pytorch_benchmark_result(
     batch_size: int,
     gpu_non_blocking: bool,
     pin_memory: bool,
-    input_size: Optional[Tuple[int, int, int]],
+    input_size: Optional[tuple[int, int, int]],
     avg_time_per_image: float,
     avg_total_time_per_image: float,
     num_samples: int,

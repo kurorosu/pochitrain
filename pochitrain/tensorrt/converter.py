@@ -6,7 +6,7 @@ FP32, FP16, INT8の各精度モードに対応.
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from pochitrain.logging import LoggerManager
 from pochitrain.tensorrt.inference import check_tensorrt_availability
@@ -54,9 +54,9 @@ class TensorRTConverter:
 
     @staticmethod
     def _resolve_dynamic_shape(
-        shape: Tuple[int, ...],
-        input_shape: Optional[Tuple[int, ...]] = None,
-    ) -> Tuple[int, ...]:
+        shape: tuple[int, ...],
+        input_shape: Optional[tuple[int, ...]] = None,
+    ) -> tuple[int, ...]:
         """動的次元を解決してOptimization Profile用の形状を返す.
 
         Args:
@@ -99,7 +99,7 @@ class TensorRTConverter:
         output_path: Path,
         precision: str = "fp32",
         calibrator: Optional[object] = None,
-        input_shape: Optional[Tuple[int, ...]] = None,
+        input_shape: Optional[tuple[int, ...]] = None,
     ) -> Path:
         """ONNXモデルをTensorRTエンジンに変換する.
 

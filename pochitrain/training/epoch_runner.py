@@ -1,7 +1,7 @@
 """pochitrain.training.epoch_runner: 1エポック訓練実行モジュール."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -29,7 +29,7 @@ class EpochRunner:
         criterion: nn.Module,
         train_loader: DataLoader[Any],
         epoch: int,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """1エポック訓練を実行.
 
         Args:

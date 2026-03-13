@@ -9,7 +9,7 @@ TensorRT INT8量子化に必要なスケールファクタを計算する.
 import logging
 import os
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Sized, cast
+from typing import Any, Callable, Optional, Sized, cast
 
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
@@ -40,7 +40,7 @@ def create_calibration_dataset(
     transform: Callable[..., Any],
     max_samples: int = 500,
     seed: int = 42,
-) -> Dataset[Any]:
+) -> PochiImageDataset | Subset[Any]:
     """キャリブレーション用のサブセットデータセットを作成する.
 
     検証データセットからランダムにサンプリングして,
@@ -151,7 +151,7 @@ def _create_calibrator_class() -> type:
             """
             return self.batch_size
 
-        def get_batch(self, names: List[str]) -> Optional[List[int]]:
+        def get_batch(self, names: list[str]) -> Optional[list[int]]:
             """次のキャリブレーションバッチを供給する.
 
             単一入力のみサポート. TensorRTから渡されるnamesが1つでない場合は

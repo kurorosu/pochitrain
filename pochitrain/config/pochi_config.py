@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -14,7 +14,7 @@ from .sub_configs import (
     OptunaConfig,
 )
 
-_SCHEDULER_REQUIRED_PARAMS: Dict[str, List[str]] = {
+_SCHEDULER_REQUIRED_PARAMS: dict[str, list[str]] = {
     "StepLR": ["step_size"],
     "MultiStepLR": ["milestones"],
     "CosineAnnealingLR": ["T_max"],
@@ -44,7 +44,7 @@ class PochiConfig(BaseModel):
     val_data_root: Optional[str] = None
     pretrained: bool = True
     cudnn_benchmark: bool = False
-    class_weights: Optional[List[float]] = None
+    class_weights: Optional[list[float]] = None
     scheduler: Optional[
         Literal[
             "StepLR",
@@ -54,13 +54,13 @@ class PochiConfig(BaseModel):
             "LinearLR",
         ]
     ] = None
-    scheduler_params: Optional[Dict[str, Any]] = None
+    scheduler_params: Optional[dict[str, Any]] = None
     work_dir: str = "work_dirs"
     num_workers: int = 0
     train_pin_memory: bool = True
     infer_pin_memory: bool = True
-    mean: List[float] = Field(default_factory=lambda: [0.485, 0.456, 0.406])
-    std: List[float] = Field(default_factory=lambda: [0.229, 0.224, 0.225])
+    mean: list[float] = Field(default_factory=lambda: [0.485, 0.456, 0.406])
+    std: list[float] = Field(default_factory=lambda: [0.229, 0.224, 0.225])
     enable_metrics_export: bool = True
     enable_gradient_tracking: bool = False
     gradient_tracking_config: GradientTrackingConfig = Field(
@@ -161,7 +161,7 @@ class PochiConfig(BaseModel):
         return self
 
     @classmethod
-    def from_dict(cls, config: Dict[str, Any]) -> "PochiConfig":
+    def from_dict(cls, config: dict[str, Any]) -> "PochiConfig":
         """Dict から PochiConfig を生成. Pydantic バリデーションが自動実行される."""
         payload = dict(config)
 

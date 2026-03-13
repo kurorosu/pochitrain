@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class LayerWiseLRGraphConfig(BaseModel):
 class LayerWiseLRConfig(BaseModel):
     """層別学習率設定."""
 
-    layer_rates: Dict[str, float] = Field(default_factory=dict)
+    layer_rates: dict[str, float] = Field(default_factory=dict)
     graph_config: LayerWiseLRGraphConfig = Field(default_factory=LayerWiseLRGraphConfig)
 
 
@@ -33,7 +33,7 @@ class GradientTrackingConfig(BaseModel):
     """勾配トラッキング設定."""
 
     record_frequency: int = Field(default=1, gt=0)
-    exclude_patterns: List[str] = Field(default_factory=lambda: ["fc\\.", "\\.bias"])
+    exclude_patterns: list[str] = Field(default_factory=lambda: ["fc\\.", "\\.bias"])
     group_by_block: bool = True
     aggregation_method: str = "median"
 
@@ -47,14 +47,14 @@ class ConfusionMatrixConfig(BaseModel):
     fontsize: int = Field(default=14, gt=0)
     title_fontsize: int = Field(default=16, gt=0)
     label_fontsize: int = Field(default=12, gt=0)
-    figsize: Tuple[int, int] = (8, 6)
+    figsize: tuple[int, int] = (8, 6)
     cmap: str = "Blues"
 
 
 class OptunaConfig(BaseModel):
     """Optuna 最適化設定."""
 
-    search_space: Dict[str, Any] = Field(default_factory=dict)
+    search_space: dict[str, Any] = Field(default_factory=dict)
     n_trials: int = Field(default=20, gt=0)
     n_jobs: int = Field(default=1, gt=0)
     optuna_epochs: int = Field(default=10, gt=0)

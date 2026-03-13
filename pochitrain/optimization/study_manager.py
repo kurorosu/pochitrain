@@ -1,6 +1,6 @@
 """Optuna Study管理実装（SRP: 単一責任原則）."""
 
-from typing import Any, Dict
+from typing import Any
 
 import optuna
 
@@ -95,7 +95,7 @@ class OptunaStudyManager(IStudyManager):
             msg = "Study not created. Call create_study() first."
             raise RuntimeError(msg)
 
-        best_params: Dict[str, Any] = self._study.best_params
+        best_params: dict[str, Any] = self._study.best_params
         return best_params
 
     def get_best_value(self) -> float:

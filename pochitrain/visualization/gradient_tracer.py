@@ -5,7 +5,7 @@ import logging
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import torch.nn as nn
 
@@ -26,14 +26,14 @@ class GradientTracer:
     def __init__(
         self,
         logger: Optional[logging.Logger] = None,
-        exclude_patterns: Optional[List[str]] = None,
+        exclude_patterns: Optional[list[str]] = None,
         group_by_block: bool = True,
         aggregation_method: str = "median",
     ):
         """GradientTracerを初期化."""
-        self.gradient_history: Dict[str, List[float]] = {}
-        self.epochs: List[int] = []
-        self.layer_names: List[str] = []
+        self.gradient_history: dict[str, list[float]] = {}
+        self.epochs: list[int] = []
+        self.layer_names: list[str] = []
 
         if logger is None:
             self.logger = LoggerManager().get_logger(__name__)
@@ -89,7 +89,7 @@ class GradientTracer:
                 return prefix
         return layer_name
 
-    def _aggregate_gradients(self, grad_norms: List[float]) -> float:
+    def _aggregate_gradients(self, grad_norms: list[float]) -> float:
         """
         勾配ノルムのリストを集約.
 
@@ -128,7 +128,7 @@ class GradientTracer:
         """
         self.epochs.append(epoch)
 
-        grouped_gradients: Dict[str, List[float]] = defaultdict(list)
+        grouped_gradients: dict[str, list[float]] = defaultdict(list)
 
         for name, param in model.named_parameters():
             if self._should_exclude(name):
@@ -175,7 +175,7 @@ class GradientTracer:
             writer.writerow(header)
 
             for i, epoch in enumerate(self.epochs):
-                row: List[Union[int, float]] = [epoch]
+                row: list[Union[int, float]] = [epoch]
                 for layer_name in self.layer_names:
                     row.append(self.gradient_history[layer_name][i])
                 writer.writerow(row)
@@ -184,7 +184,7 @@ class GradientTracer:
         self.logger.info(f"  - エポック数: {len(self.epochs)}")
         self.logger.info(f"  - 記録層数: {len(self.layer_names)}")
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         記録データのサマリー情報を取得.
 

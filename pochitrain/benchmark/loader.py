@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import yaml  # type: ignore[import-untyped]
 
@@ -82,7 +82,7 @@ def _parse_runtime(value: Any, field: str) -> str:
     return runtime
 
 
-def _parse_pipelines(value: Any, field: str) -> List[str]:
+def _parse_pipelines(value: Any, field: str) -> list[str]:
     """Pipeline 指定をリスト形式へ正規化する.
 
     Args:
@@ -100,7 +100,7 @@ def _parse_pipelines(value: Any, field: str) -> List[str]:
         raise ValueError(f"{field} は文字列または文字列リストである必要があります.")
 
     allowed = {"auto", "current", "fast", "gpu"}
-    parsed: List[str] = []
+    parsed: list[str] = []
     for index, item in enumerate(raw_items):
         pipeline = _require_non_empty_str(item, f"{field}[{index}]")
         if pipeline not in allowed:
@@ -114,7 +114,7 @@ def _parse_pipelines(value: Any, field: str) -> List[str]:
     return parsed
 
 
-def _parse_model_paths(value: Any, field: str) -> Dict[str, Path]:
+def _parse_model_paths(value: Any, field: str) -> dict[str, Path]:
     """Runtime ごとの model_path マップを検証する.
 
     Args:
@@ -129,7 +129,7 @@ def _parse_model_paths(value: Any, field: str) -> Dict[str, Path]:
     if not isinstance(value, dict):
         raise ValueError(f"{field} は辞書である必要があります.")
 
-    result: Dict[str, Path] = {}
+    result: dict[str, Path] = {}
     for key, raw_path in value.items():
         runtime = _parse_runtime(key, f"{field}.key")
         path_text = _require_non_empty_str(raw_path, f"{field}.{runtime}")
@@ -190,7 +190,7 @@ def load_suite_config(suites_file: Path, suite_name: str) -> SuiteConfig:
     if not isinstance(raw_cases, list) or len(raw_cases) == 0:
         raise ValueError(f"{suite_name}.cases は1件以上のリストである必要があります.")
 
-    cases: List[CaseConfig] = []
+    cases: list[CaseConfig] = []
     used_names: set[str] = set()
     for index, raw_case in enumerate(raw_cases, start=1):
         field_prefix = f"{suite_name}.cases[{index}]"

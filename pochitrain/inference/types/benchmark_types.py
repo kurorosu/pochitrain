@@ -1,7 +1,7 @@
 """ベンチマーク結果JSONの型定義とスキーマ定義."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 BENCHMARK_RESULT_SCHEMA_VERSION = "1.0.0"
 BENCHMARK_RESULT_FILENAME = "benchmark_result.json"
@@ -14,9 +14,9 @@ class BenchmarkOptions:
     gpu_non_blocking: bool
     pin_memory: bool
     batch_size: int
-    image_size: Optional[Tuple[int, int]] = None
+    image_size: Optional[tuple[int, int]] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式へ変換する.
 
         Returns:
@@ -42,7 +42,7 @@ class BenchmarkMetrics:
     throughput_e2e_ips: Optional[float] = None
     accuracy_percent: Optional[float] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式へ変換する.
 
         Returns:
@@ -65,7 +65,7 @@ class BenchmarkSamples:
     measured_samples: int
     warmup_samples: int
 
-    def to_dict(self) -> Dict[str, int]:
+    def to_dict(self) -> dict[str, int]:
         """辞書形式へ変換する.
 
         Returns:
@@ -96,7 +96,7 @@ class BenchmarkResult:
     repeat_index: Optional[int] = None
     schema_version: str = BENCHMARK_RESULT_SCHEMA_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """辞書形式へ変換する.
 
         Returns:
@@ -119,7 +119,7 @@ class BenchmarkResult:
         }
 
 
-def benchmark_result_json_schema() -> Dict[str, Any]:
+def benchmark_result_json_schema() -> dict[str, Any]:
     """`benchmark_result.json` のJSON Schemaを返す.
 
     Returns:

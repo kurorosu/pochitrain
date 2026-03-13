@@ -1,9 +1,10 @@
 """ClassificationObjective のユニットテスト."""
 
-from typing import Any
+from typing import Any, cast
 
 import optuna
 import pytest
+from torch.utils.data import DataLoader
 
 import pochitrain
 from pochitrain.config.pochi_config import PochiConfig
@@ -152,8 +153,8 @@ def _build_objective(
     return ClassificationObjective(
         base_config=_create_base_config(),
         param_suggestor=suggestor,
-        train_loader=[],
-        val_loader=[],
+        train_loader=cast(DataLoader[Any], []),
+        val_loader=cast(DataLoader[Any], []),
         optuna_epochs=optuna_epochs,
         device="cpu",
     )
