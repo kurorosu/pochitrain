@@ -5,7 +5,6 @@ PochiPredictor.calculate_accuracy() から移行したテストを含む.
 """
 
 import logging
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -173,7 +172,7 @@ class TestValidate:
         assert result["val_loss"] >= 0.0
         assert 0.0 <= result["val_accuracy"] <= 100.0
 
-    def test_validate_with_confusion_matrix(self, evaluator):
+    def test_validate_with_confusion_matrix(self, evaluator, tmp_path):
         """混同行列計算付きのバリデーション."""
         model = nn.Linear(4, 3)
         model.eval()
@@ -184,20 +183,19 @@ class TestValidate:
         dataset = TensorDataset(data, targets)
         loader = DataLoader(dataset, batch_size=3)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            result = evaluator.validate(
-                model,
-                loader,
-                criterion,
-                num_classes_for_cm=3,
-                epoch=1,
-                workspace_path=Path(tmp_dir),
-            )
+        result = evaluator.validate(
+            model,
+            loader,
+            criterion,
+            num_classes_for_cm=3,
+            epoch=1,
+            workspace_path=tmp_path,
+        )
 
-            assert "val_loss" in result
-            assert "val_accuracy" in result
-            log_file = Path(tmp_dir) / "confusion_matrix.log"
-            assert log_file.exists()
+        assert "val_loss" in result
+        assert "val_accuracy" in result
+        log_file = tmp_path / "confusion_matrix.log"
+        assert log_file.exists()
 
 
 class TestSampleWeightedLoss:
@@ -230,16 +228,15 @@ class TestSampleWeightedLoss:
 class TestLogConfusionMatrix:
     """log_confusion_matrixメソッドのテスト."""
 
-    def test_log_creates_file(self, evaluator):
+    def test_log_creates_file(self, evaluator, tmp_path):
         """混同行列ログファイルが作成される."""
         cm = torch.tensor([[2, 1], [0, 3]], dtype=torch.int64)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=Path(tmp_dir))
-            log_file = Path(tmp_dir) / "confusion_matrix.log"
-            assert log_file.exists()
-            content = log_file.read_text(encoding="utf-8")
-            assert "epoch1" in content
+        evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=tmp_path)
+        log_file = tmp_path / "confusion_matrix.log"
+        assert log_file.exists()
+        content = log_file.read_text(encoding="utf-8")
+        assert "epoch1" in content
 
     def test_log_skips_when_no_workspace(self, evaluator):
         """workspace_path=None のときスキップする."""

@@ -1,6 +1,5 @@
 """GradientTracerクラスのテスト."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -68,7 +67,7 @@ def test_multiple_epochs(model, gradient_tracer):
         assert len(gradient_tracer.gradient_history[layer_name]) == 3
 
 
-def test_save_csv(model, gradient_tracer):
+def test_save_csv(model, gradient_tracer, tmp_path):
     """CSV保存のテスト."""
     for epoch in range(1, 4):
         x = torch.randn(4, 10)
@@ -78,16 +77,15 @@ def test_save_csv(model, gradient_tracer):
         loss.backward()
         gradient_tracer.record_gradients(model, epoch=epoch)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        csv_path = Path(tmpdir) / "gradient_trace.csv"
-        gradient_tracer.save_csv(csv_path)
+    csv_path = tmp_path / "gradient_trace.csv"
+    gradient_tracer.save_csv(csv_path)
 
-        assert csv_path.exists()
+    assert csv_path.exists()
 
-        with open(csv_path, "r") as f:
-            lines = f.readlines()
-            assert len(lines) == 4  # ヘッダー + 3エポック
-            assert "epoch" in lines[0]
+    with open(csv_path, "r") as f:
+        lines = f.readlines()
+        assert len(lines) == 4  # ヘッダー + 3エポック
+        assert "epoch" in lines[0]
 
 
 def test_get_summary(model, gradient_tracer):
