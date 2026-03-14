@@ -3,6 +3,8 @@ name = "pochitrain"
 version = "1.7.3"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
+# Jetson (JetPack 6.2.1 / Python 3.10) で pip install -e . するため >=3.10 を維持.
+# black/mypy の target は開発環境 (Python 3.13) に合わせている.
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
