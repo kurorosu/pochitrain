@@ -194,7 +194,7 @@ class PochiPredictor:
         モデル情報を取得.
 
         Returns:
-            Dict[str, any]: モデル情報
+            dict[str, Any]: モデル情報
         """
         return {
             "model_name": self.model_name,
