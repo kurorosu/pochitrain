@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.7.3-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.13+-yellow.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)](https://www.python.org/)
 [![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.9+-ee4c2c.svg)](https://pytorch.org/)
 
