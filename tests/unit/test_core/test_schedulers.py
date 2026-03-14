@@ -3,23 +3,9 @@
 import pytest
 import torch.optim as optim
 
-from pochitrain import PochiTrainer
-
 
 class TestExponentialLRScheduler:
     """ExponentialLR スケジューラーのテスト."""
-
-    @pytest.fixture
-    def trainer(self):
-        """トレーナーのフィクスチャ."""
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            device="cpu",
-            pretrained=False,
-            create_workspace=False,
-        )
-        return trainer
 
     def test_exponential_lr_setup(self, trainer):
         """ExponentialLR の設定テスト."""
@@ -76,18 +62,6 @@ class TestExponentialLRScheduler:
 
 class TestLinearLRScheduler:
     """LinearLR スケジューラーのテスト."""
-
-    @pytest.fixture
-    def trainer(self):
-        """トレーナーのフィクスチャ."""
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            device="cpu",
-            pretrained=False,
-            create_workspace=False,
-        )
-        return trainer
 
     def test_linear_lr_setup(self, trainer):
         """LinearLR の設定テスト."""
@@ -159,18 +133,6 @@ class TestLinearLRScheduler:
 
 class TestSchedulerInteroperability:
     """各スケジューラーとの相互運用性テスト."""
-
-    @pytest.fixture
-    def trainer(self):
-        """トレーナーのフィクスチャ."""
-        trainer = PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            device="cpu",
-            pretrained=False,
-            create_workspace=False,
-        )
-        return trainer
 
     def test_all_supported_schedulers(self, trainer):
         """すべてのサポート済みスケジューラーが設定できることを確認."""

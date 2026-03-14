@@ -6,22 +6,9 @@
 
 import pytest
 
-from pochitrain import PochiTrainer
-
 
 class TestLayerWiseLR:
     """層別学習率機能のテストクラス."""
-
-    @pytest.fixture
-    def trainer(self):
-        """テスト用のPochiTrainerインスタンスを作成."""
-        return PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            device="cpu",
-            pretrained=False,
-            create_workspace=False,
-        )
 
     def test_layer_wise_lr_disabled(self, trainer):
         """層別学習率が無効の場合のテスト."""
