@@ -4,7 +4,6 @@
 モジュールの結合点のみを検証する.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -71,58 +70,55 @@ device = "cpu"
         assert len(train_batch) == 2
         assert len(val_batch) == 2
 
-    def test_workspace_and_paths_workflow(self, create_dummy_train_val):
+    def test_workspace_and_paths_workflow(self, tmp_path, create_dummy_train_val):
         """ワークスペース作成とパス保存の結合経路を検証."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            train_root, val_root = create_dummy_train_val()
+        temp_dir = str(tmp_path)
+        train_root, val_root = create_dummy_train_val()
 
-            workspace_manager = PochiWorkspaceManager(temp_dir)
-            workspace_manager.create_workspace()
+        workspace_manager = PochiWorkspaceManager(temp_dir)
+        workspace_manager.create_workspace()
 
-            train_transform = transforms.Compose([transforms.ToTensor()])
-            val_transform = transforms.Compose([transforms.ToTensor()])
+        train_transform = transforms.Compose([transforms.ToTensor()])
+        val_transform = transforms.Compose([transforms.ToTensor()])
 
-            train_loader, val_loader, classes = create_data_loaders(
-                train_root=train_root,
-                val_root=val_root,
+        train_loader, val_loader, classes = create_data_loaders(
+            train_root=train_root,
+            val_root=val_root,
+            batch_size=1,
+            num_workers=0,
+            pin_memory=False,
+            train_transform=train_transform,
+            val_transform=val_transform,
+        )
+
+        train_paths = train_loader.dataset.get_file_paths()
+        val_paths = val_loader.dataset.get_file_paths()
+
+        train_file, val_file = workspace_manager.save_dataset_paths(
+            train_paths, val_paths
+        )
+
+        assert train_file.exists()
+        assert val_file.exists()
+        assert train_file.parent.name == "paths"
+
+        saved_train_paths = train_file.read_text(encoding="utf-8").strip().split("\n")
+        saved_val_paths = val_file.read_text(encoding="utf-8").strip().split("\n")
+
+        assert len(saved_train_paths) == len(train_paths)
+        assert len(saved_val_paths) == len(val_paths)
+
+    def test_error_handling_integration(self):
+        """データルート不存在時にFileNotFoundErrorが送出されることを検証."""
+        train_transform = transforms.Compose([transforms.ToTensor()])
+        val_transform = transforms.Compose([transforms.ToTensor()])
+
+        with pytest.raises(FileNotFoundError):
+            create_data_loaders(
+                train_root="/nonexistent/train",
+                val_root="/nonexistent/val",
                 batch_size=1,
-                num_workers=0,
                 pin_memory=False,
                 train_transform=train_transform,
                 val_transform=val_transform,
             )
-
-            train_paths = train_loader.dataset.get_file_paths()
-            val_paths = val_loader.dataset.get_file_paths()
-
-            train_file, val_file = workspace_manager.save_dataset_paths(
-                train_paths, val_paths
-            )
-
-            assert train_file.exists()
-            assert val_file.exists()
-            assert train_file.parent.name == "paths"
-
-            saved_train_paths = (
-                train_file.read_text(encoding="utf-8").strip().split("\n")
-            )
-            saved_val_paths = val_file.read_text(encoding="utf-8").strip().split("\n")
-
-            assert len(saved_train_paths) == len(train_paths)
-            assert len(saved_val_paths) == len(val_paths)
-
-    def test_error_handling_integration(self):
-        """データルート不存在時にFileNotFoundErrorが送出されることを検証."""
-        with tempfile.TemporaryDirectory():
-            train_transform = transforms.Compose([transforms.ToTensor()])
-            val_transform = transforms.Compose([transforms.ToTensor()])
-
-            with pytest.raises(FileNotFoundError):
-                create_data_loaders(
-                    train_root="/nonexistent/train",
-                    val_root="/nonexistent/val",
-                    batch_size=1,
-                    pin_memory=False,
-                    train_transform=train_transform,
-                    val_transform=val_transform,
-                )

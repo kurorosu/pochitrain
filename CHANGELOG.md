@@ -6,10 +6,16 @@
 ## [Unreleased]
 
 ### Added
-- なし.
+- テスト品質に関する改善を行った ([#308](https://github.com/kurorosu/pochitrain/pull/308)).
+  - `model_loading.py` の専用ユニットテストを追加した.
+  - `json_utils.py` の専用ユニットテストを追加した.
+  - エンドツーエンド訓練フローの統合テストを追加した.
 
 ### Changed
-- なし.
+- テスト品質に関する改善を行った ([#308](https://github.com/kurorosu/pochitrain/pull/308)).
+  - `test_layer_wise_lr_validation_error` のテスト名とアサーションを実際の振る舞いに合わせて修正した.
+  - `test_core` の重複フィクスチャ (`trainer`, `logger`) を `conftest.py` に共通化した.
+  - テスト全体の一時ディレクトリ作成方法を `tempfile.TemporaryDirectory` から `tmp_path` に統一した.
 
 ### Fixed
 - なし.
