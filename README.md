@@ -308,6 +308,38 @@ sudo jetson_clocks --show
 - 温度影響を抑えたい場合は `sudo jetson_clocks --fan` を併用.
 - 詳細は `pochitrain/docs/gpu_environment_setup.md` の Jetson セクションを参照.
 
+## 📊 推論ベンチマーク
+
+スイート定義 (YAML) に基づき, 複数モデル・バックエンドの推論性能を一括計測・集計します.
+
+### 基本的な使い方
+
+スイートを指定してベンチマークを実行:
+```bash
+uv run bench --suite my_suite
+```
+
+スイート定義ファイルを指定する場合:
+```bash
+uv run bench --suite my_suite --suites-file configs/bench_suites.yaml
+```
+
+既存結果の集計のみ行う場合:
+```bash
+uv run bench --aggregate-only --input-dir benchmark_runs/20260101_001
+```
+
+### コマンドオプション
+
+| オプション | 説明 | デフォルト |
+|---|---|---|
+| `--suite` | スイート定義ファイル内のスイート名 | (必須) |
+| `--suites-file` | スイート定義ファイルパス | `configs/bench_suites.yaml` |
+| `--aggregate-only` | 実行せず既存結果の集計のみ行う | `False` |
+| `--input-dir` | `--aggregate-only` 時の入力ディレクトリ | - |
+| `--fail-fast` | ケース失敗時に即座に終了する | `False` |
+| `--debug` | デバッグログを有効化する | `False` |
+
 ## 🔬 ハイパーパラメータ最適化
 
 Optunaを使ったハイパーパラメータ自動探索機能です.
