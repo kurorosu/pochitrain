@@ -458,7 +458,7 @@ uv run infer-onnx work_dirs/20251018_001/models/best_epoch40.onnx \
 | `--output` | 出力ONNXファイルパス | `<入力ファイル名>.onnx` |
 | `--input-size` | 入力画像サイズ (H W) | `224 224` |
 | `--opset` | ONNX opsetバージョン | `17` |
-| `--no-verify` | エクスポート後の検証をスキップ | - |
+| `--skip-verify` | エクスポート後の検証をスキップ | - |
 
 **infer-onnx:**
 
