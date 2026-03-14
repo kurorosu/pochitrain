@@ -10,7 +10,6 @@ Example:
 """
 
 from .config import PochiConfig
-from .logging import LoggerManager
 from .models.pochi_models import PochiModel, create_model
 from .pochi_dataset import (
     FastInferenceDataset,
@@ -20,14 +19,12 @@ from .pochi_dataset import (
 )
 from .pochi_predictor import PochiPredictor
 from .pochi_trainer import PochiTrainer
-from .utils.directory_manager import InferenceWorkspaceManager, PochiWorkspaceManager
 
 __version__ = "1.7.3"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
 __all__ = [
-    "LoggerManager",
     "PochiTrainer",
     "PochiPredictor",
     "PochiConfig",
@@ -37,6 +34,4 @@ __all__ = [
     "create_data_loaders",
     "get_basic_transforms",
     "create_model",
-    "PochiWorkspaceManager",
-    "InferenceWorkspaceManager",
 ]

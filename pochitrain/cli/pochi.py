@@ -17,7 +17,6 @@ from typing import Any, Optional, Sized, cast
 from pydantic import ValidationError
 
 from pochitrain import (
-    LoggerManager,
     PochiConfig,
     PochiTrainer,
     create_data_loaders,
@@ -32,6 +31,7 @@ from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
 )
+from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,

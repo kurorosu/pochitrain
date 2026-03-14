@@ -23,6 +23,15 @@
   - `requires-python` と `black`/`mypy` の Python バージョン不整合の理由をコメントで補足した.
   - `.pre-commit-config.yaml` の mypy rev を `v1.19.1` に更新し `pyproject.toml` と整合させた.
   - `scikit-learn` のバージョン制約を `>=1.0.0` に引き上げた.
+- ドキュメント・API設計に関する改善を行った ([#310](https://github.com/kurorosu/pochitrain/pull/310)).
+  - bench コマンドの使用方法を README に追記した.
+  - `export-onnx` のオプション名を `--no-verify` から `--skip-verify` に修正した.
+  - `enable_gradient_tracking` のコメントを実際の値と整合させた.
+  - `pochi_predictor.py` の docstring の型表記を `dict[str, Any]` に修正した.
+  - `pochi infer` の `--pipeline` ヘルプを `infer-onnx`/`infer-trt` と書式統一した.
+  - `configuration.md` の `device` パラメータ説明を実装に合わせて修正した.
+  - Python バージョンバッジを `pyproject.toml` の `>=3.10` に合わせて修正した.
+  - `__init__.py` の `__all__` から内部クラスを除外した.
 
 ### Fixed
 - なし.
