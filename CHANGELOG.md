@@ -10,12 +10,19 @@
   - `model_loading.py` の専用ユニットテストを追加した.
   - `json_utils.py` の専用ユニットテストを追加した.
   - エンドツーエンド訓練フローの統合テストを追加した.
+- `work_dirs/.gitkeep` を追加し, clone 直後にディレクトリが存在するようにした ([#309](https://github.com/kurorosu/pochitrain/pull/309)).
 
 ### Changed
 - テスト品質に関する改善を行った ([#308](https://github.com/kurorosu/pochitrain/pull/308)).
   - `test_layer_wise_lr_validation_error` のテスト名とアサーションを実際の振る舞いに合わせて修正した.
   - `test_core` の重複フィクスチャ (`trainer`, `logger`) を `conftest.py` に共通化した.
   - テスト全体の一時ディレクトリ作成方法を `tempfile.TemporaryDirectory` から `tmp_path` に統一した.
+- セキュリティ・依存関係に関する改善を行った ([#309](https://github.com/kurorosu/pochitrain/pull/309)).
+  - `pillow` のバージョン制約を `>=10.0.0` に引き上げた.
+  - `torch>=2.6.0`, `torchvision>=0.21.0` のバージョン制約を追加した.
+  - `requires-python` と `black`/`mypy` の Python バージョン不整合の理由をコメントで補足した.
+  - `.pre-commit-config.yaml` の mypy rev を `v1.19.1` に更新し `pyproject.toml` と整合させた.
+  - `scikit-learn` のバージョン制約を `>=1.0.0` に引き上げた.
 
 ### Fixed
 - なし.
