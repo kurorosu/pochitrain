@@ -20,7 +20,7 @@ from .pochi_dataset import (
 from .pochi_predictor import PochiPredictor
 from .pochi_trainer import PochiTrainer
 
-__version__ = "1.7.3"
+__version__ = "1.7.4"
 __author__ = "Pochi Team"
 __email__ = "pochi@example.com"
 
