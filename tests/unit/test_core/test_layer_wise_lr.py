@@ -6,22 +6,9 @@
 
 import pytest
 
-from pochitrain import PochiTrainer
-
 
 class TestLayerWiseLR:
     """層別学習率機能のテストクラス."""
-
-    @pytest.fixture
-    def trainer(self):
-        """テスト用のPochiTrainerインスタンスを作成."""
-        return PochiTrainer(
-            model_name="resnet18",
-            num_classes=4,
-            device="cpu",
-            pretrained=False,
-            create_workspace=False,
-        )
 
     def test_layer_wise_lr_disabled(self, trainer):
         """層別学習率が無効の場合のテスト."""
@@ -124,8 +111,8 @@ class TestLayerWiseLR:
 
         assert trainer.enable_layer_wise_lr
 
-    def test_layer_wise_lr_validation_error(self, trainer):
-        """不正な層別学習率設定でのエラーテスト."""
+    def test_layer_wise_lr_with_empty_layer_rates(self, trainer):
+        """空のlayer_ratesでも層別学習率が有効になることのテスト."""
         layer_wise_lr_config = {"layer_rates": {}}
 
         trainer.setup_training(
@@ -136,3 +123,4 @@ class TestLayerWiseLR:
         )
 
         assert trainer.enable_layer_wise_lr
+        assert len(trainer.optimizer.param_groups) > 0

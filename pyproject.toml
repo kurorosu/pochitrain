@@ -1,8 +1,10 @@
 [project]
 name = "pochitrain"
-version = "1.7.3"
+version = "1.7.4"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
+# Jetson (JetPack 6.2.1 / Python 3.10) で pip install -e . するため >=3.10 を維持.
+# black/mypy の target は開発環境 (Python 3.13) に合わせている.
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
@@ -10,13 +12,13 @@ authors = [
 ]
 
 dependencies = [
-    "torch",
-    "torchvision",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
     "numpy==1.26.1; python_version < '3.11'",
     "numpy>=2.4.1; python_version >= '3.11'",
     "pandas>=2.0.0",
-    "pillow>=8.0.0",
-    "scikit-learn>=0.24.0",
+    "pillow>=10.0.0",
+    "scikit-learn>=1.0.0",
     "matplotlib>=3.10.8",
     "pyyaml>=5.4.0",
     "colorlog>=6.0.0",

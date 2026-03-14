@@ -17,7 +17,6 @@ from typing import Any, Optional, Sized, cast
 from pydantic import ValidationError
 
 from pochitrain import (
-    LoggerManager,
     PochiConfig,
     PochiTrainer,
     create_data_loaders,
@@ -32,6 +31,7 @@ from pochitrain.inference.services import PyTorchInferenceService
 from pochitrain.inference.types.orchestration_types import (
     InferenceCliRequest,
 )
+from pochitrain.logging import LoggerManager
 from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     ConfigLoader,
@@ -876,7 +876,7 @@ def main() -> None:
         "--pipeline",
         choices=("auto", "current", "fast", "gpu"),
         default="current",
-        help="前処理パイプライン. 現在は current のみ実行されます.",
+        help="前処理パイプライン: current(デフォルト/PIL), fast(CPU最適化), gpu(GPU前処理). PyTorch推論では current のみ対応.",
     )
     infer_parser.add_argument(
         "--benchmark-json",

@@ -13,11 +13,8 @@ from pochitrain.training.training_configurator import (
 
 
 @pytest.fixture
-def configurator():
+def configurator(logger):
     """テスト用の TrainingConfigurator インスタンスを作成."""
-    import logging
-
-    logger = logging.getLogger("test_training_configurator")
     return TrainingConfigurator(device=torch.device("cpu"), logger=logger)
 
 

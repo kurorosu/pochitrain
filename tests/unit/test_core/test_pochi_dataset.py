@@ -1,6 +1,5 @@
 """PochiImageDatasetのテスト."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -79,57 +78,49 @@ class TestPochiImageDataset:
             assert "test_class" in path
             assert path.endswith(".jpg")
 
-    def test_different_extensions(self):
+    def test_different_extensions(self, tmp_path):
         """異なる拡張子のファイル対応テスト."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            base_path = Path(temp_dir)
-            class_dir = base_path / "mixed_class"
-            class_dir.mkdir()
+        class_dir = tmp_path / "mixed_class"
+        class_dir.mkdir()
 
-            extensions = [".jpg", ".jpeg", ".png", ".bmp"]
-            for i, ext in enumerate(extensions):
-                img = Image.new("RGB", (32, 32), color=(i * 60, 100, 200))
-                img_path = class_dir / f"image_{i}{ext}"
-                img.save(img_path)
+        extensions = [".jpg", ".jpeg", ".png", ".bmp"]
+        for i, ext in enumerate(extensions):
+            img = Image.new("RGB", (32, 32), color=(i * 60, 100, 200))
+            img_path = class_dir / f"image_{i}{ext}"
+            img.save(img_path)
 
-            (class_dir / "text_file.txt").write_text("not an image")
+        (class_dir / "text_file.txt").write_text("not an image")
 
-            dataset = PochiImageDataset(str(base_path))
+        dataset = PochiImageDataset(str(tmp_path))
 
-            assert len(dataset) == 4  # .txt は除外される
+        assert len(dataset) == 4  # .txt は除外される
 
-    def test_custom_extensions(self):
+    def test_custom_extensions(self, tmp_path):
         """カスタム拡張子設定のテスト."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            base_path = Path(temp_dir)
-            class_dir = base_path / "custom_class"
-            class_dir.mkdir()
+        class_dir = tmp_path / "custom_class"
+        class_dir.mkdir()
 
-            img_jpg = Image.new("RGB", (32, 32), color=(255, 0, 0))
-            img_jpg.save(class_dir / "image.jpg")
+        img_jpg = Image.new("RGB", (32, 32), color=(255, 0, 0))
+        img_jpg.save(class_dir / "image.jpg")
 
-            img_png = Image.new("RGB", (32, 32), color=(0, 255, 0))
-            img_png.save(class_dir / "image.png")
+        img_png = Image.new("RGB", (32, 32), color=(0, 255, 0))
+        img_png.save(class_dir / "image.png")
 
-            dataset = PochiImageDataset(str(base_path), extensions=(".jpg",))
+        dataset = PochiImageDataset(str(tmp_path), extensions=(".jpg",))
 
-            assert len(dataset) == 1
+        assert len(dataset) == 1
 
-    def test_empty_directory_error(self):
+    def test_empty_directory_error(self, tmp_path):
         """空ディレクトリのエラーハンドリング."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(ValueError, match="クラスフォルダが見つかりません"):
-                PochiImageDataset(temp_dir)
+        with pytest.raises(ValueError, match="クラスフォルダが見つかりません"):
+            PochiImageDataset(str(tmp_path))
 
-    def test_no_images_error(self):
+    def test_no_images_error(self, tmp_path):
         """画像ファイルなしのエラーハンドリング."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            base_path = Path(temp_dir)
+        (tmp_path / "empty_class").mkdir()
 
-            (base_path / "empty_class").mkdir()
-
-            with pytest.raises(ValueError, match="画像ファイルが見つかりません"):
-                PochiImageDataset(str(base_path))
+        with pytest.raises(ValueError, match="画像ファイルが見つかりません"):
+            PochiImageDataset(str(tmp_path))
 
     def test_nonexistent_directory_error(self):
         """存在しないディレクトリのエラーハンドリング."""

@@ -45,7 +45,7 @@
 | パラメータ | 型 | 説明 | デフォルト |
 |------------|----|----- |------------|
 | `work_dir` | str | 作業ディレクトリ | `"work_dirs"` |
-| `device` | str/None | デバイス (Noneで自動選択) | `None` |
+| `device` | str | デバイス (`"cuda"` or `"cpu"`) | (必須) |
 | `cudnn_benchmark` | bool | cuDNN自動チューニング (固定サイズ入力で高速化) | `False` |
 
 ## スケジューラー設定

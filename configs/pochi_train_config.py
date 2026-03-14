@@ -58,7 +58,7 @@ cudnn_benchmark = False  # cuDNN自動チューニング（固定サイズ入力
 enable_metrics_export = True  # メトリクスのCSV出力とグラフ生成を有効化
 
 # 勾配トレース設定
-enable_gradient_tracking = True  # デフォルトOFF（計算コスト考慮）
+enable_gradient_tracking = True  # 勾配トレースを有効化（計算コスト増に注意）
 gradient_tracking_config = {
     "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
     "exclude_patterns": ["fc\\.", "\\.bias"],  # 除外する層名パターン（正規表現）
