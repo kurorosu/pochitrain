@@ -10,8 +10,8 @@ authors = [
 ]
 
 dependencies = [
-    "torch",
-    "torchvision",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
     "numpy==1.26.1; python_version < '3.11'",
     "numpy>=2.4.1; python_version >= '3.11'",
     "pandas>=2.0.0",
