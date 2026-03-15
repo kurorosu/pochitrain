@@ -117,15 +117,49 @@ class PochiPredictor:
                 - warmup_samples: ウォームアップ除外サンプル数
         """
         self.model.eval()
+        use_cuda = self.device.type == "cuda"
+
+        self._run_warmup(data_loader, use_cuda)
+
         predictions: list[Any] = []
         confidences: list[Any] = []
         total_samples = 0
         warmup_samples = 0
         inference_time_ms = 0.0
 
-        use_cuda = self.device.type == "cuda"
+        # Note: ONNX/TRTと異なり, PyTorchは事前確保バッファを持たないため,
+        # to(device)で毎回CUDAメモリアロケーションが発生する.
+        # この転送コストと .cpu().numpy() のD2H転送は計測対象外だが,
+        # E2E時間には含まれるため, E2E - 純粋推論 の差が大きくなる.
+        with torch.inference_mode():
+            for batch_idx, (data, _) in enumerate(data_loader):
+                data = data.to(self.device)
+                batch_size = data.size(0)
 
-        # dataset[0]へ直接アクセスして, DataLoaderのイテレーション状態を汚さずにウォームアップする.
+                if batch_idx == 0:
+                    output, warmup_samples = self._run_first_batch(
+                        data, batch_size, use_cuda
+                    )
+                else:
+                    output, elapsed = self._run_timed_batch(data, use_cuda)
+                    inference_time_ms += elapsed
+                    total_samples += batch_size
+
+                logits = output.cpu().numpy()
+                predicted, confidence = post_process_logits(logits)
+                predictions.extend(predicted)
+                confidences.extend(confidence)
+
+        avg_time = inference_time_ms / total_samples if total_samples > 0 else 0.0
+        metrics = {
+            "avg_time_per_image": avg_time,
+            "total_samples": total_samples,
+            "warmup_samples": warmup_samples,
+        }
+        return torch.tensor(predictions), torch.tensor(confidences), metrics
+
+    def _run_warmup(self, data_loader: DataLoader[Any], use_cuda: bool) -> None:
+        """GPU/CPUキャッシュのウォームアップを実行."""
         warmup_data, _ = data_loader.dataset[0]
         if not isinstance(warmup_data, torch.Tensor):
             warmup_data = torch.tensor(warmup_data)
@@ -136,58 +170,32 @@ class PochiPredictor:
             if use_cuda:
                 torch.cuda.synchronize()
 
+    def _run_first_batch(
+        self, data: torch.Tensor, batch_size: int, use_cuda: bool
+    ) -> tuple[torch.Tensor, int]:
+        """最初のバッチを計測対象外として実行."""
+        output = self.model(data)
+        if use_cuda:
+            torch.cuda.synchronize()
+        return output, batch_size
+
+    def _run_timed_batch(
+        self, data: torch.Tensor, use_cuda: bool
+    ) -> tuple[torch.Tensor, float]:
+        """1バッチの推論を実行し, 経過時間 (ms) を返す."""
         if use_cuda:
             start_event = torch.cuda.Event(enable_timing=True)
             end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
+            output = self.model(data)
+            end_event.record()
+            torch.cuda.synchronize()
+            return output, start_event.elapsed_time(end_event)
 
-        # Note: ONNX/TRTと異なり, PyTorchは事前確保バッファを持たないため,
-        # to(device)で毎回CUDAメモリアロケーションが発生する.
-        # この転送コストと .cpu().numpy() のD2H転送は計測対象外だが,
-        # E2E時間には含まれるため, E2E - 純粋推論 の差が大きくなる.
-        # inference_mode: no_gradに加えテンソルのメタデータ追跡も無効化.
-        # 推論専用のため採用. 訓練側の検証ループ(evaluator.py)は
-        # 現在no_gradだが, 同様にinference_modeへ移行可能.
-        with torch.inference_mode():
-            for batch_idx, (data, _) in enumerate(data_loader):
-                data = data.to(self.device)  # H2D転送（計測外）
-                batch_size = data.size(0)
-
-                if batch_idx == 0:
-                    output = self.model(data)
-                    if use_cuda:
-                        torch.cuda.synchronize()
-                    warmup_samples = batch_size
-                else:
-                    if use_cuda:
-                        start_event.record()
-                        output = self.model(data)
-                        end_event.record()
-                        torch.cuda.synchronize()
-                        inference_time_ms += start_event.elapsed_time(end_event)
-                    else:
-                        start_time = time.perf_counter()
-                        output = self.model(data)
-                        inference_time_ms += (time.perf_counter() - start_time) * 1000
-
-                    total_samples += batch_size
-
-                logits = output.cpu().numpy()  # D2H転送 + 暗黙同期
-                predicted, confidence = post_process_logits(logits)
-
-                predictions.extend(predicted)
-                confidences.extend(confidence)
-
-        avg_time_per_image = 0.0
-        if total_samples > 0:
-            avg_time_per_image = inference_time_ms / total_samples
-
-        metrics = {
-            "avg_time_per_image": avg_time_per_image,
-            "total_samples": total_samples,
-            "warmup_samples": warmup_samples,
-        }
-
-        return torch.tensor(predictions), torch.tensor(confidences), metrics
+        start_time = time.perf_counter()
+        output = self.model(data)
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        return output, elapsed_ms
 
     def get_model_info(self) -> dict[str, Any]:
         """
