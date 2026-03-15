@@ -30,6 +30,7 @@ dependencies = [
     "onnx>=1.14.0",
     "onnxscript>=0.1.0",
     "onnxruntime-gpu>=1.16.0",
+    "tensorboard>=2.14.0",
 ]
 
 [[tool.uv.index]]

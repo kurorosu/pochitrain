@@ -6,7 +6,11 @@
 ## [Unreleased]
 
 ### Added
-- なし.
+- TensorBoard 統合を実装した ([#312](https://github.com/kurorosu/pochitrain/pull/312)).
+  - `pochitrain/visualization/tensorboard/` パッケージを追加した.
+  - `PochiConfig` に `enable_tensorboard` オプションを追加した.
+  - `MetricsTracker` に `TensorBoardWriter` を統合し, loss, accuracy, 学習率を記録するようにした.
+  - `tensorboard>=2.14.0` を依存関係に追加した.
 
 ### Changed
 - なし.

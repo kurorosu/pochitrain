@@ -63,6 +63,7 @@ class PochiConfig(BaseModel):
     std: list[float] = Field(default_factory=lambda: [0.229, 0.224, 0.225])
     enable_metrics_export: bool = True
     enable_gradient_tracking: bool = False
+    enable_tensorboard: bool = False
     gradient_tracking_config: GradientTrackingConfig = Field(
         default_factory=GradientTrackingConfig
     )

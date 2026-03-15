@@ -279,6 +279,10 @@ def train_command(args: argparse.Namespace) -> None:
     trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
         logger.debug("勾配トレース機能が有効です")
+
+    trainer.enable_tensorboard = pochi_config.enable_tensorboard
+    if trainer.enable_tensorboard:
+        logger.debug("TensorBoard 記録機能が有効です")
         gradient_config = cast(
             dict[str, Any], pochi_config.gradient_tracking_config.model_dump()
         )
