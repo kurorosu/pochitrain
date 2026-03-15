@@ -230,6 +230,36 @@ def extract_normalize_params(
     raise ValueError("transformにNormalizeが含まれていません")
 
 
+def _filter_transforms(
+    transform: Callable[..., Any],
+    dataset_name: str,
+    convert_fn: Callable[[Any], Optional[Any]],
+) -> Optional[list[Any]]:
+    """transformリストをフィルタリングする共通ロジック.
+
+    Compose内の各transformに対して convert_fn を適用し,
+    PIL専用transformが検出された場合は None を返す.
+
+    Args:
+        transform: configのval_transform (Compose or 単体transform)
+        dataset_name: PIL検出時のログ用データセット名
+        convert_fn: 各transformを変換する関数.
+            None を返すとスキップ, そのまま返すと保持.
+
+    Returns:
+        フィルタリング済みのtransformリスト. PIL専用transform時はNone.
+    """
+    items = transform.transforms if hasattr(transform, "transforms") else [transform]
+    new_transforms: list[Any] = []
+    for t in items:
+        if _check_pil_transform(t, dataset_name):
+            return None
+        result = convert_fn(t)
+        if result is not None:
+            new_transforms.append(result)
+    return new_transforms
+
+
 def build_gpu_preprocess_transform(
     transform: Callable[..., Any],
 ) -> Optional[transforms.Compose]:
@@ -252,22 +282,11 @@ def build_gpu_preprocess_transform(
         transforms.ConvertImageDtype,
     )
 
-    new_transforms: list[Any] = []
-    if hasattr(transform, "transforms"):
-        for t in transform.transforms:
-            if _check_pil_transform(t, "GpuInferenceDataset"):
-                return None
-            elif isinstance(t, _SKIP_TRANSFORMS):
-                continue
-            else:
-                new_transforms.append(t)
-    else:
-        if _check_pil_transform(transform, "GpuInferenceDataset"):
-            return None
-        elif not isinstance(transform, _SKIP_TRANSFORMS):
-            new_transforms.append(transform)
+    def _convert(t: Any) -> Optional[Any]:
+        return None if isinstance(t, _SKIP_TRANSFORMS) else t
 
-    return transforms.Compose(new_transforms)
+    filtered = _filter_transforms(transform, "GpuInferenceDataset", _convert)
+    return transforms.Compose(filtered) if filtered is not None else None
 
 
 def gpu_normalize(
@@ -344,24 +363,24 @@ def convert_transform_for_fast_inference(
     Returns:
         FastInferenceDataset向けのtransform. PIL専用transformが含まれる場合はNone.
     """
-    new_transforms: list[Any] = []
-    if hasattr(transform, "transforms"):
-        for t in transform.transforms:
-            if isinstance(t, transforms.ToTensor):
-                new_transforms.append(transforms.ConvertImageDtype(torch.float32))
-            elif _check_pil_transform(t, "FastInferenceDataset"):
-                return None
-            else:
-                new_transforms.append(t)
-    else:
-        if isinstance(transform, transforms.ToTensor):
-            new_transforms.append(transforms.ConvertImageDtype(torch.float32))
-        elif _check_pil_transform(transform, "FastInferenceDataset"):
-            return None
-        else:
-            new_transforms.append(transform)
-            new_transforms.append(transforms.ConvertImageDtype(torch.float32))
-    return transforms.Compose(new_transforms)
+
+    def _convert(t: Any) -> Any:
+        if isinstance(t, transforms.ToTensor):
+            return transforms.ConvertImageDtype(torch.float32)
+        return t
+
+    is_single = not hasattr(transform, "transforms")
+    filtered = _filter_transforms(transform, "FastInferenceDataset", _convert)
+    if filtered is None:
+        return None
+
+    # 単体transformで ToTensor でない場合, 末尾に ConvertImageDtype を追加
+    if is_single and not any(
+        isinstance(t, transforms.ConvertImageDtype) for t in filtered
+    ):
+        filtered.append(transforms.ConvertImageDtype(torch.float32))
+
+    return transforms.Compose(filtered)
 
 
 def get_basic_transforms(
