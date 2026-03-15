@@ -13,10 +13,12 @@
   - `tensorboard>=2.14.0` を依存関係に追加した.
 
 ### Changed
-- 例外処理を改善した (N/A.).
+- 例外処理を改善した ([#326](https://github.com/kurorosu/pochitrain/pull/326)).
   - `pochi_predictor.py` の例外チェーンを `from e` 付きに修正し, デバッグ時のスタックトレースを保持するようにした.
   - `inference_utils.py` の `sys.exit(1)` を `FileNotFoundError` / `RuntimeError` に置き換え, Jupyter 等での利用を可能にした.
   - CLI 側で例外をキャッチしてエラーログ出力後に安全に終了するようにした.
+- `PochiPredictor.predict()` の複雑度を削減した ([#327](https://github.com/kurorosu/pochitrain/pull/327)).
+  - ウォームアップ, 初回バッチ実行, タイミング計測をヘルパーメソッドに分離した.
 
 ### Fixed
 - なし.
