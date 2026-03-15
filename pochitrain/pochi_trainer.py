@@ -105,6 +105,7 @@ class PochiTrainer:
 
         self.enable_metrics_export = True
         self.enable_gradient_tracking = False
+        self.enable_tensorboard = False
         self.gradient_tracking_config: dict[str, Any] = {
             "record_frequency": 1,  # 記録頻度（1 = 毎エポック）
         }
@@ -344,6 +345,7 @@ class PochiTrainer:
             enable_gradient_tracking=self.enable_gradient_tracking,
             gradient_tracking_config=self.gradient_tracking_config,
             layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
+            enable_tensorboard=self.enable_tensorboard,
         )
 
         ctx = TrainingContext(

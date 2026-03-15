@@ -8,6 +8,7 @@ from torch import nn
 
 from pochitrain.utils.timestamp_utils import get_current_timestamp
 from pochitrain.visualization import GradientTracer, TrainingMetricsExporter
+from pochitrain.visualization.tensorboard import TensorBoardWriter
 
 
 class MetricsTracker:
@@ -31,6 +32,7 @@ class MetricsTracker:
         visualization_dir: Path,
         enable_metrics_export: bool = True,
         enable_gradient_tracking: bool = False,
+        enable_tensorboard: bool = False,
         gradient_tracking_config: Optional[dict[str, Any]] = None,
         layer_wise_lr_graph_config: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -39,11 +41,13 @@ class MetricsTracker:
         self.visualization_dir = visualization_dir
         self.enable_metrics_export = enable_metrics_export
         self.enable_gradient_tracking = enable_gradient_tracking
+        self.enable_tensorboard = enable_tensorboard
         self.gradient_tracking_config = gradient_tracking_config or {}
         self.layer_wise_lr_graph_config = layer_wise_lr_graph_config
 
         self._metrics_exporter: Optional[TrainingMetricsExporter] = None
         self._gradient_tracer: Optional[GradientTracer] = None
+        self._tb_writer: Optional[TensorBoardWriter] = None
 
     def initialize(self) -> None:
         """メトリクスエクスポーターと勾配トレーサーを初期化."""
@@ -55,6 +59,19 @@ class MetricsTracker:
                 layer_wise_lr_graph_config=self.layer_wise_lr_graph_config,
             )
             self.logger.debug("メトリクス記録機能を有効化しました")
+
+        if self.enable_tensorboard:
+            workspace_name = self.visualization_dir.parent.name
+            tb_log_dir = self.visualization_dir / "tensorboard" / workspace_name
+            self._tb_writer = TensorBoardWriter(
+                log_dir=tb_log_dir,
+                logger=self.logger,
+            )
+            tb_root_dir = tb_log_dir.parent
+            self.logger.info("TensorBoard 記録機能を有効化しました")
+            self.logger.info(
+                f"TensorBoard 起動コマンド: tensorboard --logdir {tb_root_dir}"
+            )
 
         if self.enable_gradient_tracking:
             exclude_patterns = self.gradient_tracking_config.get(
@@ -113,6 +130,17 @@ class MetricsTracker:
                 **kwargs,
             )
 
+        if self._tb_writer is not None:
+            self._tb_writer.record_epoch(
+                epoch=epoch,
+                train_loss=train_metrics["loss"],
+                train_accuracy=train_metrics["accuracy"],
+                learning_rate=learning_rate,
+                val_loss=val_metrics.get("val_loss"),
+                val_accuracy=val_metrics.get("val_accuracy"),
+                layer_wise_rates=layer_wise_rates,
+            )
+
         if self._gradient_tracer is not None:
             record_freq = self.gradient_tracking_config.get("record_frequency", 1)
             if epoch % record_freq == 0:
@@ -134,6 +162,9 @@ class MetricsTracker:
             csv_path = exported_csv
             if exported_graphs:
                 graph_paths = exported_graphs
+
+        if self._tb_writer is not None:
+            self._tb_writer.close()
 
         if self._gradient_tracer is not None:
             timestamp = get_current_timestamp()
