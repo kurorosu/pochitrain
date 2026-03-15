@@ -164,7 +164,15 @@ class FastInferenceDataset(PochiImageDataset):
         extensions: 許可する拡張子
     """
 
-    _transform_error_logged: bool = False
+    def __init__(
+        self,
+        root: str,
+        transform: Optional[Callable[..., Any]] = None,
+        extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp"),
+    ) -> None:
+        """FastInferenceDatasetを初期化."""
+        super().__init__(root=root, transform=transform, extensions=extensions)
+        self._transform_error_logged: bool = False
 
     def __getitem__(self, index: int) -> tuple[Tensor, int]:
         """指定されたインデックスのデータを返す."""
@@ -177,15 +185,14 @@ class FastInferenceDataset(PochiImageDataset):
             try:
                 image = self.transform(image)
             except Exception as e:
-                cls = type(self)
-                if not cls._transform_error_logged:
-                    dataset_name = cls.__name__
+                if not self._transform_error_logged:
+                    dataset_name = type(self).__name__
                     logger.error(
                         f"{dataset_name} で transform 実行に失敗しました: {e}. "
                         "PIL前提の transform が含まれている可能性があります. "
                         "PochiImageDataset への切替を検討してください."
                     )
-                    cls._transform_error_logged = True
+                    self._transform_error_logged = True
                 raise
 
         return image, label
