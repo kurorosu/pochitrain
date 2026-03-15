@@ -24,12 +24,14 @@
 - `FastInferenceDataset._transform_error_logged` をクラス変数からインスタンス変数に変更した ([#329](https://github.com/kurorosu/pochitrain/pull/329)).
 
 ### Tests
-- `benchmark/` モジュールのテストを追加した (`N/A.`).
+- `benchmark/` モジュールのテストを追加した ([#330](https://github.com/kurorosu/pochitrain/pull/330)).
   - `models.py`: CaseConfig/SuiteConfig のフィールド保持, frozen 制約のテストを追加した.
   - `utils.py`: configure_logger, タイムスタンプ形式, write_json, to_float のテストを追加した.
   - `loader.py`: バリデーション関数と load_suite_config の正常系/エラー系テストを追加した.
   - `aggregator.py`: パス収集, ケース名抽出, 集計ロジック (平均, 標準偏差, グループ分離, 不正JSON) のテストを追加した.
   - `runner.py`: config パス解決, config コピー, コマンド構築のテストを追加した.
+- `epoch_runner.py` のテストを追加した (`N/A.`).
+  - 単一バッチ/複数バッチの損失計算, 空 DataLoader の防御的ガード, クラス重み付き損失, 勾配更新のテストを追加した.
 
 ### Fixed
 - なし.
