@@ -334,7 +334,11 @@ def infer_command(args: argparse.Namespace) -> None:
     logger.debug("=== pochitrain 推論モード ===")
 
     model_path = Path(args.model_path)
-    validate_model_path(model_path)
+    try:
+        validate_model_path(model_path)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return
     logger.debug(f"使用するモデル: {model_path}")
 
     if args.config_path:
@@ -346,7 +350,11 @@ def infer_command(args: argparse.Namespace) -> None:
             logger.error(f"設定ファイル読み込みエラー: {e}")
             return
     else:
-        config = load_config_auto(model_path)
+        try:
+            config = load_config_auto(model_path)
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error(str(e))
+            return
 
     try:
         pochi_config = PochiConfig.from_dict(config)
@@ -728,7 +736,11 @@ def convert_command(args: argparse.Namespace) -> None:
                 logger.error(f"設定ファイル読み込みエラー: {e}")
                 return
         else:
-            config = load_config_auto(onnx_path)
+            try:
+                config = load_config_auto(onnx_path)
+            except (FileNotFoundError, RuntimeError) as e:
+                logger.error(str(e))
+                return
 
         if args.calib_data:
             calib_data_root = args.calib_data

@@ -13,7 +13,10 @@
   - `tensorboard>=2.14.0` を依存関係に追加した.
 
 ### Changed
-- なし.
+- 例外処理を改善した (N/A.).
+  - `pochi_predictor.py` の例外チェーンを `from e` 付きに修正し, デバッグ時のスタックトレースを保持するようにした.
+  - `inference_utils.py` の `sys.exit(1)` を `FileNotFoundError` / `RuntimeError` に置き換え, Jupyter 等での利用を可能にした.
+  - CLI 側で例外をキャッチしてエラーログ出力後に安全に終了するようにした.
 
 ### Fixed
 - なし.
