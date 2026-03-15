@@ -19,8 +19,9 @@
   - CLI 側で例外をキャッチしてエラーログ出力後に安全に終了するようにした.
 - `PochiPredictor.predict()` の複雑度を削減した ([#327](https://github.com/kurorosu/pochitrain/pull/327)).
   - ウォームアップ, 初回バッチ実行, タイミング計測をヘルパーメソッドに分離した.
-- `pochi_dataset.py` の transform フィルタリングロジックの重複を解消した (N/A.).
+- `pochi_dataset.py` の transform フィルタリングロジックの重複を解消した ([#328](https://github.com/kurorosu/pochitrain/pull/328)).
   - 共通の `_filter_transforms()` 関数を抽出し, `build_gpu_preprocess_transform` と `convert_transform_for_fast_inference` から呼び出すようにした.
+- `FastInferenceDataset._transform_error_logged` をクラス変数からインスタンス変数に変更した ([#329](https://github.com/kurorosu/pochitrain/pull/329)).
 
 ### Fixed
 - なし.
