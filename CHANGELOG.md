@@ -30,8 +30,10 @@
   - `loader.py`: バリデーション関数と load_suite_config の正常系/エラー系テストを追加した.
   - `aggregator.py`: パス収集, ケース名抽出, 集計ロジック (平均, 標準偏差, グループ分離, 不正JSON) のテストを追加した.
   - `runner.py`: config パス解決, config コピー, コマンド構築のテストを追加した.
-- `epoch_runner.py` のテストを追加した (`N/A.`).
+- `epoch_runner.py` のテストを追加した ([#331](https://github.com/kurorosu/pochitrain/pull/331)).
   - 単一バッチ/複数バッチの損失計算, 空 DataLoader の防御的ガード, クラス重み付き損失, 勾配更新のテストを追加した.
+- `visualize_gradient.py` のテストを追加した (`N/A.`).
+  - CSV 読み込み (正常系, 不正CSV), PNG 出力生成 (timeline, heatmap, statistics, snapshots), CLI ユーティリティ関数のテストを追加した.
 
 ### Fixed
 - なし.
