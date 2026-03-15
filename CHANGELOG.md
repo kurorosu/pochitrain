@@ -23,6 +23,14 @@
   - 共通の `_filter_transforms()` 関数を抽出し, `build_gpu_preprocess_transform` と `convert_transform_for_fast_inference` から呼び出すようにした.
 - `FastInferenceDataset._transform_error_logged` をクラス変数からインスタンス変数に変更した ([#329](https://github.com/kurorosu/pochitrain/pull/329)).
 
+### Tests
+- `benchmark/` モジュールのテストを追加した (`N/A.`).
+  - `models.py`: CaseConfig/SuiteConfig のフィールド保持, frozen 制約のテストを追加した.
+  - `utils.py`: configure_logger, タイムスタンプ形式, write_json, to_float のテストを追加した.
+  - `loader.py`: バリデーション関数と load_suite_config の正常系/エラー系テストを追加した.
+  - `aggregator.py`: パス収集, ケース名抽出, 集計ロジック (平均, 標準偏差, グループ分離, 不正JSON) のテストを追加した.
+  - `runner.py`: config パス解決, config コピー, コマンド構築のテストを追加した.
+
 ### Fixed
 - なし.
 
