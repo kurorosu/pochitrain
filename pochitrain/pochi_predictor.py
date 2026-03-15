@@ -96,7 +96,7 @@ class PochiPredictor:
             self.logger.debug(f"学習済みモデルを読み込み: {self.model_path}")
 
         except Exception as e:
-            raise RuntimeError(f"モデルの読み込みに失敗しました: {e}")
+            raise RuntimeError(f"モデルの読み込みに失敗しました: {e}") from e
 
     def predict(
         self,

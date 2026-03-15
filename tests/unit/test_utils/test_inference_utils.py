@@ -86,7 +86,7 @@ class TestValidateModelPath:
             assert result is None
             return
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(FileNotFoundError):
             validate_model_path(model_file)
 
 
@@ -107,7 +107,7 @@ class TestValidateDataPath:
             assert result is None
             return
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(FileNotFoundError):
             validate_data_path(data_dir)
 
 
