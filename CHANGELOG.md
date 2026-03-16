@@ -9,7 +9,10 @@
 - なし.
 
 ### Changed
-- なし.
+- `TrainingConfigurator` から層別学習率ロジックを分離した (`N/A.`).
+  - `training/layer_wise_lr/` パッケージを新設した (`ILayerGrouper`, `ResNetLayerGrouper`, `ParamGroupBuilder`).
+  - Strategy パターンにより, 将来の非 ResNet モデル対応が拡張のみで可能になった.
+  - `ResNetLayerGrouper`, `ParamGroupBuilder` のユニットテストを追加した.
 
 ### Fixed
 - なし.
