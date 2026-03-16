@@ -47,7 +47,7 @@ def main() -> None:
   出力先を上書き
   uv run infer-trt work_dirs/20260118_001/models/model.engine -o results/
 
-  uv run infer-trt model.engine --pipeline gpu     # GPU前処理 (デフォルト)
+  uv run infer-trt model.engine --pipeline gpu     # GPU前処理
   uv run infer-trt model.engine --pipeline fast     # CPU最適化 (Plan A)
   uv run infer-trt model.engine --pipeline current  # 従来 (PIL)
 

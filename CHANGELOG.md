@@ -6,7 +6,24 @@
 ## [Unreleased]
 
 ### Added
-- TensorBoard 統合を実装した ([#312](https://github.com/kurorosu/pochitrain/pull/312)).
+- なし.
+
+### Changed
+- なし.
+
+### Fixed
+- なし.
+
+### Removed
+- なし.
+
+## v1.8.0 (2026-03-16)
+
+### 概要
+- TensorBoard 統合, リファクタリング, テスト拡充, ドキュメント修正を含むマイナーリリースです.
+
+### Added
+- TensorBoard 統合を実装した ([#325](https://github.com/kurorosu/pochitrain/pull/325)).
   - `pochitrain/visualization/tensorboard/` パッケージを追加した.
   - `PochiConfig` に `enable_tensorboard` オプションを追加した.
   - `MetricsTracker` に `TensorBoardWriter` を統合し, loss, accuracy, 学習率を記録するようにした.
@@ -42,49 +59,13 @@
   - `evaluator`: 空 DataLoader, 単一サンプルの精度計算/混同行列のテストを追加した.
 
 ### Fixed
-- ドキュメント不整合を修正した (`N/A.`).
+- ドキュメント不整合を修正した ([#334](https://github.com/kurorosu/pochitrain/pull/334)).
   - CLAUDE.md: `pochi infer` コマンドの引数を位置引数に修正した.
   - README.md: `--opset` を `--opset-version` に修正した.
   - README.md: `create_data_loaders` の使用例に `train_transform`/`val_transform` パラメータを追加した.
-
-### Removed
-- なし.
-
-## v1.7.4 (2026-03-14)
-
-### 概要
-- テスト品質, セキュリティ・依存関係, ドキュメント・API設計に関する問題点を改善したパッチリリースです.
-
-### Added
-- テスト品質に関する改善を行った ([#308](https://github.com/kurorosu/pochitrain/pull/308)).
-  - `model_loading.py` の専用ユニットテストを追加した.
-  - `json_utils.py` の専用ユニットテストを追加した.
-  - エンドツーエンド訓練フローの統合テストを追加した.
-- `work_dirs/.gitkeep` を追加し, clone 直後にディレクトリが存在するようにした ([#309](https://github.com/kurorosu/pochitrain/pull/309)).
-
-### Changed
-- テスト品質に関する改善を行った ([#308](https://github.com/kurorosu/pochitrain/pull/308)).
-  - `test_layer_wise_lr_validation_error` のテスト名とアサーションを実際の振る舞いに合わせて修正した.
-  - `test_core` の重複フィクスチャ (`trainer`, `logger`) を `conftest.py` に共通化した.
-  - テスト全体の一時ディレクトリ作成方法を `tempfile.TemporaryDirectory` から `tmp_path` に統一した.
-- セキュリティ・依存関係に関する改善を行った ([#309](https://github.com/kurorosu/pochitrain/pull/309)).
-  - `pillow` のバージョン制約を `>=10.0.0` に引き上げた.
-  - `torch>=2.6.0`, `torchvision>=0.21.0` のバージョン制約を追加した.
-  - `requires-python` と `black`/`mypy` の Python バージョン不整合の理由をコメントで補足した.
-  - `.pre-commit-config.yaml` の mypy rev を `v1.19.1` に更新し `pyproject.toml` と整合させた.
-  - `scikit-learn` のバージョン制約を `>=1.0.0` に引き上げた.
-- ドキュメント・API設計に関する改善を行った ([#310](https://github.com/kurorosu/pochitrain/pull/310)).
-  - bench コマンドの使用方法を README に追記した.
-  - `export-onnx` のオプション名を `--no-verify` から `--skip-verify` に修正した.
-  - `enable_gradient_tracking` のコメントを実際の値と整合させた.
-  - `pochi_predictor.py` の docstring の型表記を `dict[str, Any]` に修正した.
-  - `pochi infer` の `--pipeline` ヘルプを `infer-onnx`/`infer-trt` と書式統一した.
-  - `configuration.md` の `device` パラメータ説明を実装に合わせて修正した.
-  - Python バージョンバッジを `pyproject.toml` の `>=3.10` に合わせて修正した.
-  - `__init__.py` の `__all__` から内部クラスを除外した.
-
-### Fixed
-- なし.
+- CLI の使用例を実装と整合させた ([#335](https://github.com/kurorosu/pochitrain/pull/335)).
+  - `pochi.py`: `pochi infer` の epilog を位置引数形式に修正した.
+  - `infer_trt.py`: `--pipeline gpu` のデフォルト表記を削除した (実際のデフォルトは `auto`).
 
 ### Removed
 - なし.
