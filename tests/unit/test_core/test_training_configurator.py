@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from pochitrain.models.pochi_models import create_model
+from pochitrain.training.layer_wise_lr import ParamGroupBuilder, ResNetLayerGrouper
 from pochitrain.training.training_configurator import (
     TrainingComponents,
     TrainingConfigurator,
@@ -15,7 +16,11 @@ from pochitrain.training.training_configurator import (
 @pytest.fixture
 def configurator(logger):
     """テスト用の TrainingConfigurator インスタンスを作成."""
-    return TrainingConfigurator(device=torch.device("cpu"), logger=logger)
+    return TrainingConfigurator(
+        device=torch.device("cpu"),
+        logger=logger,
+        param_group_builder=ParamGroupBuilder(ResNetLayerGrouper(), logger),
+    )
 
 
 @pytest.fixture
@@ -188,6 +193,48 @@ class TestTrainingConfiguratorConfigure:
                 optimizer_name="Adam",
                 scheduler_name="StepLR",
                 scheduler_params=None,
+            )
+
+
+class TestTrainingConfiguratorWithoutBuilder:
+    """param_group_builder=None の場合のテスト."""
+
+    @pytest.fixture
+    def configurator_without_builder(self, logger):
+        """builder なしの TrainingConfigurator."""
+        return TrainingConfigurator(
+            device=torch.device("cpu"),
+            logger=logger,
+            param_group_builder=None,
+        )
+
+    def test_configure_without_layer_wise_lr(self, configurator_without_builder):
+        """層別学習率を無効にすれば builder なしでも正常に動作."""
+        model = create_model("resnet18", num_classes=4, pretrained=False)
+
+        components = configurator_without_builder.configure(
+            model=model,
+            learning_rate=0.001,
+            optimizer_name="Adam",
+            enable_layer_wise_lr=False,
+        )
+
+        assert components.enable_layer_wise_lr is False
+        assert len(components.optimizer.param_groups) == 1
+
+    def test_enable_layer_wise_lr_without_builder_raises(
+        self, configurator_without_builder
+    ):
+        """builder なしで層別学習率を有効化すると RuntimeError."""
+        model = create_model("resnet18", num_classes=4, pretrained=False)
+
+        with pytest.raises(RuntimeError, match="param_group_builder の注入が必要"):
+            configurator_without_builder.configure(
+                model=model,
+                learning_rate=0.001,
+                optimizer_name="SGD",
+                enable_layer_wise_lr=True,
+                layer_wise_lr_config={"layer_rates": {"fc": 0.01}},
             )
 
 

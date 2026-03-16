@@ -20,6 +20,7 @@ from .training.checkpoint_store import CheckpointStore
 from .training.early_stopping import EarlyStopping
 from .training.epoch_runner import EpochRunner
 from .training.evaluator import Evaluator
+from .training.layer_wise_lr import ParamGroupBuilder, ResNetLayerGrouper
 from .training.training_configurator import TrainingConfigurator
 from .training.training_loop import TrainingContext, TrainingLoop
 from .utils.directory_manager import PochiWorkspaceManager
@@ -82,7 +83,11 @@ class PochiTrainer:
 
         self.evaluator = Evaluator(self.device, self.logger)
 
-        self.training_configurator = TrainingConfigurator(self.device, self.logger)
+        self.training_configurator = TrainingConfigurator(
+            self.device,
+            self.logger,
+            param_group_builder=ParamGroupBuilder(ResNetLayerGrouper(), self.logger),
+        )
         self.epoch_runner = EpochRunner(device=self.device, logger=self.logger)
 
         self.model = create_model(model_name, num_classes, pretrained)

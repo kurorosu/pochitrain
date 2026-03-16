@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+from .layer_wise_lr import ParamGroupBuilder
+
 
 @dataclass
 class TrainingComponents:
@@ -26,15 +28,22 @@ class TrainingComponents:
 class TrainingConfigurator:
     """optimizer, scheduler, criterion の構築を担当."""
 
-    def __init__(self, device: torch.device, logger: logging.Logger):
+    def __init__(
+        self,
+        device: torch.device,
+        logger: logging.Logger,
+        param_group_builder: Optional[ParamGroupBuilder] = None,
+    ):
         """訓練コンフィギュレータを初期化.
 
         Args:
             device: 訓練に使用するデバイス.
             logger: ロガー.
+            param_group_builder: 層別学習率のパラメータグループビルダー.
         """
         self.device = device
         self.logger = logger
+        self._param_group_builder = param_group_builder
 
     def configure(
         self,
@@ -69,10 +78,14 @@ class TrainingConfigurator:
         criterion = self._build_criterion(class_weights, num_classes)
 
         if enable_layer_wise_lr:
-            param_groups = self._build_layer_wise_param_groups(
+            if self._param_group_builder is None:
+                raise RuntimeError(
+                    "層別学習率を使用するには param_group_builder の注入が必要です"
+                )
+            param_groups = self._param_group_builder.build(
                 model, learning_rate, lr_config
             )
-            self._log_layer_wise_lr(param_groups)
+            self._param_group_builder.log_param_groups(param_groups)
         else:
             param_groups = [{"params": model.parameters(), "lr": learning_rate}]
 
@@ -187,83 +200,3 @@ class TrainingConfigurator:
             optimizer, **scheduler_params
         )
         return scheduler
-
-    def _build_layer_wise_param_groups(
-        self,
-        model: nn.Module,
-        base_lr: float,
-        layer_wise_lr_config: dict[str, Any],
-    ) -> list[dict[str, Any]]:
-        """層別学習率のパラメータグループを構築.
-
-        Args:
-            model: 訓練対象のモデル.
-            base_lr: 基本学習率.
-            layer_wise_lr_config: 層別学習率の設定.
-
-        Returns:
-            list[dict[str, Any]]: パラメータグループのリスト.
-        """
-        layer_rates = layer_wise_lr_config.get("layer_rates", {})
-
-        layer_params: dict[str, list] = {}
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                layer_group = self._get_layer_group(name)
-                if layer_group not in layer_params:
-                    layer_params[layer_group] = []
-                layer_params[layer_group].append(param)
-
-        param_groups = []
-        for layer_name, params in layer_params.items():
-            lr = layer_rates.get(layer_name, base_lr)
-            param_groups.append(
-                {
-                    "params": params,
-                    "lr": lr,
-                    "layer_name": layer_name,
-                }
-            )
-
-        return param_groups
-
-    def _get_layer_group(self, param_name: str) -> str:
-        """パラメータ名から層グループ名を取得.
-
-        Args:
-            param_name: パラメータ名.
-
-        Returns:
-            str: 層グループ名.
-        """
-        # ResNet構造に基づいて, より具体的な層から優先判定する.
-        if "layer1" in param_name:
-            return "layer1"
-        elif "layer2" in param_name:
-            return "layer2"
-        elif "layer3" in param_name:
-            return "layer3"
-        elif "layer4" in param_name:
-            return "layer4"
-        elif "conv1" in param_name:
-            return "conv1"
-        elif "bn1" in param_name:
-            return "bn1"
-        elif "fc" in param_name:
-            return "fc"
-        else:
-            return "other"
-
-    def _log_layer_wise_lr(self, param_groups: list[dict[str, Any]]) -> None:
-        """層別学習率の設定をログ出力.
-
-        Args:
-            param_groups: パラメータグループのリスト.
-        """
-        self.logger.debug("=== 層別学習率設定 ===")
-        for group in param_groups:
-            layer_name = group.get("layer_name", "unknown")
-            lr = group["lr"]
-            param_count = sum(p.numel() for p in group["params"])
-            self.logger.debug(f"  {layer_name}: lr={lr:.6f}, params={param_count:,}")
-        self.logger.debug("=====================")

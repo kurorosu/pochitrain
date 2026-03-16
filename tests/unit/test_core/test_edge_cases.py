@@ -18,6 +18,7 @@ from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.training.checkpoint_store import CheckpointStore
 from pochitrain.training.early_stopping import EarlyStopping
 from pochitrain.training.evaluator import Evaluator
+from pochitrain.training.layer_wise_lr import ParamGroupBuilder, ResNetLayerGrouper
 from pochitrain.training.training_configurator import TrainingConfigurator
 
 # --- EarlyStopping エッジケース ---
@@ -147,7 +148,11 @@ class TestTrainingConfiguratorEdgeCases:
     def configurator(self):
         """テスト用コンフィギュレータ."""
         logger = logging.getLogger("test_edge")
-        return TrainingConfigurator(device=torch.device("cpu"), logger=logger)
+        return TrainingConfigurator(
+            device=torch.device("cpu"),
+            logger=logger,
+            param_group_builder=ParamGroupBuilder(ResNetLayerGrouper(), logger),
+        )
 
     @pytest.fixture
     def model(self):
