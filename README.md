@@ -169,12 +169,25 @@ uv run tensorboard --logdir work_dirs/YYYYMMDD_XXX/visualization/tensorboard
 
 ```python
 from pochitrain import PochiTrainer, create_data_loaders
+from torchvision import transforms
+
+# transformの定義
+train_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor(),
+])
+val_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor(),
+])
 
 # データローダーの作成
 train_loader, val_loader, classes = create_data_loaders(
     train_root='data/train',
     val_root='data/val',
-    batch_size=32
+    batch_size=32,
+    train_transform=train_transform,
+    val_transform=val_transform,
 )
 
 # トレーナーの作成
@@ -451,7 +464,7 @@ uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 2
 ```bash
 uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
   --output model.onnx \
-  --opset 17
+  --opset-version 17
 ```
 
 ### ONNX推論の実行
