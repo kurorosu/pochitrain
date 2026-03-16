@@ -1,6 +1,6 @@
 # pochitrain
 
-[![Version](https://img.shields.io/badge/version-1.7.4-blue.svg)](https://github.com/kurorosu/pochitrain)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/kurorosu/pochitrain)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)](https://www.python.org/)
 [![Jetson](https://img.shields.io/badge/Jetson-JetPack%206.2.1%20%28Python%203.10%29-76B900.svg)](https://developer.nvidia.com/embedded/jetpack)
@@ -146,18 +146,48 @@ uv run vis-grad work_dirs/20251018_001/visualization/gradient_trace.csv
 - 統計情報 (初期vs最終, 安定性, 最大値, 最小値)
 - エポックスナップショット
 
+### 8. TensorBoard によるリアルタイムモニタリング
+
+設定ファイルで `enable_tensorboard = True` にして訓練を実行すると, `visualization/tensorboard/` にログが出力されます.
+
+```python
+# configs/pochi_train_config.py
+enable_tensorboard = True
+```
+
+訓練後 (または訓練中) に以下のコマンドで確認できます.
+
+```bash
+uv run tensorboard --logdir work_dirs/YYYYMMDD_XXX/visualization/tensorboard
+```
+
+ブラウザで `http://localhost:6006` を開くと, loss, accuracy, 学習率のグラフを確認できます.
+
 ## 📖 詳細な使用方法
 
 ### 個別に使用する場合
 
 ```python
 from pochitrain import PochiTrainer, create_data_loaders
+from torchvision import transforms
+
+# transformの定義
+train_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor(),
+])
+val_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.ToTensor(),
+])
 
 # データローダーの作成
 train_loader, val_loader, classes = create_data_loaders(
     train_root='data/train',
     val_root='data/val',
-    batch_size=32
+    batch_size=32,
+    train_transform=train_transform,
+    val_transform=val_transform,
 )
 
 # トレーナーの作成
@@ -228,6 +258,7 @@ predictions, confidences, metrics = predictor.predict(test_loader)
 ### 高度な機能
 - **層別学習率 (Layer-wise Learning Rates)**: 各層の学習率を個別設定し, 専用グラフを出力
 - **メトリクス記録**: 学習率や損失を CSV/グラフに自動保存
+- **TensorBoard 統合**: 訓練メトリクスをリアルタイムモニタリング
 - **勾配トレース**: 層ごとの勾配推移を可視化
 - **クラス重み**: 不均衡データセットへ柔軟に対応
 - **ハイパーパラメータ最適化**: Optunaによる自動パラメータ探索
@@ -433,7 +464,7 @@ uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth --input-size 2
 ```bash
 uv run export-onnx work_dirs/20251018_001/models/best_epoch40.pth \
   --output model.onnx \
-  --opset 17
+  --opset-version 17
 ```
 
 ### ONNX推論の実行

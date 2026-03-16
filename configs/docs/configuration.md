@@ -39,6 +39,7 @@
 | パラメータ | 型 | 説明 | デフォルト |
 |------------|----|----- |------------|
 | `enable_metrics_export` | bool | メトリクスのCSV出力とグラフ生成を有効化 | `True` |
+| `enable_tensorboard` | bool | TensorBoard によるメトリクス記録を有効化 | `False` |
 
 ### その他設定
 

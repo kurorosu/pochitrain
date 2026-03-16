@@ -94,9 +94,17 @@ def main() -> None:
     manager.set_logger_level(__name__, level)
 
     model_path = Path(args.model_path)
-    validate_model_path(model_path)
+    try:
+        validate_model_path(model_path)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
 
-    config = load_config_auto(model_path)
+    try:
+        config = load_config_auto(model_path)
+    except (FileNotFoundError, RuntimeError) as e:
+        logger.error(str(e))
+        sys.exit(1)
 
     cli_request = InferenceCliRequest(
         model_path=model_path,

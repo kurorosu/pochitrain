@@ -279,6 +279,10 @@ def train_command(args: argparse.Namespace) -> None:
     trainer.enable_gradient_tracking = pochi_config.enable_gradient_tracking
     if trainer.enable_gradient_tracking:
         logger.debug("勾配トレース機能が有効です")
+
+    trainer.enable_tensorboard = pochi_config.enable_tensorboard
+    if trainer.enable_tensorboard:
+        logger.debug("TensorBoard 記録機能が有効です")
         gradient_config = cast(
             dict[str, Any], pochi_config.gradient_tracking_config.model_dump()
         )
@@ -330,7 +334,11 @@ def infer_command(args: argparse.Namespace) -> None:
     logger.debug("=== pochitrain 推論モード ===")
 
     model_path = Path(args.model_path)
-    validate_model_path(model_path)
+    try:
+        validate_model_path(model_path)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return
     logger.debug(f"使用するモデル: {model_path}")
 
     if args.config_path:
@@ -342,7 +350,11 @@ def infer_command(args: argparse.Namespace) -> None:
             logger.error(f"設定ファイル読み込みエラー: {e}")
             return
     else:
-        config = load_config_auto(model_path)
+        try:
+            config = load_config_auto(model_path)
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error(str(e))
+            return
 
     try:
         pochi_config = PochiConfig.from_dict(config)
@@ -724,7 +736,11 @@ def convert_command(args: argparse.Namespace) -> None:
                 logger.error(f"設定ファイル読み込みエラー: {e}")
                 return
         else:
-            config = load_config_auto(onnx_path)
+            try:
+                config = load_config_auto(onnx_path)
+            except (FileNotFoundError, RuntimeError) as e:
+                logger.error(str(e))
+                return
 
         if args.calib_data:
             calib_data_root = args.calib_data
@@ -820,16 +836,15 @@ def main() -> None:
   uv run pochi train --config configs/pochi_train_config.py
 
   推論（基本）
-  uv run pochi infer
-    -m work_dirs/20250813_003/models/best_epoch40.pth
-    -d data/val
-    -c work_dirs/20250813_003/config.py
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+
+  推論（データ・設定を指定）
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+    -d data/val -c work_dirs/20250813_003/config.py
 
   推論（カスタム出力先）
-  uv run pochi infer
-    --model-path work_dirs/20250813_003/models/best_epoch40.pth
-    --data data/test
-    --config-path work_dirs/20250813_003/config.py
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+    --data data/test --config-path work_dirs/20250813_003/config.py
     --output custom_results
 
   ハイパーパラメータ最適化

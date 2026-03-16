@@ -57,6 +57,9 @@ cudnn_benchmark = False  # cuDNN自動チューニング（固定サイズ入力
 # 訓練メトリクス可視化設定
 enable_metrics_export = True  # メトリクスのCSV出力とグラフ生成を有効化
 
+# TensorBoard 設定
+enable_tensorboard = True  # TensorBoard によるメトリクス記録を有効化
+
 # 勾配トレース設定
 enable_gradient_tracking = True  # 勾配トレースを有効化（計算コスト増に注意）
 gradient_tracking_config = {

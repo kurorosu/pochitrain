@@ -216,6 +216,7 @@ issue.*
 tmp*.*
 .kiro
 .vscode
+.claude
 
 # Data directory (keep folder, ignore contents)
 data/*

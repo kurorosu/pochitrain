@@ -47,7 +47,7 @@ def main() -> None:
   出力先を上書き
   uv run infer-trt work_dirs/20260118_001/models/model.engine -o results/
 
-  uv run infer-trt model.engine --pipeline gpu     # GPU前処理 (デフォルト)
+  uv run infer-trt model.engine --pipeline gpu     # GPU前処理
   uv run infer-trt model.engine --pipeline fast     # CPU最適化 (Plan A)
   uv run infer-trt model.engine --pipeline current  # 従来 (PIL)
 
@@ -98,7 +98,11 @@ def main() -> None:
     manager.set_logger_level(__name__, level)
 
     engine_path = Path(args.engine_path)
-    validate_model_path(engine_path)
+    try:
+        validate_model_path(engine_path)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
 
     try:
         inference = orchestration_service.create_trt_inference(engine_path)
@@ -109,7 +113,11 @@ def main() -> None:
         )
         sys.exit(1)
 
-    config = load_config_auto(engine_path)
+    try:
+        config = load_config_auto(engine_path)
+    except (FileNotFoundError, RuntimeError) as e:
+        logger.error(str(e))
+        sys.exit(1)
 
     cli_request = InferenceCliRequest(
         model_path=engine_path,

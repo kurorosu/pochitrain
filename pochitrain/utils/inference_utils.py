@@ -6,7 +6,6 @@ PyTorch, ONNX, TensorRT推論CLIで共通して使用する処理を提供.
 import csv
 import importlib
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -217,11 +216,10 @@ def validate_model_path(model_path: Path) -> None:
         model_path: モデルファイルパス
 
     Raises:
-        SystemExit: モデルファイルが存在しない場合
+        FileNotFoundError: モデルファイルが存在しない場合
     """
     if not model_path.exists():
-        logger.error(f"モデルファイルが見つかりません: {model_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"モデルファイルが見つかりません: {model_path}")
 
 
 def validate_data_path(data_path: Path) -> None:
@@ -231,11 +229,10 @@ def validate_data_path(data_path: Path) -> None:
         data_path: データディレクトリパス
 
     Raises:
-        SystemExit: データディレクトリが存在しない場合
+        FileNotFoundError: データディレクトリが存在しない場合
     """
     if not data_path.exists():
-        logger.error(f"データディレクトリが見つかりません: {data_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"データディレクトリが見つかりません: {data_path}")
 
 
 def load_config_auto(model_path: Path) -> dict[str, Any]:
@@ -248,13 +245,15 @@ def load_config_auto(model_path: Path) -> dict[str, Any]:
         読み込んだconfig辞書
 
     Raises:
-        SystemExit: configファイルが見つからない、または読み込めない場合
+        FileNotFoundError: configファイルが見つからない場合
+        RuntimeError: configファイルの読み込みに失敗した場合
     """
     config_path = auto_detect_config_path(model_path)
     if not config_path.exists():
-        logger.error(f"設定ファイルが見つかりません: {config_path}")
-        logger.error("モデルパスと同じwork_dir内にconfig.pyが必要です")
-        sys.exit(1)
+        raise FileNotFoundError(
+            f"設定ファイルが見つかりません: {config_path}\n"
+            "モデルパスと同じwork_dir内にconfig.pyが必要です"
+        )
 
     try:
         from pochitrain.utils.config_loader import ConfigLoader
@@ -263,8 +262,7 @@ def load_config_auto(model_path: Path) -> dict[str, Any]:
         logger.debug(f"設定ファイルを読み込み: {config_path}")
         return config
     except Exception as e:
-        logger.error(f"設定ファイル読み込みエラー: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"設定ファイル読み込みエラー: {e}") from e
 
 
 def write_inference_csv(

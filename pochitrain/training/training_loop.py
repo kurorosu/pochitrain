@@ -351,6 +351,7 @@ class TrainingLoop:
         enable_gradient_tracking: bool,
         gradient_tracking_config: dict[str, Any],
         layer_wise_lr_graph_config: dict[str, Any],
+        enable_tensorboard: bool = False,
     ) -> Optional[MetricsTracker]:
         """MetricsTrackerを初期化.
 
@@ -362,6 +363,7 @@ class TrainingLoop:
             enable_gradient_tracking: 勾配追跡を有効にするか.
             gradient_tracking_config: 勾配追跡設定.
             layer_wise_lr_graph_config: 層別学習率グラフ設定.
+            enable_tensorboard: TensorBoard 記録を有効にするか.
 
         Returns:
             MetricsTracker: ワークスペースがある場合はトラッカー, なければNone.
@@ -374,6 +376,7 @@ class TrainingLoop:
             visualization_dir=visualization_dir,
             enable_metrics_export=enable_metrics_export,
             enable_gradient_tracking=enable_gradient_tracking,
+            enable_tensorboard=enable_tensorboard,
             gradient_tracking_config=gradient_tracking_config,
             layer_wise_lr_graph_config=layer_wise_lr_graph_config,
         )
