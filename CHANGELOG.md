@@ -32,8 +32,14 @@
   - `runner.py`: config パス解決, config コピー, コマンド構築のテストを追加した.
 - `epoch_runner.py` のテストを追加した ([#331](https://github.com/kurorosu/pochitrain/pull/331)).
   - 単一バッチ/複数バッチの損失計算, 空 DataLoader の防御的ガード, クラス重み付き損失, 勾配更新のテストを追加した.
-- `visualize_gradient.py` のテストを追加した (`N/A.`).
+- `visualize_gradient.py` のテストを追加した ([#332](https://github.com/kurorosu/pochitrain/pull/332)).
   - CSV 読み込み (正常系, 不正CSV), PNG 出力生成 (timeline, heatmap, statistics, snapshots), CLI ユーティリティ関数のテストを追加した.
+- エッジケーステストを追加した (`N/A.`).
+  - `early_stopping`: min_delta 境界値 (極小0.0001/極大10.0) のテストを追加した.
+  - `pochi_dataset`: 画像1枚データセット, 破損画像ファイルのテストを追加した.
+  - `training_configurator`: 学習率0.0, 負の学習率, 極端な層別学習率のテストを追加した.
+  - `checkpoint_store`: 存在しないディレクトリへの保存, optimizer=None のテストを追加した.
+  - `evaluator`: 空 DataLoader, 単一サンプルの精度計算/混同行列のテストを追加した.
 
 ### Fixed
 - なし.
