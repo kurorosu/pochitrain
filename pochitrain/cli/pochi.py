@@ -836,16 +836,15 @@ def main() -> None:
   uv run pochi train --config configs/pochi_train_config.py
 
   推論（基本）
-  uv run pochi infer
-    -m work_dirs/20250813_003/models/best_epoch40.pth
-    -d data/val
-    -c work_dirs/20250813_003/config.py
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+
+  推論（データ・設定を指定）
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+    -d data/val -c work_dirs/20250813_003/config.py
 
   推論（カスタム出力先）
-  uv run pochi infer
-    --model-path work_dirs/20250813_003/models/best_epoch40.pth
-    --data data/test
-    --config-path work_dirs/20250813_003/config.py
+  uv run pochi infer work_dirs/20250813_003/models/best_epoch40.pth
+    --data data/test --config-path work_dirs/20250813_003/config.py
     --output custom_results
 
   ハイパーパラメータ最適化
