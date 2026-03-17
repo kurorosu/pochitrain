@@ -7,7 +7,6 @@ pochitrain 統一CLI エントリーポイント.
 
 import argparse
 import logging
-import re
 import signal
 import sys
 from pathlib import Path
@@ -83,41 +82,6 @@ def setup_logging(
     for existing_name in logger_manager.get_available_loggers():
         logger_manager.set_logger_level(existing_name, level)
     return logger_manager.get_logger(logger_name, level=level)
-
-
-def find_best_model(work_dir: str) -> Path:
-    """
-    work_dir内でベストモデルを自動検出.
-
-    Args:
-        work_dir (str): 作業ディレクトリパス
-
-    Returns:
-        Path: ベストモデルのパス
-
-    Raises:
-        FileNotFoundError: モデルが見つからない場合
-    """
-    work_path = Path(work_dir)
-    models_dir = work_path / "models"
-
-    if not models_dir.exists():
-        raise FileNotFoundError(f"モデルディレクトリが見つかりません: {models_dir}")
-
-    model_files = list(models_dir.glob("best_epoch*.pth"))
-
-    if not model_files:
-        raise FileNotFoundError(
-            f"ベストモデルが見つかりません: {models_dir}/best_epoch*.pth"
-        )
-
-    best_model = max(
-        model_files,
-        key=lambda x: (
-            int(m.group(1)) if (m := re.search(r"best_epoch(\d+)", x.name)) else 0
-        ),
-    )
-    return best_model
 
 
 def train_command(args: argparse.Namespace) -> None:

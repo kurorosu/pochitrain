@@ -9,16 +9,21 @@
 - なし.
 
 ### Changed
-- `TrainingConfigurator` から層別学習率ロジックを分離した (`N/A.`).
+- `TrainingConfigurator` から層別学習率ロジックを分離した ([#337](https://github.com/kurorosu/pochitrain/pull/337)).
   - `training/layer_wise_lr/` パッケージを新設した (`ILayerGrouper`, `ResNetLayerGrouper`, `ParamGroupBuilder`).
   - Strategy パターンにより, 将来の非 ResNet モデル対応が拡張のみで可能になった.
   - `ResNetLayerGrouper`, `ParamGroupBuilder` のユニットテストを追加した.
+- デッドコード・未使用公開メソッドを整理した (`N/A.`).
+  - `CheckpointStore.save_checkpoint()` 等 7メソッドを private 化した.
+  - テストを public API 経由に書き換えた.
 
 ### Fixed
 - なし.
 
 ### Removed
-- なし.
+- `PochiTrainer.setup_training_from_config()` を削除した (呼び出し元なし) (`N/A.`).
+- `find_best_model()` を削除した (呼び出し元なし) (`N/A.`).
+- `EarlyStopping.get_status()` を削除した (呼び出し元なし) (`N/A.`).
 
 ## v1.8.0 (2026-03-16)
 

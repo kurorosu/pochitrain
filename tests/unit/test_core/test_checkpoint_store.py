@@ -34,79 +34,6 @@ def optimizer(model: nn.Module) -> optim.Optimizer:
     return optim.SGD(model.parameters(), lr=0.01)
 
 
-class TestSaveCheckpoint:
-    """save_checkpointメソッドのテスト."""
-
-    def test_save_checkpoint(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-        optimizer: optim.Optimizer,
-        work_dir: Path,
-    ) -> None:
-        """チェックポイントファイルが正しく保存される."""
-        path = store.save_checkpoint(
-            filename="checkpoint.pth",
-            epoch=5,
-            model=model,
-            optimizer=optimizer,
-            scheduler=None,
-            best_accuracy=85.0,
-        )
-
-        assert path == work_dir / "checkpoint.pth"
-        assert path.exists()
-
-        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-        assert checkpoint["epoch"] == 5
-        assert checkpoint["best_accuracy"] == 85.0
-        assert checkpoint["model_state_dict"] is not None
-        assert checkpoint["optimizer_state_dict"] is not None
-
-    def test_save_checkpoint_with_scheduler(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-        optimizer: optim.Optimizer,
-        work_dir: Path,
-    ) -> None:
-        """スケジューラー状態も保存される."""
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5)
-
-        path = store.save_checkpoint(
-            filename="checkpoint.pth",
-            epoch=3,
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            best_accuracy=90.0,
-        )
-
-        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-        assert "scheduler_state_dict" in checkpoint
-        assert checkpoint["scheduler_state_dict"] is not None
-
-    def test_save_checkpoint_without_scheduler(
-        self,
-        store: CheckpointStore,
-        model: nn.Module,
-        optimizer: optim.Optimizer,
-        work_dir: Path,
-    ) -> None:
-        """スケジューラーなしの場合, scheduler_state_dictが含まれない."""
-        path = store.save_checkpoint(
-            filename="checkpoint.pth",
-            epoch=1,
-            model=model,
-            optimizer=optimizer,
-            scheduler=None,
-            best_accuracy=50.0,
-        )
-
-        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-        assert "scheduler_state_dict" not in checkpoint
-
-
 class TestSaveBestModel:
     """save_best_modelメソッドのテスト."""
 
@@ -117,7 +44,7 @@ class TestSaveBestModel:
         optimizer: optim.Optimizer,
         work_dir: Path,
     ) -> None:
-        """ベストモデルが保存される."""
+        """ベストモデルが保存され, チェックポイント内容が正しい."""
         store.save_best_model(
             epoch=10,
             model=model,
@@ -128,6 +55,36 @@ class TestSaveBestModel:
 
         best_file = work_dir / "best_epoch10.pth"
         assert best_file.exists()
+
+        checkpoint = torch.load(best_file, map_location="cpu", weights_only=True)
+        assert checkpoint["epoch"] == 10
+        assert checkpoint["best_accuracy"] == 95.0
+        assert checkpoint["model_state_dict"] is not None
+        assert checkpoint["optimizer_state_dict"] is not None
+        assert "scheduler_state_dict" not in checkpoint
+
+    def test_save_best_model_with_scheduler(
+        self,
+        store: CheckpointStore,
+        model: nn.Module,
+        optimizer: optim.Optimizer,
+        work_dir: Path,
+    ) -> None:
+        """スケジューラー状態もベストモデルに保存される."""
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5)
+
+        store.save_best_model(
+            epoch=3,
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            best_accuracy=90.0,
+        )
+
+        best_file = work_dir / "best_epoch3.pth"
+        checkpoint = torch.load(best_file, map_location="cpu", weights_only=True)
+        assert "scheduler_state_dict" in checkpoint
+        assert checkpoint["scheduler_state_dict"] is not None
 
     def test_save_best_model_deletes_existing(
         self,

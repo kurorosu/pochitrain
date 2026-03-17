@@ -96,20 +96,3 @@ class EarlyStopping:
                 return True
 
         return False
-
-    def get_status(self) -> dict:
-        """
-        現在のEarlyStopping状態を取得.
-
-        Returns:
-            dict: 状態情報
-        """
-        return {
-            "patience": self.patience,
-            "min_delta": self.min_delta,
-            "monitor": self.monitor,
-            "counter": self.counter,
-            "best_value": self.best_value,
-            "best_epoch": self.best_epoch,
-            "should_stop": self.should_stop,
-        }
