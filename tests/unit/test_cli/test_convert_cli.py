@@ -14,6 +14,7 @@ import pytest
 
 import pochitrain.cli.commands.convert as convert_cli
 import pochitrain.cli.pochi as pochi_cli
+import pochitrain.tensorrt.int8_config as int8_config_module
 from pochitrain.cli.arg_types import positive_int
 
 ConvertArgsRunner = Callable[[list[str]], argparse.Namespace]
@@ -295,7 +296,7 @@ class TestConvertCommand:
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
         monkeypatch.setattr(
-            convert_cli.ConfigLoader,
+            int8_config_module.ConfigLoader,
             "load_config",
             lambda _path: {"val_transform": "dummy_transform"},
         )
@@ -359,7 +360,7 @@ class TestConvertCommand:
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
         monkeypatch.setattr(
-            convert_cli,
+            int8_config_module,
             "load_config_auto",
             lambda _path: {
                 "val_data_root": str(calib_dir),

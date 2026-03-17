@@ -16,10 +16,14 @@
 - デッドコード・未使用公開メソッドを整理した ([#339](https://github.com/kurorosu/pochitrain/pull/339)).
   - `CheckpointStore.save_checkpoint()` 等 7メソッドを private 化した.
   - テストを public API 経由に書き換えた.
-- `pochi.py` をサブコマンドごとに分割した (`N/A.`).
+- `pochi.py` をサブコマンドごとに分割した ([#341](https://github.com/kurorosu/pochitrain/pull/341)).
   - `cli/commands/` に `train.py`, `infer.py`, `optimize.py`, `convert.py` を分離した.
   - `cli/cli_commons.py` に共有ユーティリティ (`setup_logging`, `create_signal_handler`) を抽出した.
-  - `pochi.py` を 956行から 191行に削減した.
+  - `pochi.py` を 956行から 181行に削減した.
+- `convert_command` のビジネスロジックをサービス層に分離した (`N/A.`).
+  - `tensorrt/input_shape_resolver.py`: ONNX 動的シェイプ検出を CLI から分離した.
+  - `tensorrt/int8_config.py`: INT8 キャリブレーション設定の組み立てを CLI から分離した.
+  - ベンチマーク JSON 出力の重複を `export_benchmark_json()` に共通化した.
 
 ### Fixed
 - なし.
