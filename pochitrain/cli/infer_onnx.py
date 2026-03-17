@@ -14,8 +14,8 @@ from pathlib import Path
 
 from pochitrain.inference.benchmark import (
     build_onnx_benchmark_result,
+    export_benchmark_json,
     resolve_env_name,
-    write_benchmark_result_json,
 )
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
 from pochitrain.inference.types.orchestration_types import InferenceCliRequest
@@ -216,16 +216,7 @@ def main() -> None:
             accuracy=run_result.accuracy_percent,
             env_name=env_name,
         )
-        try:
-            benchmark_json_path = write_benchmark_result_json(
-                output_dir=output_dir,
-                benchmark_result=benchmark_result,
-            )
-            logger.info(f"ベンチマークJSONを出力しました: {benchmark_json_path.name}")
-        except Exception as exc:  # pragma: no cover
-            logger.warning(
-                f"ベンチマークJSONの保存に失敗しました, error: {exc}",
-            )
+        export_benchmark_json(output_dir, benchmark_result, logger)
 
     logger.info(f"ワークスペース: {output_dir.name}にサマリーファイルを出力しました")
 
