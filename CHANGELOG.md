@@ -13,9 +13,13 @@
   - `training/layer_wise_lr/` パッケージを新設した (`ILayerGrouper`, `ResNetLayerGrouper`, `ParamGroupBuilder`).
   - Strategy パターンにより, 将来の非 ResNet モデル対応が拡張のみで可能になった.
   - `ResNetLayerGrouper`, `ParamGroupBuilder` のユニットテストを追加した.
-- デッドコード・未使用公開メソッドを整理した (`N/A.`).
+- デッドコード・未使用公開メソッドを整理した ([#339](https://github.com/kurorosu/pochitrain/pull/339)).
   - `CheckpointStore.save_checkpoint()` 等 7メソッドを private 化した.
   - テストを public API 経由に書き換えた.
+- `pochi.py` をサブコマンドごとに分割した (`N/A.`).
+  - `cli/commands/` に `train.py`, `infer.py`, `optimize.py`, `convert.py` を分離した.
+  - `cli/cli_commons.py` に共有ユーティリティ (`setup_logging`, `create_signal_handler`) を抽出した.
+  - `pochi.py` を 956行から 191行に削減した.
 
 ### Fixed
 - なし.

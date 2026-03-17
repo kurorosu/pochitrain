@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pochitrain.cli.pochi import infer_command, main
+from pochitrain.cli.commands.infer import infer_command
+from pochitrain.cli.pochi import main
 from pochitrain.inference.types.orchestration_types import InferenceRunResult
 
 from .conftest import build_cli_config
@@ -223,7 +224,7 @@ class TestInferCommandServiceDelegation:
         tmp_path: Path,
     ) -> None:
         """正常完了時に出力ディレクトリが作成され集計が実行されることを検証する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.infer as pochi_module
 
         args = _make_args(tmp_path)
         config = build_cli_config(val_data_root=args.data)
@@ -246,7 +247,7 @@ class TestInferCommandServiceDelegation:
         tmp_path: Path,
     ) -> None:
         """--output 未指定時は model 位置基準で workspace が生成されることを検証する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.infer as pochi_module
 
         work_dir = tmp_path / "work_dirs" / "20260223_001"
         model_path = _create_dummy_model_file(work_dir)
@@ -280,7 +281,7 @@ class TestInferCommandServiceDelegation:
         tmp_path: Path,
     ) -> None:
         """推論器作成エラー時にデータローダー作成と集計がスキップされることを検証する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.infer as pochi_module
 
         args = _make_args(tmp_path)
         config = build_cli_config(val_data_root=args.data)
@@ -304,7 +305,7 @@ class TestInferCommandServiceDelegation:
         tmp_path: Path,
     ) -> None:
         """推論実行エラー時に集計がスキップされることを検証する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.infer as pochi_module
 
         args = _make_args(tmp_path)
         config = build_cli_config(val_data_root=args.data)
