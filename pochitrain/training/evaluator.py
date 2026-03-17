@@ -81,15 +81,15 @@ class Evaluator:
             all_predicted_tensor = torch.cat(all_predicted, dim=0)
             all_targets_tensor = torch.cat(all_targets, dim=0)
 
-            cm = self.compute_confusion_matrix(
+            cm = self._compute_confusion_matrix(
                 all_predicted_tensor, all_targets_tensor, num_classes_for_cm
             )
 
-            self.log_confusion_matrix(cm, epoch, workspace_path)
+            self._log_confusion_matrix(cm, epoch, workspace_path)
 
         return {"val_loss": avg_loss, "val_accuracy": accuracy}
 
-    def compute_confusion_matrix(
+    def _compute_confusion_matrix(
         self, predicted: torch.Tensor, targets: torch.Tensor, num_classes: int
     ) -> torch.Tensor:
         """純粋なPyTorchテンソル操作による混同行列計算.
@@ -121,7 +121,7 @@ class Evaluator:
 
         return confusion_matrix
 
-    def log_confusion_matrix(
+    def _log_confusion_matrix(
         self,
         confusion_matrix: torch.Tensor,
         epoch: int,

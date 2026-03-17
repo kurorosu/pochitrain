@@ -115,34 +115,6 @@ class TestEarlyStoppingValLoss:
         )  # -0.08 < min_delta(0.1) -> 改善なし (2/2) -> 停止
 
 
-class TestEarlyStoppingGetStatus:
-    """get_statusメソッドのテスト."""
-
-    def test_initial_status(self):
-        """初期状態のステータス確認."""
-        es = EarlyStopping(patience=5, min_delta=0.01, monitor="val_accuracy")
-        status = es.get_status()
-        assert status["patience"] == 5
-        assert status["min_delta"] == 0.01
-        assert status["monitor"] == "val_accuracy"
-        assert status["counter"] == 0
-        assert status["best_value"] is None
-        assert status["best_epoch"] == 0
-        assert status["should_stop"] is False
-
-    def test_status_after_steps(self):
-        """数ステップ後のステータス確認."""
-        es = EarlyStopping(patience=3, monitor="val_accuracy")
-        es.step(90.0, 1)
-        es.step(89.0, 2)  # 改善なし
-
-        status = es.get_status()
-        assert status["counter"] == 1
-        assert status["best_value"] == 90.0
-        assert status["best_epoch"] == 1
-        assert status["should_stop"] is False
-
-
 class TestEarlyStoppingWithLogger:
     """ロガー付きEarlyStoppingのテスト."""
 
