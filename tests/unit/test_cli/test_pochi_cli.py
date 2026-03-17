@@ -4,12 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from pochitrain.cli.pochi import (
-    create_signal_handler,
-    get_indexed_output_dir,
-    main,
-    setup_logging,
-)
+from pochitrain.cli.cli_commons import create_signal_handler, setup_logging
+from pochitrain.cli.commands.optimize import get_indexed_output_dir
+from pochitrain.cli.pochi import main
 
 
 class TestSetupLogging:
@@ -33,16 +30,16 @@ class TestSignalHandler:
 
     def test_signal_handler_sets_flag(self):
         """シグナルハンドラーが停止フラグを設定することを確認."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.cli_commons as cli_commons
 
-        pochi_module.training_interrupted = False
+        cli_commons.training_interrupted = False
 
         handler = create_signal_handler(debug=False)
         handler(2, None)
 
-        assert pochi_module.training_interrupted is True
+        assert cli_commons.training_interrupted is True
 
-        pochi_module.training_interrupted = False
+        cli_commons.training_interrupted = False
 
 
 class TestGetIndexedOutputDir:

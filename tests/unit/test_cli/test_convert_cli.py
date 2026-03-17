@@ -12,6 +12,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import pochitrain.cli.commands.convert as convert_cli
 import pochitrain.cli.pochi as pochi_cli
 from pochitrain.cli.arg_types import positive_int
 
@@ -169,7 +170,7 @@ def _patch_convert_deps(
     monkeypatch.setattr(
         inference_module, "check_tensorrt_availability", lambda: trt_available
     )
-    monkeypatch.setattr(pochi_cli, "setup_logging", lambda debug=False: logger)
+    monkeypatch.setattr(convert_cli, "setup_logging", lambda debug=False: logger)
 
 
 def _make_mock_logger() -> SimpleNamespace:
@@ -294,7 +295,7 @@ class TestConvertCommand:
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
         monkeypatch.setattr(
-            pochi_cli.ConfigLoader,
+            convert_cli.ConfigLoader,
             "load_config",
             lambda _path: {"val_transform": "dummy_transform"},
         )
@@ -358,7 +359,7 @@ class TestConvertCommand:
             calibrator_module, "create_int8_calibrator", _fake_create_int8_calibrator
         )
         monkeypatch.setattr(
-            pochi_cli,
+            convert_cli,
             "load_config_auto",
             lambda _path: {
                 "val_data_root": str(calib_dir),
