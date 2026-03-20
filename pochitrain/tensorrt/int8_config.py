@@ -31,7 +31,7 @@ class INT8CalibrationConfigurer:
             logger: ロガー.
         """
         self._logger = logger
-        self._shape_resolver = InputShapeResolver()
+        self._shape_resolver = InputShapeResolver(logger)
 
     def configure(
         self,
