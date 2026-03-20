@@ -12,7 +12,8 @@
 - なし.
 
 ### Fixed
-- なし.
+- `InputShapeResolver._detect_from_onnx()` の無言例外無視を修正した (`N/A.`).
+  - `except Exception: pass` を `logger.debug()` に変更し, デバッグ時にエラー原因を追跡可能にした.
 
 ### Removed
 - なし.
