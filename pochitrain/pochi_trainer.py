@@ -20,6 +20,7 @@ from .training.checkpoint_store import CheckpointStore
 from .training.early_stopping import EarlyStopping
 from .training.epoch_runner import EpochRunner
 from .training.evaluator import Evaluator
+from .training.layer_wise_lr import ParamGroupBuilder, ResNetLayerGrouper
 from .training.training_configurator import TrainingConfigurator
 from .training.training_loop import TrainingContext, TrainingLoop
 from .utils.directory_manager import PochiWorkspaceManager
@@ -82,7 +83,11 @@ class PochiTrainer:
 
         self.evaluator = Evaluator(self.device, self.logger)
 
-        self.training_configurator = TrainingConfigurator(self.device, self.logger)
+        self.training_configurator = TrainingConfigurator(
+            self.device,
+            self.logger,
+            param_group_builder=ParamGroupBuilder(ResNetLayerGrouper(), self.logger),
+        )
         self.epoch_runner = EpochRunner(device=self.device, logger=self.logger)
 
         self.model = create_model(model_name, num_classes, pretrained)
@@ -125,26 +130,6 @@ class PochiTrainer:
             work_dir=config.work_dir,
             create_workspace=create_workspace,
             cudnn_benchmark=config.cudnn_benchmark,
-        )
-
-    def setup_training_from_config(self, config: PochiConfig, num_classes: int) -> None:
-        """PochiConfigから訓練設定を適用."""
-        layer_wise_lr_config = config.layer_wise_lr_config.model_dump()
-        early_stopping_config = (
-            config.early_stopping.model_dump()
-            if config.early_stopping is not None
-            else None
-        )
-        self.setup_training(
-            learning_rate=config.learning_rate,
-            optimizer_name=config.optimizer,
-            scheduler_name=config.scheduler,
-            scheduler_params=config.scheduler_params,
-            class_weights=config.class_weights,
-            num_classes=num_classes,
-            enable_layer_wise_lr=config.enable_layer_wise_lr,
-            layer_wise_lr_config=layer_wise_lr_config,
-            early_stopping_config=early_stopping_config,
         )
 
     def _setup_logger(self) -> logging.Logger:

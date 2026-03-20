@@ -57,7 +57,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         ]
         self.extended_headers: list[str] = []  # Issue 9用の拡張ヘッダー
 
-    def add_extended_headers(self, headers: list[str]) -> None:
+    def _add_extended_headers(self, headers: list[str]) -> None:
         """
         拡張ヘッダーを追加（Issue 9でのパラメータ追跡用）.
 
@@ -108,7 +108,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         if layer_wise_lr_enabled:
             for key in kwargs:
                 if key.startswith("lr_") and key not in self.extended_headers:
-                    self.add_extended_headers([key])
+                    self._add_extended_headers([key])
 
         self.metrics_history.append(metrics)
 
@@ -122,7 +122,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
             f"LR={lr_display}, Loss={train_loss:.4f}, Acc={train_accuracy:.2f}%"
         )
 
-    def export_to_csv(self, filename: Optional[str] = None) -> Optional[Path]:
+    def _export_to_csv(self, filename: Optional[str] = None) -> Optional[Path]:
         """
         メトリクスをCSVファイルに出力.
 
@@ -152,7 +152,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
         self.logger.info(f"訓練メトリクスをCSVに出力: {output_path}")
         return output_path
 
-    def generate_graphs(
+    def _generate_graphs(
         self, base_filename: Optional[str] = None
     ) -> Optional[list[Path]]:
         """
@@ -331,7 +331,9 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         fig, ax = plt.subplots(figsize=(12, 8))
 
-        colors = plt.get_cmap("tab10")(range(len(lr_columns)))
+        n_colors = len(lr_columns)
+        cmap_name = "tab10" if n_colors <= 10 else "tab20"
+        colors = plt.get_cmap(cmap_name)(range(n_colors))
         for i, lr_col in enumerate(lr_columns):
             layer_name = lr_col.replace("lr_", "")
             learning_rates = [m.get(lr_col, 0) for m in self.metrics_history]
@@ -377,12 +379,12 @@ class TrainingMetricsExporter(BaseCSVExporter):
         Returns:
             tuple[Optional[Path], Optional[List[Path]]]: (CSVファイルパス, グラフファイルパスリスト)
         """
-        csv_path = self.export_to_csv(csv_filename)
-        graph_paths = self.generate_graphs(graph_base_filename)
+        csv_path = self._export_to_csv(csv_filename)
+        graph_paths = self._generate_graphs(graph_base_filename)
 
         return csv_path, graph_paths
 
-    def get_best_epoch(self, metric: str = "val_accuracy") -> Optional[dict[str, Any]]:
+    def _get_best_epoch(self, metric: str = "val_accuracy") -> Optional[dict[str, Any]]:
         """
         指定されたメトリクスで最良のエポックを取得.
 
@@ -427,7 +429,7 @@ class TrainingMetricsExporter(BaseCSVExporter):
             summary["final_val_loss"] = self.metrics_history[-1]["val_loss"]
             summary["final_val_accuracy"] = self.metrics_history[-1]["val_accuracy"]
 
-            best_val = self.get_best_epoch("val_accuracy")
+            best_val = self._get_best_epoch("val_accuracy")
             if best_val:
                 summary["best_val_accuracy"] = best_val["val_accuracy"]
                 summary["best_val_accuracy_epoch"] = best_val["epoch"]

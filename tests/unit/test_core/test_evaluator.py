@@ -30,7 +30,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([0, 1, 2, 3, 0, 1])
         targets = torch.tensor([0, 1, 2, 3, 0, 2])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 4)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 4)
 
         expected = torch.tensor(
             [
@@ -47,7 +47,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([0, 1, 2, 3])
         targets = torch.tensor([0, 1, 2, 3])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 4)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 4)
 
         expected = torch.tensor(
             [
@@ -64,7 +64,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([1, 2, 3, 0])
         targets = torch.tensor([0, 1, 2, 3])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 4)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 4)
 
         expected = torch.tensor(
             [
@@ -81,7 +81,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([])
         targets = torch.tensor([])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 4)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 4)
 
         expected = torch.zeros(4, 4, dtype=torch.int64)
         assert torch.equal(cm, expected)
@@ -91,7 +91,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([2, 2, 2])
         targets = torch.tensor([2, 2, 2])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 4)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 4)
 
         expected = torch.tensor(
             [
@@ -108,7 +108,7 @@ class TestComputeConfusionMatrix:
         predicted = torch.tensor([0, 1, 2, 1])
         targets = torch.tensor([0, 1, 1, 2])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 3)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 3)
 
         assert cm.device.type == "cpu"
 
@@ -232,7 +232,7 @@ class TestLogConfusionMatrix:
         """混同行列ログファイルが作成される."""
         cm = torch.tensor([[2, 1], [0, 3]], dtype=torch.int64)
 
-        evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=tmp_path)
+        evaluator._log_confusion_matrix(cm, epoch=1, workspace_path=tmp_path)
         log_file = tmp_path / "confusion_matrix.log"
         assert log_file.exists()
         content = log_file.read_text(encoding="utf-8")
@@ -242,5 +242,5 @@ class TestLogConfusionMatrix:
         """workspace_path=None のときスキップする."""
         cm = torch.tensor([[1, 0], [0, 1]], dtype=torch.int64)
         with patch("builtins.open") as mock_open:
-            evaluator.log_confusion_matrix(cm, epoch=1, workspace_path=None)
+            evaluator._log_confusion_matrix(cm, epoch=1, workspace_path=None)
         mock_open.assert_not_called()

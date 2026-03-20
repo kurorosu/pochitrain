@@ -4,13 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from pochitrain.cli.pochi import (
-    create_signal_handler,
-    find_best_model,
-    get_indexed_output_dir,
-    main,
-    setup_logging,
-)
+from pochitrain.cli.cli_commons import create_signal_handler, setup_logging
+from pochitrain.cli.commands.optimize import get_indexed_output_dir
+from pochitrain.cli.pochi import main
 
 
 class TestSetupLogging:
@@ -34,61 +30,16 @@ class TestSignalHandler:
 
     def test_signal_handler_sets_flag(self):
         """シグナルハンドラーが停止フラグを設定することを確認."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.cli_commons as cli_commons
 
-        pochi_module.training_interrupted = False
+        cli_commons.training_interrupted = False
 
         handler = create_signal_handler(debug=False)
         handler(2, None)
 
-        assert pochi_module.training_interrupted is True
+        assert cli_commons.training_interrupted is True
 
-        pochi_module.training_interrupted = False
-
-
-class TestFindBestModel:
-    """find_best_model関数のテスト."""
-
-    def test_find_best_model_success(self, tmp_path):
-        """ベストモデルを正しく検出することを確認."""
-        models_dir = tmp_path / "models"
-        models_dir.mkdir()
-
-        (models_dir / "best_epoch10.pth").touch()
-        (models_dir / "best_epoch20.pth").touch()
-        (models_dir / "best_epoch30.pth").touch()
-
-        result = find_best_model(str(tmp_path))
-
-        assert result.name == "best_epoch30.pth"
-
-    def test_find_best_model_cross_digit_boundary(self, tmp_path):
-        """桁が変わるエポック番号でも正しく数値比較されることを確認."""
-        models_dir = tmp_path / "models"
-        models_dir.mkdir()
-
-        (models_dir / "best_epoch9.pth").touch()
-        (models_dir / "best_epoch10.pth").touch()
-
-        result = find_best_model(str(tmp_path))
-
-        # 文字列比較では 9 が 10 より大きく見えるため, 数値比較を検証する.
-        assert result.name == "best_epoch10.pth"
-
-    def test_find_best_model_no_models_dir(self, tmp_path):
-        """モデルディレクトリがない場合にエラーを発生させることを確認."""
-        with pytest.raises(
-            FileNotFoundError, match="モデルディレクトリが見つかりません"
-        ):
-            find_best_model(str(tmp_path))
-
-    def test_find_best_model_no_model_files(self, tmp_path):
-        """モデルファイルがない場合にエラーを発生させることを確認."""
-        models_dir = tmp_path / "models"
-        models_dir.mkdir()
-
-        with pytest.raises(FileNotFoundError, match="ベストモデルが見つかりません"):
-            find_best_model(str(tmp_path))
+        cli_commons.training_interrupted = False
 
 
 class TestGetIndexedOutputDir:

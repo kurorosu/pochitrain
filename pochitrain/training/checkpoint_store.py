@@ -23,7 +23,7 @@ class CheckpointStore:
         self.work_dir = work_dir
         self.logger = logger
 
-    def save_checkpoint(
+    def _save_checkpoint(
         self,
         filename: str,
         epoch: int,
@@ -85,7 +85,7 @@ class CheckpointStore:
             self.logger.info(f"既存のベストモデルを削除: {existing_file}")
 
         best_filename = f"best_epoch{epoch}.pth"
-        checkpoint_path = self.save_checkpoint(
+        checkpoint_path = self._save_checkpoint(
             best_filename, epoch, model, optimizer, scheduler, best_accuracy
         )
         self.logger.info(f"ベストモデルを保存: {checkpoint_path}")
@@ -107,6 +107,6 @@ class CheckpointStore:
             scheduler: スケジューラ
             best_accuracy: ベスト精度
         """
-        self.save_checkpoint(
+        self._save_checkpoint(
             "last_model.pth", epoch, model, optimizer, scheduler, best_accuracy
         )

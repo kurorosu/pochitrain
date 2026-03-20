@@ -18,6 +18,7 @@ from pochitrain.pochi_dataset import PochiImageDataset
 from pochitrain.training.checkpoint_store import CheckpointStore
 from pochitrain.training.early_stopping import EarlyStopping
 from pochitrain.training.evaluator import Evaluator
+from pochitrain.training.layer_wise_lr import ParamGroupBuilder, ResNetLayerGrouper
 from pochitrain.training.training_configurator import TrainingConfigurator
 
 # --- EarlyStopping エッジケース ---
@@ -147,7 +148,11 @@ class TestTrainingConfiguratorEdgeCases:
     def configurator(self):
         """テスト用コンフィギュレータ."""
         logger = logging.getLogger("test_edge")
-        return TrainingConfigurator(device=torch.device("cpu"), logger=logger)
+        return TrainingConfigurator(
+            device=torch.device("cpu"),
+            logger=logger,
+            param_group_builder=ParamGroupBuilder(ResNetLayerGrouper(), logger),
+        )
 
     @pytest.fixture
     def model(self):
@@ -248,8 +253,7 @@ class TestCheckpointStoreEdgeCases:
         optimizer = optim.SGD(model.parameters(), lr=0.01)
 
         with pytest.raises(Exception):
-            store.save_checkpoint(
-                filename="test.pth",
+            store.save_best_model(
                 epoch=1,
                 model=model,
                 optimizer=optimizer,
@@ -257,14 +261,13 @@ class TestCheckpointStoreEdgeCases:
                 best_accuracy=50.0,
             )
 
-    def test_save_checkpoint_without_optimizer(self, tmp_path: Path):
-        """optimizer=None でもチェックポイント保存可能."""
+    def test_save_last_model_without_optimizer(self, tmp_path: Path):
+        """optimizer=None でもラストモデル保存可能."""
         logger = logging.getLogger("test_cp")
         store = CheckpointStore(tmp_path, logger)
         model = nn.Linear(10, 2)
 
-        path = store.save_checkpoint(
-            filename="no_opt.pth",
+        store.save_last_model(
             epoch=1,
             model=model,
             optimizer=None,
@@ -272,6 +275,7 @@ class TestCheckpointStoreEdgeCases:
             best_accuracy=0.0,
         )
 
+        path = tmp_path / "last_model.pth"
         checkpoint = torch.load(path, map_location="cpu", weights_only=True)
         assert checkpoint["optimizer_state_dict"] is None
 
@@ -322,7 +326,7 @@ class TestEvaluatorNanInfHandling:
         predicted = torch.tensor([1])
         targets = torch.tensor([1])
 
-        cm = evaluator.compute_confusion_matrix(predicted, targets, 3)
+        cm = evaluator._compute_confusion_matrix(predicted, targets, 3)
 
         assert cm[1, 1].item() == 1
         assert cm.sum().item() == 1

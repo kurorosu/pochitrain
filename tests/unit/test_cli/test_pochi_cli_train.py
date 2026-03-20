@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from pochitrain.cli.pochi import main, train_command
+from pochitrain.cli.commands.train import train_command
+from pochitrain.cli.pochi import main
 
 from .conftest import build_cli_config
 
@@ -62,7 +63,7 @@ class TestTrainCommandValidationHandling:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Pydantic 検証エラー時に早期 return することを確認する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.train as pochi_module
 
         logger = MagicMock()
         config = build_cli_config(
@@ -90,7 +91,7 @@ class TestTrainCommandValidationHandling:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """train_data_root が存在しない場合に早期 return することを確認する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.train as pochi_module
 
         logger = MagicMock()
         missing_train = tmp_path / "missing_train"
@@ -119,7 +120,7 @@ class TestTrainCommandValidationHandling:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """val_data_root が存在しない場合に早期 return することを確認する."""
-        import pochitrain.cli.pochi as pochi_module
+        import pochitrain.cli.commands.train as pochi_module
 
         logger = MagicMock()
         existing_train = tmp_path / "train"

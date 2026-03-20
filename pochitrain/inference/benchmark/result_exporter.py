@@ -1,5 +1,6 @@
 """ベンチマーク結果の出力処理."""
 
+import logging
 from pathlib import Path
 
 from pochitrain.inference.types.benchmark_types import (
@@ -26,3 +27,25 @@ def write_benchmark_result_json(
     """
     output_path = output_dir / filename
     return write_json_file(output_path, benchmark_result.to_dict())
+
+
+def export_benchmark_json(
+    output_dir: Path,
+    benchmark_result: BenchmarkResult,
+    logger: logging.Logger,
+) -> None:
+    """ベンチマーク結果 JSON の書き出しとログ出力を行う.
+
+    Args:
+        output_dir: 出力ディレクトリ.
+        benchmark_result: 保存するベンチ結果.
+        logger: ロガー.
+    """
+    try:
+        json_path = write_benchmark_result_json(
+            output_dir=output_dir,
+            benchmark_result=benchmark_result,
+        )
+        logger.info(f"ベンチマークJSONを出力しました: {json_path.name}")
+    except Exception as exc:  # pragma: no cover
+        logger.warning(f"ベンチマークJSONの保存に失敗しました, error: {exc}")
