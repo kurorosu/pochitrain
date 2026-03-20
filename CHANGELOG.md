@@ -20,18 +20,19 @@
   - `cli/commands/` に `train.py`, `infer.py`, `optimize.py`, `convert.py` を分離した.
   - `cli/cli_commons.py` に共有ユーティリティ (`setup_logging`, `create_signal_handler`) を抽出した.
   - `pochi.py` を 956行から 181行に削減した.
-- `convert_command` のビジネスロジックをサービス層に分離した (`N/A.`).
+- `convert_command` のビジネスロジックをサービス層に分離した ([#342](https://github.com/kurorosu/pochitrain/pull/342)).
   - `tensorrt/input_shape_resolver.py`: ONNX 動的シェイプ検出を CLI から分離した.
   - `tensorrt/int8_config.py`: INT8 キャリブレーション設定の組み立てを CLI から分離した.
   - ベンチマーク JSON 出力の重複を `export_benchmark_json()` に共通化した.
 
 ### Fixed
-- なし.
+- `metrics_exporter.py` の colormap を層数に応じて自動選択するよう修正した (`N/A.`).
+  - 10層以下は `tab10`, 11層以上は `tab20` を使用する.
 
 ### Removed
-- `PochiTrainer.setup_training_from_config()` を削除した (呼び出し元なし) (`N/A.`).
-- `find_best_model()` を削除した (呼び出し元なし) (`N/A.`).
-- `EarlyStopping.get_status()` を削除した (呼び出し元なし) (`N/A.`).
+- `PochiTrainer.setup_training_from_config()` を削除した (呼び出し元なし) ([#339](https://github.com/kurorosu/pochitrain/pull/339)).
+- `find_best_model()` を削除した (呼び出し元なし) ([#339](https://github.com/kurorosu/pochitrain/pull/339)).
+- `EarlyStopping.get_status()` を削除した (呼び出し元なし) ([#339](https://github.com/kurorosu/pochitrain/pull/339)).
 
 ## v1.8.0 (2026-03-16)
 

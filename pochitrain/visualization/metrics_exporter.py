@@ -331,7 +331,9 @@ class TrainingMetricsExporter(BaseCSVExporter):
 
         fig, ax = plt.subplots(figsize=(12, 8))
 
-        colors = plt.get_cmap("tab10")(range(len(lr_columns)))
+        n_colors = len(lr_columns)
+        cmap_name = "tab10" if n_colors <= 10 else "tab20"
+        colors = plt.get_cmap(cmap_name)(range(n_colors))
         for i, lr_col in enumerate(lr_columns):
             layer_name = lr_col.replace("lr_", "")
             learning_rates = [m.get(lr_col, 0) for m in self.metrics_history]
