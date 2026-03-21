@@ -9,14 +9,17 @@
 - なし.
 
 ### Changed
-- なし.
+- マジックナンバーを定数化した (`N/A.`).
+  - `pochi_predictor.py`: ウォームアップ反復回数 `_WARMUP_ITERATIONS = 10`.
+  - `epoch_runner.py`: ログ出力バッチ間隔 `_LOG_BATCH_INTERVAL = 100`.
+  - `pochi_dataset.py`: Resize スケール倍率 `_RESIZE_SCALE_FACTOR = 1.14`, ColorJitter パラメータ.
 
 ### Fixed
 - `InputShapeResolver._detect_from_onnx()` の無言例外無視を修正した ([#353](https://github.com/kurorosu/pochitrain/pull/353)).
   - `except Exception: pass` を `logger.debug()` に変更し, デバッグ時にエラー原因を追跡可能にした.
 
 ### Tests
-- `input_shape_resolver.py` と `int8_config.py` のテストを追加した (`N/A.`).
+- `input_shape_resolver.py` と `int8_config.py` のテストを追加した ([#354](https://github.com/kurorosu/pochitrain/pull/354)).
   - `InputShapeResolver`: CLI入力, 静的/動的 ONNX, onnx 未インストール, 破損ファイル, extract_static_shape のテストを追加した.
   - `INT8CalibrationConfigurer`: 明示パス指定, config 自動検出, calib_data 未指定, パス不在, val_transform 未設定, config 読み込みエラー, キャッシュファイルパスのテストを追加した.
 
