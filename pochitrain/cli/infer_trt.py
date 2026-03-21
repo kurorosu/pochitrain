@@ -15,7 +15,7 @@ from pathlib import Path
 from pochitrain.inference.benchmark import (
     build_trt_benchmark_result,
     export_benchmark_json,
-    resolve_env_name,
+    resolve_benchmark_env_name,
 )
 from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.inference.types.orchestration_types import InferenceCliRequest
@@ -191,14 +191,10 @@ def main() -> None:
     )
 
     if args.benchmark_json:
-        configured_env_name = args.benchmark_env_name or config.get(
-            "benchmark_env_name"
-        )
-        env_name = resolve_env_name(
+        env_name = resolve_benchmark_env_name(
             use_gpu=True,
-            configured_env_name=(
-                str(configured_env_name) if configured_env_name is not None else None
-            ),
+            cli_env_name=args.benchmark_env_name,
+            config_env_name=config.get("benchmark_env_name"),
         )
         benchmark_result = build_trt_benchmark_result(
             engine_path=engine_path,

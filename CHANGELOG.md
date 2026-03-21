@@ -9,7 +9,8 @@
 - なし.
 
 ### Changed
-- なし.
+- ベンチマーク JSON 出力の env_name 解決パターンを共通化した (`N/A.`).
+  - `resolve_benchmark_env_name()` を `result_exporter.py` に追加し, 3箇所の CLI から呼び出すようにした.
 
 ### Fixed
 - なし.
