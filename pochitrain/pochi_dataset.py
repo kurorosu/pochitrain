@@ -134,7 +134,7 @@ class PochiImageDataset(Dataset):
         """クラス名のリストを取得."""
         return self.classes
 
-    def get_class_counts(self) -> dict:
+    def get_class_counts(self) -> dict[str, int]:
         """各クラスの画像数を取得."""
         label_counts = Counter(self.labels)
         return {

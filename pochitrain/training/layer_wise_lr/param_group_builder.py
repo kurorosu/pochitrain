@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+import torch
 import torch.nn as nn
 
 from .interfaces import ILayerGrouper
@@ -43,7 +44,7 @@ class ParamGroupBuilder:
         """
         layer_rates = layer_wise_lr_config.get("layer_rates", {})
 
-        layer_params: dict[str, list] = {}
+        layer_params: dict[str, list[torch.nn.Parameter]] = {}
         for name, param in model.named_parameters():
             if param.requires_grad:
                 layer_group = self._layer_grouper.get_group(name)

@@ -9,10 +9,14 @@
 - なし.
 
 ### Changed
-- マジックナンバーを定数化した (`N/A.`).
+- マジックナンバーを定数化した ([#355](https://github.com/kurorosu/pochitrain/pull/355)).
   - `pochi_predictor.py`: ウォームアップ反復回数 `_WARMUP_ITERATIONS = 10`.
   - `epoch_runner.py`: ログ出力バッチ間隔 `_LOG_BATCH_INTERVAL = 100`.
   - `pochi_dataset.py`: Resize スケール倍率 `_RESIZE_SCALE_FACTOR = 1.14`, ColorJitter パラメータ.
+- 型アノテーションを補完した (`N/A.`).
+  - `pochi_dataset.py`: `get_class_counts() -> dict[str, int]`.
+  - `directory_manager.py`: `save_dataset_paths(train_paths: list[str], ...)`.
+  - `param_group_builder.py`: `layer_params: dict[str, list[torch.nn.Parameter]]`.
 
 ### Fixed
 - `InputShapeResolver._detect_from_onnx()` の無言例外無視を修正した ([#353](https://github.com/kurorosu/pochitrain/pull/353)).
