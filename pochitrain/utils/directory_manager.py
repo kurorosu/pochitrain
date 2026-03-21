@@ -151,7 +151,7 @@ class PochiWorkspaceManager:
         return target_path
 
     def save_dataset_paths(
-        self, train_paths: list, val_paths: Optional[list] = None
+        self, train_paths: list[str], val_paths: Optional[list[str]] = None
     ) -> tuple[Path, Optional[Path]]:
         """
         訓練・検証データのパスリストを保存.

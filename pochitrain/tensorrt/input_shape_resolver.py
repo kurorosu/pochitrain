@@ -1,11 +1,20 @@
 """ONNX モデルの入力形状解析と動的シェイプ検出."""
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 
 class InputShapeResolver:
     """ONNX モデルの入力形状を解析し, 動的シェイプを検出する."""
+
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        """入力形状リゾルバを初期化.
+
+        Args:
+            logger: ロガー. None の場合はモジュールロガーを使用.
+        """
+        self._logger = logger or logging.getLogger(__name__)
 
     def resolve(
         self,
@@ -56,7 +65,7 @@ class InputShapeResolver:
         except ValueError:
             raise
         except Exception:
-            pass
+            self._logger.debug("ONNX 入力形状の検出中にエラーが発生", exc_info=True)
 
         return None
 

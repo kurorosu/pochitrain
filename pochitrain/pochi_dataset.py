@@ -22,6 +22,12 @@ logger: logging.Logger = LoggerManager().get_logger(__name__)
 
 _PIL_ONLY_TRANSFORMS: tuple[type, ...] = (transforms.ToPILImage,)
 
+_RESIZE_SCALE_FACTOR = 1.14
+_COLOR_JITTER_BRIGHTNESS = 0.2
+_COLOR_JITTER_CONTRAST = 0.2
+_COLOR_JITTER_SATURATION = 0.2
+_COLOR_JITTER_HUE = 0.1
+
 
 def _check_pil_transform(t: Any, dataset_name: str) -> bool:
     """PIL専用transformが含まれているかチェックし, 警告をログ出力する.
@@ -128,7 +134,7 @@ class PochiImageDataset(Dataset):
         """クラス名のリストを取得."""
         return self.classes
 
-    def get_class_counts(self) -> dict:
+    def get_class_counts(self) -> dict[str, int]:
         """各クラスの画像数を取得."""
         label_counts = Counter(self.labels)
         return {
@@ -414,7 +420,10 @@ def get_basic_transforms(
                 transforms.RandomResizedCrop(image_size),
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.ColorJitter(
-                    brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1
+                    brightness=_COLOR_JITTER_BRIGHTNESS,
+                    contrast=_COLOR_JITTER_CONTRAST,
+                    saturation=_COLOR_JITTER_SATURATION,
+                    hue=_COLOR_JITTER_HUE,
                 ),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=mean, std=std),
@@ -423,7 +432,7 @@ def get_basic_transforms(
     else:
         return transforms.Compose(
             [
-                transforms.Resize(int(image_size * 1.14)),  # 256 for 224
+                transforms.Resize(int(image_size * _RESIZE_SCALE_FACTOR)),
                 transforms.CenterCrop(image_size),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=mean, std=std),

@@ -8,6 +8,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+_LOG_BATCH_INTERVAL = 100
+
 
 class EpochRunner:
     """1エポック分の訓練処理を実行する.
@@ -63,7 +65,7 @@ class EpochRunner:
             total += batch_size
             correct += predicted.eq(target).sum().item()
 
-            if batch_idx % 100 == 0:
+            if batch_idx % _LOG_BATCH_INTERVAL == 0:
                 self.logger.debug(
                     f"エポック {epoch}, バッチ {batch_idx}/{len(train_loader)}, "
                     f"損失: {loss.item():.4f}, 精度: {100.0 * correct / total:.2f}%"

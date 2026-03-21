@@ -53,7 +53,7 @@ def convert_command(args: argparse.Namespace) -> None:
 
     from pochitrain.tensorrt.input_shape_resolver import InputShapeResolver
 
-    shape_resolver = InputShapeResolver()
+    shape_resolver = InputShapeResolver(logger)
     try:
         input_shape = shape_resolver.resolve(args.input_size, onnx_path)
     except ValueError as e:
