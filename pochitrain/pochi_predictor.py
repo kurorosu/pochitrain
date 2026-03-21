@@ -18,6 +18,8 @@ from .models.pochi_models import create_model
 from .utils.inference_utils import post_process_logits
 from .utils.model_loading import load_model_from_checkpoint
 
+_WARMUP_ITERATIONS = 10
+
 
 class PochiPredictor:
     """
@@ -165,7 +167,7 @@ class PochiPredictor:
             warmup_data = torch.tensor(warmup_data)
         warmup_data = warmup_data.unsqueeze(0).to(self.device)
         with torch.inference_mode():
-            for _ in range(10):
+            for _ in range(_WARMUP_ITERATIONS):
                 self.model(warmup_data)
             if use_cuda:
                 torch.cuda.synchronize()
