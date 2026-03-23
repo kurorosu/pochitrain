@@ -2,7 +2,9 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
+from pochitrain.inference.benchmark.env_name import resolve_env_name
 from pochitrain.inference.types.benchmark_types import (
     BENCHMARK_RESULT_FILENAME,
     BenchmarkResult,
@@ -27,6 +29,29 @@ def write_benchmark_result_json(
     """
     output_path = output_dir / filename
     return write_json_file(output_path, benchmark_result.to_dict())
+
+
+def resolve_benchmark_env_name(
+    *,
+    use_gpu: bool,
+    cli_env_name: Optional[str],
+    config_env_name: Optional[str],
+) -> str:
+    """CLI 引数と config から環境名を組み立てて resolve_env_name() に委譲する.
+
+    Args:
+        use_gpu: GPU を利用しているかどうか.
+        cli_env_name: CLI の --benchmark-env-name で指定された値.
+        config_env_name: config の benchmark_env_name の値.
+
+    Returns:
+        環境識別文字列.
+    """
+    configured = cli_env_name or config_env_name
+    return resolve_env_name(
+        use_gpu=use_gpu,
+        configured_env_name=str(configured) if configured is not None else None,
+    )
 
 
 def export_benchmark_json(

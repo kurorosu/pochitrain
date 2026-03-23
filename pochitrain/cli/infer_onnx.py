@@ -8,27 +8,63 @@
 """
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
+from pochitrain.cli.cli_commons import (
+    InferencePipelineResult,
+    run_inference_pipeline,
+    setup_logging,
+)
 from pochitrain.inference.benchmark import (
-    build_onnx_benchmark_result,
+    build_benchmark_result,
     export_benchmark_json,
-    resolve_env_name,
+    resolve_benchmark_env_name,
 )
 from pochitrain.inference.services.onnx_inference_service import OnnxInferenceService
-from pochitrain.inference.types.orchestration_types import InferenceCliRequest
-from pochitrain.logging import LoggerManager
-from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     load_config_auto,
     validate_model_path,
 )
 
-logger: logging.Logger = LoggerManager().get_logger(__name__)
-
 PIPELINE_CHOICES = ("auto", "current", "fast", "gpu")
+
+
+def _export_benchmark_if_needed(
+    args: argparse.Namespace,
+    config: dict,
+    result: InferencePipelineResult,
+    model_path: Path,
+    use_gpu: bool,
+    logger: object,
+) -> None:
+    """ONNX ベンチマーク JSON を条件付きでエクスポートする."""
+    if not args.benchmark_json:
+        return
+    env_name = resolve_benchmark_env_name(
+        use_gpu=use_gpu,
+        cli_env_name=args.benchmark_env_name,
+        config_env_name=config.get("benchmark_env_name"),
+    )
+    benchmark_result = build_benchmark_result(
+        runtime="onnx",
+        precision="fp32",
+        device="cuda" if use_gpu else "cpu",
+        pipeline=result.pipeline,
+        model_name=str(config.get("model_name", model_path.stem)),
+        batch_size=result.runtime_options.batch_size,
+        gpu_non_blocking=result.runtime_request.execution_request.gpu_non_blocking,
+        pin_memory=result.runtime_options.pin_memory,
+        input_size=result.input_size,
+        avg_time_per_image=result.run_result.avg_time_per_image,
+        avg_total_time_per_image=result.run_result.avg_total_time_per_image,
+        num_samples=result.run_result.num_samples,
+        total_samples=result.run_result.total_samples,
+        warmup_samples=result.run_result.warmup_samples,
+        accuracy=result.run_result.accuracy_percent,
+        env_name=env_name,
+    )
+    export_benchmark_json(result.output_dir, benchmark_result, logger)  # type: ignore[arg-type]
 
 
 def main() -> None:
@@ -54,11 +90,7 @@ def main() -> None:
     )
 
     parser.add_argument("model_path", help="ONNXモデルファイルパス")
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="デバッグログを有効化",
-    )
+    parser.add_argument("--debug", action="store_true", help="デバッグログを有効化")
     parser.add_argument(
         "--data",
         help="推論データディレクトリ（省略時はconfigのval_data_rootを使用）",
@@ -86,12 +118,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    orchestration_service = OnnxInferenceService()
-
-    manager = LoggerManager()
-    level = LogLevel.DEBUG if args.debug else LogLevel.INFO
-    manager.set_default_level(level)
-    manager.set_logger_level(__name__, level)
+    logger = setup_logging(debug=args.debug)
 
     model_path = Path(args.model_path)
     try:
@@ -106,119 +133,46 @@ def main() -> None:
         logger.error(str(e))
         sys.exit(1)
 
-    cli_request = InferenceCliRequest(
-        model_path=model_path,
-        data_path=Path(args.data) if args.data else None,
-        output_dir=Path(args.output) if args.output else None,
-        requested_pipeline=args.pipeline,
-    )
-    try:
-        resolved_paths = orchestration_service.resolve_paths(cli_request, config)
-    except ValueError as e:
-        logger.error(str(e))
-        sys.exit(1)
-
-    data_path = resolved_paths.data_path
-    output_dir = resolved_paths.output_dir
-
+    # ONNX 固有: セッション作成と実 GPU 利用可否の判定
+    service = OnnxInferenceService()
     requested_use_gpu = config.get("device", "cpu") == "cuda"
-    val_transform = config["val_transform"]
-
-    logger.debug(f"モデル: {model_path}")
-    logger.debug(f"データ: {data_path}")
-    logger.debug(f"出力先: {output_dir}")
-    logger.debug("ONNXセッションを作成中...")
-    inference, actual_use_gpu = orchestration_service.create_onnx_session(
-        model_path=model_path,
-        use_gpu=requested_use_gpu,
+    inference, actual_use_gpu = service.create_onnx_session(
+        model_path=model_path, use_gpu=requested_use_gpu
     )
 
-    pipeline = orchestration_service.resolve_pipeline(args.pipeline, actual_use_gpu)
-    runtime_options = orchestration_service.resolve_runtime_options(
-        config=config,
-        pipeline=pipeline,
-        use_gpu=actual_use_gpu,
-    )
-    data_loader, dataset, pipeline, norm_mean, norm_std = (
-        orchestration_service.create_dataloader(
-            config=config,
-            data_path=data_path,
-            val_transform=val_transform,
-            pipeline=pipeline,
-            runtime_options=runtime_options,
-        )
-    )
-
-    logger.debug(f"バッチサイズ: {runtime_options.batch_size}")
-    logger.debug(f"ワーカー数: {runtime_options.num_workers}")
-    logger.debug(f"GPU使用: {actual_use_gpu}")
-    logger.debug(f"パイプライン: {pipeline}")
-
+    # ONNX 固有: 入力サイズ解決
     input_size = None
     try:
         shape = inference.session.get_inputs()[0].shape
-        input_size = orchestration_service.resolve_input_size(shape)
+        input_size = service.resolve_input_size(shape)
     except Exception:
         pass
 
-    logger.info("推論を開始します...")
-    runtime_adapter = orchestration_service.create_runtime_adapter(inference)
-    runtime_request = orchestration_service.build_runtime_execution_request(
-        data_loader=data_loader,
-        runtime_adapter=runtime_adapter,
-        use_gpu_pipeline=runtime_options.use_gpu_pipeline,
-        norm_mean=norm_mean,
-        norm_std=norm_std,
-        use_cuda_timing=actual_use_gpu,
-        gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
-    )
-    run_result = orchestration_service.run(runtime_request)
-    logger.info("推論完了")
-
     providers = inference.get_providers()
-    orchestration_service.aggregate_and_export(
-        workspace_dir=output_dir,
-        model_path=model_path,
-        data_path=data_path,
-        dataset=dataset,
-        run_result=run_result,
-        input_size=input_size,
-        model_info=None,
-        cm_config=config.get("confusion_matrix_config", None),
-        results_filename="onnx_inference_results.csv",
-        summary_filename="onnx_inference_summary.txt",
-        extra_info={"プロバイダー": providers, "パイプライン": pipeline},
-    )
 
-    if args.benchmark_json:
-        configured_env_name = args.benchmark_env_name or config.get(
-            "benchmark_env_name"
-        )
-        env_name = resolve_env_name(
+    try:
+        result = run_inference_pipeline(
+            service=service,
+            logger=logger,
+            model_path=model_path,
+            config=config,
+            inference=inference,
+            args=args,
             use_gpu=actual_use_gpu,
-            configured_env_name=(
-                str(configured_env_name) if configured_env_name is not None else None
-            ),
-        )
-        benchmark_result = build_onnx_benchmark_result(
-            use_gpu=actual_use_gpu,
-            pipeline=pipeline,
-            model_name=str(config.get("model_name", model_path.stem)),
-            batch_size=runtime_options.batch_size,
-            gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
-            pin_memory=runtime_options.pin_memory,
+            val_transform=config["val_transform"],
+            use_cuda_timing=actual_use_gpu,
             input_size=input_size,
-            avg_time_per_image=run_result.avg_time_per_image,
-            avg_total_time_per_image=run_result.avg_total_time_per_image,
-            num_samples=run_result.num_samples,
-            total_samples=run_result.total_samples,
-            warmup_samples=run_result.warmup_samples,
-            accuracy=run_result.accuracy_percent,
-            env_name=env_name,
+            results_filename="onnx_inference_results.csv",
+            summary_filename="onnx_inference_summary.txt",
+            extra_info={"プロバイダー": providers, "パイプライン": args.pipeline},
         )
-        export_benchmark_json(output_dir, benchmark_result, logger)
+    except (ValueError, Exception) as e:
+        logger.error(str(e))
+        sys.exit(1)
 
-    logger.info(f"ワークスペース: {output_dir.name}にサマリーファイルを出力しました")
+    _export_benchmark_if_needed(
+        args, config, result, model_path, actual_use_gpu, logger
+    )
 
 
 if __name__ == "__main__":

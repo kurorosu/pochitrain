@@ -17,35 +17,30 @@
 ### Removed
 - なし.
 
-## v1.8.2 (2026-03-21)
+## v1.8.3 (2026-03-23)
 
 ### 概要
-- コード品質改善 (バグ修正, テスト追加, 定数化, 型補完) を含むパッチリリースです.
+- CLI 推論モジュールの重複解消とベンチマーク結果構築の統合を含むパッチリリースです.
 
 ### Added
 - なし.
 
 ### Changed
-- マジックナンバーを定数化した ([#355](https://github.com/kurorosu/pochitrain/pull/355)).
-  - `pochi_predictor.py`: ウォームアップ反復回数 `_WARMUP_ITERATIONS = 10`.
-  - `epoch_runner.py`: ログ出力バッチ間隔 `_LOG_BATCH_INTERVAL = 100`.
-  - `pochi_dataset.py`: Resize スケール倍率 `_RESIZE_SCALE_FACTOR = 1.14`, ColorJitter パラメータ.
-- 型アノテーションを補完した ([#356](https://github.com/kurorosu/pochitrain/pull/356)).
-  - `pochi_dataset.py`: `get_class_counts() -> dict[str, int]`.
-  - `directory_manager.py`: `save_dataset_paths(train_paths: list[str], ...)`.
-  - `param_group_builder.py`: `layer_params: dict[str, list[torch.nn.Parameter]]`.
+- ベンチマーク JSON 出力の env_name 解決パターンを共通化した ([#358](https://github.com/kurorosu/pochitrain/pull/358)).
+  - `resolve_benchmark_env_name()` を `result_exporter.py` に追加し, 3箇所の CLI から呼び出すようにした.
+- `infer_onnx.py` と `infer_trt.py` の共通処理を抽出した ([#359](https://github.com/kurorosu/pochitrain/pull/359)).
+  - `cli_commons.py` に `run_inference_pipeline()` を追加し, パス解決からエクスポートまでの共通フローを一元化した.
+  - ログ初期化を `setup_logging()` に統一した.
+  - `infer_onnx.py`: 222行 → 172行, `infer_trt.py`: 222行 → 179行.
+- `result_builder.py` のベンチマーク結果構築関数を統合した ([#360](https://github.com/kurorosu/pochitrain/pull/360)).
+  - `build_onnx/trt/pytorch_benchmark_result()` 3関数を `build_benchmark_result()` 1関数に統合した.
+  - `_resolve_trt_precision()` を `resolve_trt_precision()` としてパブリック化した.
 
 ### Fixed
-- `InputShapeResolver._detect_from_onnx()` の無言例外無視を修正した ([#353](https://github.com/kurorosu/pochitrain/pull/353)).
-  - `except Exception: pass` を `logger.debug()` に変更し, デバッグ時にエラー原因を追跡可能にした.
-
-### Tests
-- `input_shape_resolver.py` と `int8_config.py` のテストを追加した ([#354](https://github.com/kurorosu/pochitrain/pull/354)).
-  - `InputShapeResolver`: CLI入力, 静的/動的 ONNX, onnx 未インストール, 破損ファイル, extract_static_shape のテストを追加した.
-  - `INT8CalibrationConfigurer`: 明示パス指定, config 自動検出, calib_data 未指定, パス不在, val_transform 未設定, config 読み込みエラー, キャッシュファイルパスのテストを追加した.
+- なし.
 
 ### Removed
-- なし.
+- `build_onnx_benchmark_result()`, `build_trt_benchmark_result()`, `build_pytorch_benchmark_result()` を削除した ([#360](https://github.com/kurorosu/pochitrain/pull/360)).
 
 ## Archived Changelogs
 

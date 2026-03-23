@@ -2,17 +2,20 @@
 
 from .env_name import resolve_env_name
 from .result_builder import (
-    build_onnx_benchmark_result,
-    build_pytorch_benchmark_result,
-    build_trt_benchmark_result,
+    build_benchmark_result,
+    resolve_trt_precision,
 )
-from .result_exporter import export_benchmark_json, write_benchmark_result_json
+from .result_exporter import (
+    export_benchmark_json,
+    resolve_benchmark_env_name,
+    write_benchmark_result_json,
+)
 
 __all__ = [
     "resolve_env_name",
-    "build_onnx_benchmark_result",
-    "build_pytorch_benchmark_result",
-    "build_trt_benchmark_result",
+    "resolve_benchmark_env_name",
+    "build_benchmark_result",
+    "resolve_trt_precision",
     "write_benchmark_result_json",
     "export_benchmark_json",
 ]
