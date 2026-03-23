@@ -17,7 +17,7 @@ from pochitrain.cli.cli_commons import (
     setup_logging,
 )
 from pochitrain.inference.benchmark import (
-    build_onnx_benchmark_result,
+    build_benchmark_result,
     export_benchmark_json,
     resolve_benchmark_env_name,
 )
@@ -46,8 +46,10 @@ def _export_benchmark_if_needed(
         cli_env_name=args.benchmark_env_name,
         config_env_name=config.get("benchmark_env_name"),
     )
-    benchmark_result = build_onnx_benchmark_result(
-        use_gpu=use_gpu,
+    benchmark_result = build_benchmark_result(
+        runtime="onnx",
+        precision="fp32",
+        device="cuda" if use_gpu else "cpu",
         pipeline=result.pipeline,
         model_name=str(config.get("model_name", model_path.stem)),
         batch_size=result.runtime_options.batch_size,

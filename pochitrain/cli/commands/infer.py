@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from pochitrain import PochiConfig
 from pochitrain.cli.cli_commons import setup_logging
 from pochitrain.inference.benchmark import (
-    build_pytorch_benchmark_result,
+    build_benchmark_result,
     export_benchmark_json,
     resolve_benchmark_env_name,
 )
@@ -161,8 +161,10 @@ def infer_command(args: argparse.Namespace) -> None:
                 cli_env_name=getattr(args, "benchmark_env_name", None),
                 config_env_name=config.get("benchmark_env_name"),
             )
-            benchmark_result = build_pytorch_benchmark_result(
-                use_gpu=use_gpu,
+            benchmark_result = build_benchmark_result(
+                runtime="pytorch",
+                precision="fp32",
+                device="cuda" if use_gpu else "cpu",
                 pipeline=pipeline,
                 model_name=str(config.get("model_name", model_path.stem)),
                 batch_size=runtime_options.batch_size,
