@@ -1,6 +1,6 @@
 [project]
 name = "pochitrain"
-version = "1.8.2"
+version = "1.8.3"
 description = "Simple CNN training framework for image classification"
 readme = "README.md"
 # Jetson (JetPack 6.2.1 / Python 3.10) で pip install -e . するため >=3.10 を維持.
