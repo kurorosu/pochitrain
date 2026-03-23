@@ -8,27 +8,60 @@
 """
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
+from pochitrain.cli.cli_commons import (
+    InferencePipelineResult,
+    run_inference_pipeline,
+    setup_logging,
+)
 from pochitrain.inference.benchmark import (
     build_trt_benchmark_result,
     export_benchmark_json,
     resolve_benchmark_env_name,
 )
 from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
-from pochitrain.inference.types.orchestration_types import InferenceCliRequest
-from pochitrain.logging import LoggerManager
-from pochitrain.logging.logger_manager import LogLevel
 from pochitrain.utils import (
     load_config_auto,
     validate_model_path,
 )
 
-logger: logging.Logger = LoggerManager().get_logger(__name__)
-
 PIPELINE_CHOICES = ("auto", "current", "fast", "gpu")
+
+
+def _export_benchmark_if_needed(
+    args: argparse.Namespace,
+    config: dict,
+    result: InferencePipelineResult,
+    engine_path: Path,
+    logger: object,
+) -> None:
+    """条件付きで TensorRT ベンチマーク JSON をエクスポートする."""
+    if not args.benchmark_json:
+        return
+    env_name = resolve_benchmark_env_name(
+        use_gpu=True,
+        cli_env_name=args.benchmark_env_name,
+        config_env_name=config.get("benchmark_env_name"),
+    )
+    benchmark_result = build_trt_benchmark_result(
+        engine_path=engine_path,
+        pipeline=result.pipeline,
+        model_name=str(config.get("model_name", engine_path.stem)),
+        batch_size=result.runtime_options.batch_size,
+        gpu_non_blocking=result.runtime_request.execution_request.gpu_non_blocking,
+        pin_memory=result.runtime_options.pin_memory,
+        input_size=result.input_size,
+        avg_time_per_image=result.run_result.avg_time_per_image,
+        avg_total_time_per_image=result.run_result.avg_total_time_per_image,
+        num_samples=result.run_result.num_samples,
+        total_samples=result.run_result.total_samples,
+        warmup_samples=result.run_result.warmup_samples,
+        accuracy=result.run_result.accuracy_percent,
+        env_name=env_name,
+    )
+    export_benchmark_json(result.output_dir, benchmark_result, logger)  # type: ignore[arg-type]
 
 
 def main() -> None:
@@ -58,11 +91,7 @@ def main() -> None:
     )
 
     parser.add_argument("engine_path", help="TensorRTエンジンファイルパス (.engine)")
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="デバッグログを有効化",
-    )
+    parser.add_argument("--debug", action="store_true", help="デバッグログを有効化")
     parser.add_argument(
         "--data",
         help="推論データディレクトリ（省略時はconfigのval_data_rootを使用）",
@@ -90,12 +119,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    orchestration_service = TensorRTInferenceService()
-
-    manager = LoggerManager()
-    level = LogLevel.DEBUG if args.debug else LogLevel.INFO
-    manager.set_default_level(level)
-    manager.set_logger_level(__name__, level)
+    logger = setup_logging(debug=args.debug)
 
     engine_path = Path(args.engine_path)
     try:
@@ -104,8 +128,10 @@ def main() -> None:
         logger.error(str(e))
         sys.exit(1)
 
+    # TRT 固有: TensorRT 推論インスタンス作成 (config 読み込み前に必要)
+    service = TensorRTInferenceService()
     try:
-        inference = orchestration_service.create_trt_inference(engine_path)
+        inference = service.create_trt_inference(engine_path)
     except ImportError:
         logger.error(
             "TensorRTがインストールされていません. "
@@ -119,102 +145,37 @@ def main() -> None:
         logger.error(str(e))
         sys.exit(1)
 
-    cli_request = InferenceCliRequest(
-        model_path=engine_path,
-        data_path=Path(args.data) if args.data else None,
-        output_dir=Path(args.output) if args.output else None,
-        requested_pipeline=args.pipeline,
-    )
-    try:
-        resolved_paths = orchestration_service.resolve_paths(cli_request, config)
-    except ValueError as e:
-        logger.error(str(e))
-        sys.exit(1)
-
-    data_path = resolved_paths.data_path
-    output_dir = resolved_paths.output_dir
-
-    val_transform = orchestration_service.resolve_val_transform(config, inference)
-
-    pipeline = orchestration_service.resolve_pipeline(args.pipeline, use_gpu=True)
-    runtime_options = orchestration_service.resolve_runtime_options(config, pipeline)
-    data_loader, dataset, pipeline, norm_mean, norm_std = (
-        orchestration_service.create_dataloader(
-            config=config,
-            data_path=data_path,
-            val_transform=val_transform,
-            pipeline=pipeline,
-            runtime_options=runtime_options,
-        )
-    )
-
-    logger.debug(f"エンジン: {engine_path}")
-    logger.debug(f"データ: {data_path}")
-    logger.debug(f"ワーカー数: {runtime_options.num_workers}")
-    logger.debug(f"パイプライン: {pipeline}")
-    logger.debug(f"出力先: {output_dir}")
-
-    logger.info("推論を開始します...")
+    # TRT 固有: val_transform と入力サイズの解決
+    val_transform = service.resolve_val_transform(config, inference)
 
     input_size = None
     try:
         shape = inference.input_shape
-        input_size = orchestration_service.resolve_input_size(shape)
+        input_size = service.resolve_input_size(shape)
     except Exception:
         pass
 
-    runtime_adapter = orchestration_service.create_runtime_adapter(inference)
-    runtime_request = orchestration_service.build_runtime_execution_request(
-        data_loader=data_loader,
-        runtime_adapter=runtime_adapter,
-        use_gpu_pipeline=runtime_options.use_gpu_pipeline,
-        norm_mean=norm_mean,
-        norm_std=norm_std,
-        use_cuda_timing=True,
-        gpu_non_blocking=bool(config.get("gpu_non_blocking", True)),
-    )
-    run_result = orchestration_service.run(runtime_request)
-    logger.info("推論完了")
-
-    orchestration_service.aggregate_and_export(
-        workspace_dir=output_dir,
-        model_path=engine_path,
-        data_path=data_path,
-        dataset=dataset,
-        run_result=run_result,
-        input_size=input_size,
-        model_info=None,
-        cm_config=config.get("confusion_matrix_config", None),
-        results_filename="tensorrt_inference_results.csv",
-        summary_filename="tensorrt_inference_summary.txt",
-        extra_info={"パイプライン": pipeline},
-    )
-
-    if args.benchmark_json:
-        env_name = resolve_benchmark_env_name(
+    try:
+        result = run_inference_pipeline(
+            service=service,
+            logger=logger,
+            model_path=engine_path,
+            config=config,
+            inference=inference,
+            args=args,
             use_gpu=True,
-            cli_env_name=args.benchmark_env_name,
-            config_env_name=config.get("benchmark_env_name"),
-        )
-        benchmark_result = build_trt_benchmark_result(
-            engine_path=engine_path,
-            pipeline=pipeline,
-            model_name=str(config.get("model_name", engine_path.stem)),
-            batch_size=runtime_options.batch_size,
-            gpu_non_blocking=runtime_request.execution_request.gpu_non_blocking,
-            pin_memory=runtime_options.pin_memory,
+            val_transform=val_transform,
+            use_cuda_timing=True,
             input_size=input_size,
-            avg_time_per_image=run_result.avg_time_per_image,
-            avg_total_time_per_image=run_result.avg_total_time_per_image,
-            num_samples=run_result.num_samples,
-            total_samples=run_result.total_samples,
-            warmup_samples=run_result.warmup_samples,
-            accuracy=run_result.accuracy_percent,
-            env_name=env_name,
+            results_filename="tensorrt_inference_results.csv",
+            summary_filename="tensorrt_inference_summary.txt",
+            extra_info={"パイプライン": args.pipeline},
         )
-        export_benchmark_json(output_dir, benchmark_result, logger)
+    except (ValueError, Exception) as e:
+        logger.error(str(e))
+        sys.exit(1)
 
-    logger.info(f"ワークスペース: {output_dir.name}にサマリーファイルを出力しました")
+    _export_benchmark_if_needed(args, config, result, engine_path, logger)
 
 
 if __name__ == "__main__":
