@@ -11,10 +11,13 @@
 ### Changed
 - ベンチマーク JSON 出力の env_name 解決パターンを共通化した ([#358](https://github.com/kurorosu/pochitrain/pull/358)).
   - `resolve_benchmark_env_name()` を `result_exporter.py` に追加し, 3箇所の CLI から呼び出すようにした.
-- `infer_onnx.py` と `infer_trt.py` の共通処理を抽出した (`N/A.`).
+- `infer_onnx.py` と `infer_trt.py` の共通処理を抽出した ([#359](https://github.com/kurorosu/pochitrain/pull/359)).
   - `cli_commons.py` に `run_inference_pipeline()` を追加し, パス解決からエクスポートまでの共通フローを一元化した.
   - ログ初期化を `setup_logging()` に統一した.
-  - `infer_onnx.py`: 222行 → 170行, `infer_trt.py`: 222行 → 177行.
+  - `infer_onnx.py`: 222行 → 172行, `infer_trt.py`: 222行 → 179行.
+- `result_builder.py` のベンチマーク結果構築関数を統合した (`N/A.`).
+  - `build_onnx/trt/pytorch_benchmark_result()` 3関数を `build_benchmark_result()` 1関数に統合した.
+  - `_resolve_trt_precision()` を `resolve_trt_precision()` としてパブリック化した.
 
 ### Fixed
 - なし.

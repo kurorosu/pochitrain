@@ -17,9 +17,10 @@ from pochitrain.cli.cli_commons import (
     setup_logging,
 )
 from pochitrain.inference.benchmark import (
-    build_trt_benchmark_result,
+    build_benchmark_result,
     export_benchmark_json,
     resolve_benchmark_env_name,
+    resolve_trt_precision,
 )
 from pochitrain.inference.services.trt_inference_service import TensorRTInferenceService
 from pochitrain.utils import (
@@ -45,8 +46,10 @@ def _export_benchmark_if_needed(
         cli_env_name=args.benchmark_env_name,
         config_env_name=config.get("benchmark_env_name"),
     )
-    benchmark_result = build_trt_benchmark_result(
-        engine_path=engine_path,
+    benchmark_result = build_benchmark_result(
+        runtime="tensorrt",
+        precision=resolve_trt_precision(engine_path),
+        device="cuda",
         pipeline=result.pipeline,
         model_name=str(config.get("model_name", engine_path.stem)),
         batch_size=result.runtime_options.batch_size,
