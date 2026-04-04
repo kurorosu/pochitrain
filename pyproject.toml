@@ -53,6 +53,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
     "pytest-xdist>=3.8.0",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [project.scripts]
