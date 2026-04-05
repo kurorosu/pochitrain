@@ -3,6 +3,7 @@
 import base64
 from typing import Any, Protocol
 
+import cv2
 import numpy as np
 
 
@@ -77,8 +78,6 @@ class JpegSerializer:
 
     def serialize(self, image: np.ndarray) -> dict[str, Any]:
         """画像を JPEG 圧縮して base64 エンコードする."""
-        import cv2
-
         encode_params = [cv2.IMWRITE_JPEG_QUALITY, self.quality]
         _, buf = cv2.imencode(".jpg", image, encode_params)
         return {
@@ -92,8 +91,6 @@ class JpegSerializer:
         Raises:
             ValueError: JPEG デコードに失敗した場合.
         """
-        import cv2
-
         jpeg_bytes = base64.b64decode(data["image_data"])
         buf = np.frombuffer(jpeg_bytes, dtype=np.uint8)
         image = cv2.imdecode(buf, cv2.IMREAD_COLOR)

@@ -33,6 +33,7 @@ dependencies = [
     "tensorboard>=2.14.0",
     "fastapi>=0.135.3",
     "uvicorn[standard]>=0.43.0",
+    "opencv-python-headless>=4.11.0.86",
 ]
 
 [[tool.uv.index]]

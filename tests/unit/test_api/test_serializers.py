@@ -9,15 +9,6 @@ from pochitrain.api.serializers import (
     create_serializer,
 )
 
-try:
-    import cv2  # noqa: F401
-
-    _has_cv2 = True
-except ImportError:
-    _has_cv2 = False
-
-_requires_cv2 = pytest.mark.skipif(not _has_cv2, reason="cv2 が必要")
-
 
 @pytest.fixture
 def sample_image():
@@ -45,7 +36,6 @@ class TestRawArraySerializer:
         assert isinstance(data["image_data"], str)
 
 
-@_requires_cv2
 class TestJpegSerializer:
     """JpegSerializer のテスト."""
 
