@@ -2,7 +2,7 @@
 
 import sys
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from pochitrain.api.schemas import HealthResponse, ModelInfoResponse, VersionResponse
 
@@ -34,7 +34,13 @@ async def model_info() -> ModelInfoResponse:
     """ロード済みモデルの情報を返す."""
     from pochitrain.api.app import get_engine
 
-    engine = get_engine()
+    try:
+        engine = get_engine()
+    except RuntimeError:
+        raise HTTPException(
+            status_code=503,
+            detail="モデルがロードされていません",
+        )
     info = engine.get_model_info()
     return ModelInfoResponse(**info)
 
