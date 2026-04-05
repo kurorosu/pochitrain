@@ -11,7 +11,7 @@ class TestPredictRequest:
 
     def test_default_format(self):
         """デフォルト format が raw であることを確認."""
-        req = PredictRequest(image_data="abc123")
+        req = PredictRequest(image_data="abc123", shape=[480, 640, 3])
         assert req.format == "raw"
         assert req.dtype == "uint8"
 
@@ -19,6 +19,16 @@ class TestPredictRequest:
         """jpeg 形式でリクエストが作成できることを確認."""
         req = PredictRequest(image_data="abc123", format="jpeg")
         assert req.format == "jpeg"
+
+    def test_raw_without_shape_raises(self):
+        """raw 形式で shape 未指定時に ValidationError が発生することを確認."""
+        with pytest.raises(ValidationError, match="shape"):
+            PredictRequest(image_data="abc123", format="raw")
+
+    def test_invalid_dtype_raises(self):
+        """不正な dtype で ValidationError が発生することを確認."""
+        with pytest.raises(ValidationError, match="dtype"):
+            PredictRequest(image_data="abc123", shape=[480, 640, 3], dtype="invalid")
 
     def test_raw_with_shape(self):
         """raw 形式で shape を指定できることを確認."""

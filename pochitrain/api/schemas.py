@@ -1,8 +1,9 @@
 """API リクエスト/レスポンスのスキーマ定義."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field
+import numpy as np
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PredictRequest(BaseModel):
@@ -25,6 +26,25 @@ class PredictRequest(BaseModel):
         default="uint8",
         description="numpy 配列の dtype (raw 形式時に使用)",
     )
+
+    @model_validator(mode="after")
+    def validate_raw_format(self) -> Self:
+        """Raw フォーマット時に shape が必須であることを検証する."""
+        if self.format == "raw" and self.shape is None:
+            raise ValueError("raw フォーマットでは shape が必須です")
+        if self.format == "raw" and self.shape is not None and len(self.shape) != 3:
+            raise ValueError("shape は [height, width, 3] の形式である必要があります")
+        return self
+
+    @field_validator("dtype")
+    @classmethod
+    def validate_dtype(cls, v: str) -> str:
+        """Dtype が有効な numpy dtype であることを検証する."""
+        try:
+            np.dtype(v)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"無効な dtype: {v}") from e
+        return v
 
 
 class PredictResponse(BaseModel):
