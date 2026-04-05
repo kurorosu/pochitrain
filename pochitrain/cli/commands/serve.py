@@ -8,6 +8,7 @@ import uvicorn
 from pochitrain.api.app import create_app
 from pochitrain.api.config import ServerConfig
 from pochitrain.cli.cli_commons import setup_logging
+from pochitrain.utils.inference_utils import validate_model_path
 
 
 def serve_command(args: argparse.Namespace) -> None:
@@ -19,8 +20,15 @@ def serve_command(args: argparse.Namespace) -> None:
     logger = setup_logging(debug=getattr(args, "debug", False))
     logger.info("=== pochitrain サーバーモード ===")
 
+    model_path = Path(args.model_path)
+    try:
+        validate_model_path(model_path)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return
+
     server_config = ServerConfig(
-        model_path=Path(args.model_path),
+        model_path=model_path,
         config_path=Path(args.config_path) if args.config_path else None,
         backend=args.backend,
         host=args.host,
