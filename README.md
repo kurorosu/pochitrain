@@ -207,6 +207,8 @@ print(response.json())
 # {"class_id": 2, "class_name": "cat", "confidence": 0.95, ...}
 ```
 
+詳細なクライアント使用例 (JPEG 圧縮転送, pochivision 連携など) は [client_usage.md](pochitrain/api/docs/client_usage.md) を参照してください.
+
 ## 📖 詳細な使用方法
 
 ### 個別に使用する場合
