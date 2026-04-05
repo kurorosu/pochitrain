@@ -1,6 +1,6 @@
 """API ルーターのテスト."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -15,32 +15,34 @@ from pochitrain.api.serializers import RawArraySerializer
 @pytest.fixture
 def mock_engine():
     """モック推論エンジンを生成する."""
-    engine = object.__new__(InferenceEngine)
+    engine = MagicMock(spec=InferenceEngine)
     engine.backend = "pytorch"
     engine.model_name = "resnet18"
     engine.num_classes = 3
     engine.device_name = "cpu"
     engine.class_names = ["cat", "dog", "bird"]
-    engine.get_model_info = lambda: {
+    engine.get_model_info.return_value = {
         "model_name": "resnet18",
         "num_classes": 3,
         "class_names": ["cat", "dog", "bird"],
         "device": "cpu",
         "backend": "pytorch",
     }
+    engine.predict.return_value = {
+        "class_id": 0,
+        "class_name": "cat",
+        "confidence": 0.9,
+        "probabilities": [0.9, 0.05, 0.05],
+    }
     return engine
 
 
 @pytest.fixture
-def client(mock_engine):
+def client(mock_engine, monkeypatch):
     """テスト用 FastAPI クライアントを生成する."""
     app = create_app()
-    original = app_module._engine
-    app_module._engine = mock_engine
-    try:
-        yield TestClient(app)
-    finally:
-        app_module._engine = original
+    monkeypatch.setattr(app_module, "_engine", mock_engine)
+    yield TestClient(app)
 
 
 class TestHealthEndpoint:
@@ -85,15 +87,8 @@ class TestVersionEndpoint:
 class TestPredictEndpoint:
     """POST /api/v1/predict のテスト."""
 
-    def test_predict_raw(self, client, mock_engine):
+    def test_predict_raw(self, client):
         """raw 形式で推論が成功することを確認."""
-        mock_engine.predict = lambda image: {
-            "class_id": 0,
-            "class_name": "cat",
-            "confidence": 0.9,
-            "probabilities": [0.9, 0.05, 0.05],
-        }
-
         image = np.zeros((48, 64, 3), dtype=np.uint8)
         serializer = RawArraySerializer()
         payload = serializer.serialize(image)
