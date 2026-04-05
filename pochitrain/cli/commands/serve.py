@@ -24,11 +24,11 @@ def _build_uvicorn_log_config(log_level: str) -> dict[str, Any]:
         "disable_existing_loggers": False,
         "formatters": {
             "default": {
-                "fmt": _UVICORN_LOG_FORMAT,
+                "format": _UVICORN_LOG_FORMAT,
                 "datefmt": _UVICORN_DATE_FORMAT,
             },
             "access": {
-                "fmt": _UVICORN_LOG_FORMAT,
+                "format": _UVICORN_LOG_FORMAT,
                 "datefmt": _UVICORN_DATE_FORMAT,
             },
         },
