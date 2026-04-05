@@ -11,26 +11,46 @@ from pochitrain.api.config import ServerConfig
 from pochitrain.cli.cli_commons import setup_logging
 from pochitrain.utils.inference_utils import validate_model_path
 
-_UVICORN_LOG_FORMAT = (
+_UVICORN_COLOR_FORMAT = (
+    "%(asctime)s|%(log_color)s%(levelname)-5.5s%(reset)s|"
+    "%(name)-18s|%(lineno)03d| %(message)s"
+)
+_UVICORN_PLAIN_FORMAT = (
     "%(asctime)s|%(levelname)-5.5s|%(name)-18s|%(lineno)03d| %(message)s"
 )
 _UVICORN_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+_UVICORN_LOG_COLORS = {
+    "DEBUG": "cyan",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "CRITICAL": "red,bg_white",
+}
 
 
 def _build_uvicorn_log_config(log_level: str) -> dict[str, Any]:
     """Uvicorn 用のログ設定を LoggerManager と同一フォーマットで生成する."""
+    try:
+        import colorlog  # noqa: F401
+
+        formatter_config: dict[str, Any] = {
+            "()": "colorlog.ColoredFormatter",
+            "format": _UVICORN_COLOR_FORMAT,
+            "datefmt": _UVICORN_DATE_FORMAT,
+            "log_colors": _UVICORN_LOG_COLORS,
+        }
+    except ImportError:
+        formatter_config = {
+            "format": _UVICORN_PLAIN_FORMAT,
+            "datefmt": _UVICORN_DATE_FORMAT,
+        }
+
     return {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
-            "default": {
-                "format": _UVICORN_LOG_FORMAT,
-                "datefmt": _UVICORN_DATE_FORMAT,
-            },
-            "access": {
-                "format": _UVICORN_LOG_FORMAT,
-                "datefmt": _UVICORN_DATE_FORMAT,
-            },
+            "default": formatter_config,
+            "access": formatter_config,
         },
         "handlers": {
             "default": {
