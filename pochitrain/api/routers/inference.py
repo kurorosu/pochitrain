@@ -47,7 +47,7 @@ async def predict(request: PredictRequest) -> PredictResponse:
     elapsed_ms = (time.perf_counter() - start) * 1000
 
     logger.info(
-        "推論完了: class=%d, confidence=%.3f, time=%.1fms",
+        "推論完了: class=%d, confidence=%.3f, e2e_time=%.1fms",
         result["class_id"],
         result["confidence"],
         elapsed_ms,
@@ -58,6 +58,6 @@ async def predict(request: PredictRequest) -> PredictResponse:
         class_name=result["class_name"],
         confidence=result["confidence"],
         probabilities=result["probabilities"],
-        processing_time_ms=round(elapsed_ms, 3),
+        e2e_time_ms=round(elapsed_ms, 3),
         backend=engine.backend,
     )
