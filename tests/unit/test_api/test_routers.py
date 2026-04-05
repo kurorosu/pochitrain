@@ -102,8 +102,17 @@ class TestPredictEndpoint:
         assert data["backend"] == "pytorch"
         assert "processing_time_ms" in data
 
+    def test_predict_1x1_image(self, client):
+        """1x1 の境界値画像で推論が成功することを確認."""
+        image = np.zeros((1, 1, 3), dtype=np.uint8)
+        serializer = RawArraySerializer()
+        payload = serializer.serialize(image)
+
+        response = client.post("/api/v1/predict", json=payload)
+        assert response.status_code == 200
+
     def test_predict_invalid_data(self, client):
-        """不正なデータで 400 エラーが返ることを確認."""
+        """不正な base64 データで 400 エラーが返ることを確認."""
         response = client.post(
             "/api/v1/predict",
             json={
@@ -113,3 +122,35 @@ class TestPredictEndpoint:
             },
         )
         assert response.status_code == 400
+
+    def test_predict_raw_without_shape(self):
+        """raw 形式で shape 未指定時に 422 エラーが返ることを確認."""
+        app = create_app()
+        with TestClient(app) as c:
+            response = c.post(
+                "/api/v1/predict",
+                json={"image_data": "abc123", "format": "raw"},
+            )
+        assert response.status_code == 422
+
+
+class TestEngineNotLoaded:
+    """エンジン未初期化時のテスト."""
+
+    def test_health_returns_unhealthy(self, monkeypatch):
+        """エンジン未ロード時に unhealthy が返ることを確認."""
+        app = create_app()
+        monkeypatch.setattr(app_module, "_engine", None)
+        with TestClient(app) as c:
+            response = c.get("/api/v1/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "unhealthy"
+        assert response.json()["model_loaded"] is False
+
+    def test_model_info_returns_503(self, monkeypatch):
+        """エンジン未ロード時に 503 が返ることを確認."""
+        app = create_app()
+        monkeypatch.setattr(app_module, "_engine", None)
+        with TestClient(app) as c:
+            response = c.get("/api/v1/model-info")
+        assert response.status_code == 503

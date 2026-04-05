@@ -74,6 +74,32 @@ class TestJpegSerializer:
         assert len(jpeg_data["image_data"]) < len(raw_data["image_data"])
 
 
+class TestRawArraySerializerValidation:
+    """RawArraySerializer の入力検証テスト."""
+
+    def test_missing_shape_raises(self):
+        """shape がない場合に ValueError が発生することを確認."""
+        serializer = RawArraySerializer()
+        with pytest.raises(ValueError, match="shape が必須"):
+            serializer.deserialize({"image_data": "AAAA", "format": "raw"})
+
+    def test_invalid_shape_dimension_raises(self):
+        """shape が 3 次元でない場合に ValueError が発生することを確認."""
+        serializer = RawArraySerializer()
+        with pytest.raises(ValueError, match="\\(H, W, 3\\)"):
+            serializer.deserialize(
+                {"image_data": "AAAA", "shape": [48, 64], "format": "raw"}
+            )
+
+    def test_1x1_image_roundtrip(self):
+        """1x1 の境界値画像でラウンドトリップが成功することを確認."""
+        image = np.zeros((1, 1, 3), dtype=np.uint8)
+        serializer = RawArraySerializer()
+        data = serializer.serialize(image)
+        restored = serializer.deserialize(data)
+        np.testing.assert_array_equal(restored, image)
+
+
 class TestCreateSerializer:
     """create_serializer のテスト."""
 
