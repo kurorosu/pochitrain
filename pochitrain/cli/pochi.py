@@ -11,6 +11,7 @@ from pochitrain.cli.arg_types import positive_int
 from pochitrain.cli.commands.convert import convert_command
 from pochitrain.cli.commands.infer import infer_command
 from pochitrain.cli.commands.optimize import optimize_command
+from pochitrain.cli.commands.serve import serve_command
 from pochitrain.cli.commands.train import train_command
 
 
@@ -47,6 +48,13 @@ def main() -> None:
 
   TensorRT変換（キャリブレーションデータ指定）
   uv run pochi convert model.onnx --int8 --calib-data data/val
+
+  推論APIサーバー起動
+  uv run pochi serve work_dirs/20260206_001/models/best_epoch40.pth
+
+  推論APIサーバー起動（設定指定）
+  uv run pochi serve work_dirs/20260206_001/models/best_epoch40.pth
+    -c work_dirs/20260206_001/config.py --host 0.0.0.0 --port 8000
         """,
     )
 
@@ -104,6 +112,31 @@ def main() -> None:
         "-o",
         default="work_dirs/optuna_results",
         help="結果出力ディレクトリ (default: work_dirs/optuna_results)",
+    )
+
+    serve_parser = subparsers.add_parser("serve", help="推論APIサーバー起動")
+    serve_parser.add_argument("model_path", help="モデルファイルパス")
+    serve_parser.add_argument(
+        "--config-path",
+        "-c",
+        help="設定ファイルパス（省略時はモデルパスから自動検出）",
+    )
+    serve_parser.add_argument(
+        "--backend",
+        choices=("pytorch",),
+        default="pytorch",
+        help="推論バックエンド (default: pytorch)",
+    )
+    serve_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="バインドホスト (default: 127.0.0.1)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="バインドポート (default: 8000)",
     )
 
     convert_parser = subparsers.add_parser(
@@ -172,6 +205,8 @@ def main() -> None:
         optimize_command(args)
     elif args.command == "convert":
         convert_command(args)
+    elif args.command == "serve":
+        serve_command(args)
     else:
         parser.print_help()
         sys.exit(1)

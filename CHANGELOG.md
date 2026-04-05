@@ -6,7 +6,12 @@
 ## [Unreleased]
 
 ### Added
-- なし.
+- FastAPI ベースの推論 API サーバーを追加した (NA.).
+  - `pochi serve` コマンドでサーバーを起動し, HTTP 経由で画像分類を実行できる.
+  - `POST /api/v1/predict` で cv2 キャプチャ画像 (numpy 配列) を受け取り, クラス予測+信頼度を返す.
+  - `GET /api/v1/health`, `/model-info`, `/version` のヘルスチェック・情報エンドポイントを提供する.
+  - raw / JPEG の画像シリアライズ形式を Strategy パターンで切り替え可能.
+- `types-PyYAML` スタブパッケージを追加した ([#362](https://github.com/kurorosu/pochitrain/pull/362)).
 
 ### Changed
 - なし.

@@ -31,6 +31,8 @@ dependencies = [
     "onnxscript>=0.1.0",
     "onnxruntime-gpu>=1.16.0",
     "tensorboard>=2.14.0",
+    "fastapi>=0.135.3",
+    "uvicorn[standard]>=0.43.0",
 ]
 
 [[tool.uv.index]]
@@ -45,6 +47,7 @@ torchvision = { index = "pytorch-cu130" }
 [dependency-groups]
 dev = [
     "black>=25.12.0",
+    "httpx>=0.28.1",
     "isort>=7.0.0",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
