@@ -35,9 +35,10 @@ def serve_command(args: argparse.Namespace) -> None:
         server_config.port,
     )
 
+    debug = getattr(args, "debug", False)
     uvicorn.run(
         app,
         host=server_config.host,
         port=server_config.port,
-        log_level="info",
+        log_level="debug" if debug else "info",
     )
