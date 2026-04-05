@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+from pathlib import Path
 
 import uvicorn
 
@@ -17,8 +18,6 @@ def serve_command(args: argparse.Namespace) -> None:
     Args:
         args: コマンドライン引数.
     """
-    from pathlib import Path
-
     server_config = ServerConfig(
         model_path=Path(args.model_path),
         config_path=Path(args.config_path) if args.config_path else None,
