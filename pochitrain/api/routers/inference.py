@@ -6,6 +6,9 @@ from fastapi import APIRouter, HTTPException
 
 from pochitrain.api.schemas import PredictRequest, PredictResponse
 from pochitrain.api.serializers import create_serializer
+from pochitrain.logging import LoggerManager
+
+logger = LoggerManager().get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["inference"])
 
@@ -23,15 +26,32 @@ async def predict(request: PredictRequest) -> PredictResponse:
     try:
         serializer = create_serializer(request.format)
         image = serializer.deserialize(request.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
+        logger.exception("画像デシリアライズエラー")
         raise HTTPException(
-            status_code=400,
-            detail=f"画像データのデシリアライズに失敗: {e}",
+            status_code=500,
+            detail="画像処理中にエラーが発生しました",
         ) from e
 
     start = time.perf_counter()
-    result = engine.predict(image)
+    try:
+        result = engine.predict(image)
+    except Exception as e:
+        logger.exception("推論エラー")
+        raise HTTPException(
+            status_code=500,
+            detail="推論中にエラーが発生しました",
+        ) from e
     elapsed_ms = (time.perf_counter() - start) * 1000
+
+    logger.info(
+        "推論完了: class=%d, confidence=%.3f, time=%.1fms",
+        result["class_id"],
+        result["confidence"],
+        elapsed_ms,
+    )
 
     return PredictResponse(
         class_id=result["class_id"],
