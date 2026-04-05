@@ -100,7 +100,7 @@ class TestPredictEndpoint:
         assert data["class_name"] == "cat"
         assert data["confidence"] == 0.9
         assert data["backend"] == "pytorch"
-        assert "processing_time_ms" in data
+        assert "e2e_time_ms" in data
 
     def test_predict_1x1_image(self, client):
         """1x1 の境界値画像で推論が成功することを確認."""

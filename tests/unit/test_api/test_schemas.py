@@ -55,7 +55,7 @@ class TestPredictResponse:
             class_name="cat",
             confidence=0.95,
             probabilities=[0.01, 0.04, 0.95],
-            processing_time_ms=12.3,
+            e2e_time_ms=12.3,
             backend="pytorch",
         )
         assert resp.class_id == 2

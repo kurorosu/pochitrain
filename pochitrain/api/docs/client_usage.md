@@ -33,7 +33,7 @@ result = response.json()
 
 print(f"クラス: {result['class_name']} (ID: {result['class_id']})")
 print(f"信頼度: {result['confidence']:.3f}")
-print(f"推論時間: {result['processing_time_ms']:.1f}ms")
+print(f"E2E処理時間: {result['e2e_time_ms']:.1f}ms")
 ```
 
 ## jpeg 形式 (圧縮転送)
@@ -151,7 +151,7 @@ print(requests.get(f"{BASE}/version").json())
   "class_name": "cat",
   "confidence": 0.95,
   "probabilities": [0.01, 0.04, 0.95, 0.00],
-  "processing_time_ms": 12.3,
+  "e2e_time_ms": 12.3,
   "backend": "pytorch"
 }
 ```

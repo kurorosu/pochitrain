@@ -54,7 +54,7 @@ class PredictResponse(BaseModel):
     class_name: str = Field(description="予測クラス名")
     confidence: float = Field(ge=0.0, le=1.0, description="信頼度 (0.0-1.0)")
     probabilities: list[float] = Field(description="全クラスの確率")
-    processing_time_ms: float = Field(description="推論時間 (ミリ秒)")
+    e2e_time_ms: float = Field(description="エンドツーエンド処理時間 (ミリ秒)")
     backend: str = Field(description="使用バックエンド")
 
 
