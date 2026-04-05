@@ -45,9 +45,21 @@ class RawArraySerializer:
         }
 
     def deserialize(self, data: dict[str, Any]) -> np.ndarray:
-        """base64 デコードして numpy 配列を復元する."""
-        raw_bytes = base64.b64decode(data["image_data"])
+        """base64 デコードして numpy 配列を復元する.
+
+        Raises:
+            ValueError: shape が未指定または不正な場合.
+        """
+        if "shape" not in data or data["shape"] is None:
+            raise ValueError("raw フォーマットでは shape が必須です")
+
         shape = tuple(data["shape"])
+        if len(shape) != 3 or shape[2] != 3:
+            raise ValueError(
+                f"shape は (H, W, 3) である必要があります. 受け取った: {shape}"
+            )
+
+        raw_bytes = base64.b64decode(data["image_data"])
         dtype = np.dtype(data.get("dtype", "uint8"))
         return np.frombuffer(raw_bytes, dtype=dtype).reshape(shape)
 
@@ -75,12 +87,18 @@ class JpegSerializer:
         }
 
     def deserialize(self, data: dict[str, Any]) -> np.ndarray:
-        """base64 デコードして JPEG を numpy 配列に復元する."""
+        """base64 デコードして JPEG を numpy 配列に復元する.
+
+        Raises:
+            ValueError: JPEG デコードに失敗した場合.
+        """
         import cv2
 
         jpeg_bytes = base64.b64decode(data["image_data"])
         buf = np.frombuffer(jpeg_bytes, dtype=np.uint8)
-        image: np.ndarray = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        image = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError("JPEG デコード失敗: 不正または破損した画像データ")
         return image
 
 
