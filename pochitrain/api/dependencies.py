@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from PIL import Image
 
 from pochitrain.models.pochi_models import create_model
 from pochitrain.utils.model_loading import load_model_from_checkpoint
@@ -58,8 +59,6 @@ class InferenceEngine:
         Returns:
             推論結果辞書.
         """
-        from PIL import Image
-
         # BGR → RGB → PIL Image (val_transform が ToTensor を含む前提)
         rgb = image[:, :, ::-1].copy()
         pil_image = Image.fromarray(rgb)
