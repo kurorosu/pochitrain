@@ -163,6 +163,52 @@ uv run tensorboard --logdir work_dirs/YYYYMMDD_XXX/visualization/tensorboard
 
 ブラウザで `http://localhost:6006` を開くと, loss, accuracy, 学習率のグラフを確認できます.
 
+### 9. 推論 API サーバー
+
+FastAPI ベースの推論 API サーバーを起動し, HTTP 経由で画像分類を実行できます.
+
+基本的な起動 (config はモデルパスから自動検出):
+```bash
+uv run pochi serve work_dirs/20251018_001/models/best_epoch40.pth
+```
+
+ホスト・ポートを指定する場合:
+```bash
+uv run pochi serve work_dirs/20251018_001/models/best_epoch40.pth \
+  --config work_dirs/20251018_001/config.py \
+  --host 0.0.0.0 --port 8000
+```
+
+エンドポイント:
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| POST | `/api/v1/predict` | 画像推論 (JSON body) |
+| GET | `/api/v1/health` | ヘルスチェック |
+| GET | `/api/v1/model-info` | モデル情報 |
+| GET | `/api/v1/version` | バージョン情報 |
+
+リクエスト例 (Python):
+```python
+import requests
+import numpy as np
+import base64
+
+# cv2 キャプチャ画像を送信
+image = np.zeros((480, 640, 3), dtype=np.uint8)
+payload = {
+    "image_data": base64.b64encode(image.tobytes()).decode(),
+    "shape": list(image.shape),
+    "dtype": "uint8",
+    "format": "raw",
+}
+response = requests.post("http://localhost:8000/api/v1/predict", json=payload)
+print(response.json())
+# {"class_id": 2, "class_name": "cat", "confidence": 0.95, ...}
+```
+
+詳細なクライアント使用例 (JPEG 圧縮転送, pochivision 連携など) は [client_usage.md](pochitrain/api/docs/client_usage.md) を参照してください.
+
 ## 📖 詳細な使用方法
 
 ### 個別に使用する場合
