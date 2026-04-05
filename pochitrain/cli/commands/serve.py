@@ -1,15 +1,13 @@
 """pochi serve サブコマンド."""
 
 import argparse
-import logging
 from pathlib import Path
 
 import uvicorn
 
 from pochitrain.api.app import create_app
 from pochitrain.api.config import ServerConfig
-
-logger = logging.getLogger(__name__)
+from pochitrain.cli.cli_commons import setup_logging
 
 
 def serve_command(args: argparse.Namespace) -> None:
@@ -18,6 +16,9 @@ def serve_command(args: argparse.Namespace) -> None:
     Args:
         args: コマンドライン引数.
     """
+    logger = setup_logging(debug=getattr(args, "debug", False))
+    logger.info("=== pochitrain サーバーモード ===")
+
     server_config = ServerConfig(
         model_path=Path(args.model_path),
         config_path=Path(args.config_path) if args.config_path else None,
